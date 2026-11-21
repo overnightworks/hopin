@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from webauth.config import WebAuthConfig
     from webauth.middleware import ProtectedResource
     from webauth.oidc import OidcRelyingParty
-    from webauth.ports import SessionRecordStore, SignInTransaction
+    from webauth.ports import SessionTransaction, SignInTransaction
 
     from hopin.signaling.frames import ForeignFrame, PeerId
     from hopin.signaling.scheduler import Deadlines, Scheduler
@@ -191,7 +191,7 @@ class StageFeature:
         self,
         *,
         relying_party: OidcRelyingParty,
-        sessions: SessionRecordStore,
+        session_transaction: SessionTransaction,
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
         deadlines: Deadlines,
@@ -199,7 +199,7 @@ class StageFeature:
         request_language: RequestLanguage,
         page_build: PageBuild,
     ) -> BuiltStageFeature:
-        del relying_party, sessions, auth_config, scheduler, deadlines, transaction
+        del relying_party, session_transaction, auth_config, scheduler, deadlines, transaction
         transitions = StageTransitions(self.apps)
         router = create_start_link_router(self.apps, transitions.room_showing, page_build, request_language)
         return BuiltStageFeature(transitions, router)

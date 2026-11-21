@@ -2,37 +2,25 @@ import json
 import re
 import secrets
 import time
-from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from html.parser import HTMLParser
-from typing import TYPE_CHECKING
-from urllib.parse import parse_qs, urlencode, urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 import structlog.testing
-from fastapi import FastAPI, Request
-from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from webauth.admission import AppRole
-from webauth.config import WebAuthConfig, install_web_auth_config, web_auth_config
-from webauth.dependencies import ConnectionRefusal, admit_session, session_id_from_request
+from webauth.dependencies import ConnectionRefusal, admit_session
 from webauth.languages import AppLanguages
 from webauth.oidc_login import new_session_id
 from webauth.ports import AccountEventKind, AccountKind
 
 from hopin.auth.sign_in import (
-    IssuerTransports,
     LoggingAuditSink,
-    build_relying_party,
-    build_sign_in_configs,
-    install_sign_in,
-    words_logout_button_label,
 )
 from hopin.config.constants import (
     ADMIN_GROUP,
     AUTH_CALLBACK_PATH,
-    AUTH_START_PATH,
-    BACKCHANNEL_LOGOUT_PATH,
     HOME_PATH,
     LOGIN_GROUP,
     LOGIN_PATH,
@@ -40,195 +28,23 @@ from hopin.config.constants import (
     NO_ACCESS_PATH,
     SESSION_LIFETIME_SECONDS,
 )
-from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER
-from hopin.web.page_build import APP_LANGUAGES
-from hopin.web.request_language import RequestLanguage
 from hopin.words import text
 from tests.support.fake_issuer import FakeIssuer
-from tests.support.in_thread_stores import in_thread_stores
-from tests.support.page_build import SOURCE_LANGUAGE_DIRECTORY, fixture_page_build
-from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
+from tests.support.sign_in_harness import (
+    PENDING_COOKIE_PREFIX,
+    SESSION_COOKIE,
+    SUBJECT,
+    USERNAME,
+    assert_pending_login_cleared,
+    assert_refused,
+    pending_cookie_values,
+    set_cookies,
+    with_query_value,
+)
+from tests.support.sign_in_settings import TEST_ISSUER, TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, new_id_token, seed_member
-from tests.support.stores import single_process_stores
 
 pytestmark = pytest.mark.integration
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from httpx2 import Response
-    from webauth.ports import AuditSink
-    from webauth.single_process_stores import SingleProcessAccountStore, SingleProcessSessionStore
-
-SESSION_COOKIE = "__Host-session_id"
-PENDING_COOKIE_PREFIX = "__Host-oidc_pending_"
-WHO_AM_I_PATH = "/who-am-i"
-SUBJECT = "subject-1"
-USERNAME = "alice"
-
-
-@dataclass
-class SignInHarness:
-    sign_in: SignInSettings
-    issuer: FakeIssuer
-    accounts: SingleProcessAccountStore
-    sessions: SingleProcessSessionStore
-    config: WebAuthConfig
-    app: FastAPI
-    started: list[Response] = field(default_factory=list)
-
-    def browser(self, *, raise_server_exceptions: bool = True) -> TestClient:
-        return TestClient(
-            self.app,
-            base_url=TEST_PUBLIC_ORIGIN,
-            follow_redirects=False,
-            raise_server_exceptions=raise_server_exceptions,
-        )
-
-    def start(self, browser: TestClient, next_path: str | None = None, **headers: str) -> Response:
-        params = {} if next_path is None else {RETURN_TO_QUERY_PARAMETER: next_path}
-        response = browser.get(AUTH_START_PATH, params=params, headers=headers)
-        self.started.append(response)
-        return response
-
-    def sign_in_through(
-        self,
-        browser: TestClient,
-        *,
-        subject: str = SUBJECT,
-        groups: list[str] | str | None = (LOGIN_GROUP,),
-        username: str = USERNAME,
-        next_path: str | None = None,
-    ) -> Response:
-        start = self.start(browser, next_path)
-        query = self.issuer.authorize(start.headers["location"], subject=subject, groups=groups, username=username)
-        return browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
-
-    def post_logout_token(self, token: str, *, content_type: str = "application/x-www-form-urlencoded") -> Response:
-        """What the issuer's back-channel logout sends: a form post with no cookie."""
-        fields = {"logout_token": token}
-        return self.browser(raise_server_exceptions=False).post(
-            BACKCHANNEL_LOGOUT_PATH, content=urlencode(fields), headers={"content-type": content_type}
-        )
-
-    def log_out(self, browser: TestClient) -> Response:
-        """What the page's log-out button sends: a POST. This harness has no origin check; test_gate proves it."""
-        return browser.post(LOGOUT_PATH)
-
-    def who(self, browser: TestClient) -> dict[str, object]:
-        return browser.get(WHO_AM_I_PATH).json()
-
-
-@pytest.fixture
-def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
-    def make(
-        *,
-        key_set_of: FakeIssuer | None = None,
-        windows_line_ending: bool = False,
-        client_secret: str | None = None,
-        audit: AuditSink | None = None,
-        languages: AppLanguages = APP_LANGUAGES,
-        logout_button_label: Callable[[str], str] = words_logout_button_label,
-    ) -> SignInHarness:
-        sign_in = sign_in_settings()
-        if client_secret is not None:
-            sign_in = replace(sign_in, client_secret=client_secret)
-        sign_in.settings.oidc_client_secret_file.write_text(
-            sign_in.client_secret + ("\r\n" if windows_line_ending else "\n")
-        )
-        configs = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits)
-        issuer = FakeIssuer(sign_in)
-        transports = issuer.transports
-        if key_set_of is not None:
-            transports = IssuerTransports(transports.post_token_request, key_set_of.fetch_key_set)
-        stores = single_process_stores(audit)
-        accounts, sessions = stores.accounts, stores.sessions
-        app = FastAPI()
-        install_web_auth_config(app, configs.web_auth)
-        install_sign_in(
-            app,
-            build_relying_party(configs, transports),
-            stores.transaction,
-            fixture_page_build(languages),
-            RequestLanguage(languages, sessions, configs.web_auth),
-            logout_button_label,
-        )
-
-        @app.get(WHO_AM_I_PATH)
-        def who_am_i(request: Request) -> dict[str, object]:
-            config = web_auth_config(request)
-            session_id = session_id_from_request(request, config)
-            if session_id is None:
-                return {"user": None}
-            admitted = admit_session(session_id, sessions=sessions, config=config)
-            if isinstance(admitted, ConnectionRefusal):
-                return {"user": None}
-            return {"user": {"id": admitted.id, "username": admitted.username}, "session_id": session_id}
-
-        return SignInHarness(sign_in, issuer, accounts, sessions, configs.web_auth, app)
-
-    return make
-
-
-@pytest.fixture
-def harness(make_harness) -> SignInHarness:
-    return make_harness()
-
-
-def set_cookies(response: Response) -> dict[str, set[str]]:
-    """Each Set-Cookie of the response as its name and its lowercased attributes."""
-    cookies = {}
-    for raw in response.headers.get_list("set-cookie"):
-        name_and_value, *attributes = raw.split("; ")
-        cookies[name_and_value.split("=", 1)[0]] = {attribute.lower() for attribute in attributes}
-    return cookies
-
-
-def pending_cookie_values(response: Response) -> dict[str, str]:
-    raw_cookies = (raw.split("; ")[0].split("=", 1) for raw in response.headers.get_list("set-cookie"))
-    return {name: value for name, value in raw_cookies if name.startswith(PENDING_COOKIE_PREFIX)}
-
-
-def with_query_value(url: str, name: str, value: str) -> str:
-    parts = urlsplit(url)
-    query = parse_qs(parts.query)
-    query[name] = [value]
-    return parts._replace(query=urlencode(query, doseq=True)).geturl()
-
-
-def cookie_scope(raw_cookie: str) -> tuple[str, frozenset[str]]:
-    """A Set-Cookie as its name and the attributes that say where and how the browser keeps it."""
-    name_and_value, *attributes = raw_cookie.split("; ")
-    kept = {a.lower() for a in attributes if not a.lower().startswith(("max-age", "expires"))}
-    return name_and_value.split("=", 1)[0], frozenset(kept)
-
-
-def assert_refused(harness: SignInHarness, response: Response, *, cleared_under_start_name: bool = True) -> None:
-    assert response.status_code == 403
-    assert response.headers["content-type"].startswith("text/html")
-    assert response.content == (SOURCE_LANGUAGE_DIRECTORY / "login-failed.html").read_bytes()
-    assert_pending_login_cleared(harness, response, cleared_under_start_name=cleared_under_start_name)
-
-
-def assert_pending_login_cleared(
-    harness: SignInHarness, response: Response, *, cleared_under_start_name: bool = True
-) -> None:
-    cookies = set_cookies(response)
-    assert SESSION_COOKIE not in cookies
-    set_by_start = {
-        cookie_scope(raw)
-        for started in harness.started
-        for raw in started.headers.get_list("set-cookie")
-        if raw.startswith(PENDING_COOKIE_PREFIX)
-    }
-    cleared = [raw for raw in response.headers.get_list("set-cookie") if raw.startswith(PENDING_COOKIE_PREFIX)]
-    assert len(cleared) == 1
-    assert "max-age=0" in cleared[0].lower()
-    cleared_name, cleared_attributes = cookie_scope(cleared[0])
-    if cleared_under_start_name:
-        assert (cleared_name, cleared_attributes) in set_by_start
-    else:
-        assert cleared_attributes in {attributes for _, attributes in set_by_start}
 
 
 class TestStart:

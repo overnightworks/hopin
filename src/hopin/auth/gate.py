@@ -20,12 +20,11 @@ from hopin.config.constants import (
     NO_ACCESS_PATH,
 )
 from hopin.config.web_policy import SIGN_IN_PATHS
-from hopin.stores.session_transaction import session_transaction_of
 
 if TYPE_CHECKING:
     from webauth.middleware import ProtectedResource
     from webauth.oidc import OidcRelyingParty
-    from webauth.ports import SessionRecordStore
+    from webauth.ports import SessionTransaction
 
 PUBLIC_PATHS = frozenset(
     {
@@ -37,11 +36,11 @@ PUBLIC_PATHS = frozenset(
 
 
 def session_gate(
-    sessions: SessionRecordStore, sign_in_assets: frozenset[str], resource: ProtectedResource | None = None
+    session_transaction: SessionTransaction, sign_in_assets: frozenset[str], resource: ProtectedResource | None = None
 ) -> SessionGate:
     # Each call takes the stores' shared guard, so a sign-in entry in progress holds this call back.
     return SessionGate(
-        session_transaction=session_transaction_of(sessions),
+        session_transaction=session_transaction,
         login_redirect=SIGN_IN_PATHS.login_redirect,
         public=(
             PublicRule(PathRules(exact=PUBLIC_PATHS | sign_in_assets)),

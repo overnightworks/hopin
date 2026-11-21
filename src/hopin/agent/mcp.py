@@ -75,7 +75,6 @@ from hopin.participation.vocabulary import (
 )
 from hopin.participation.voice import VoiceStore, voice_endpoint
 from hopin.signaling.identity import SessionIdentityResolver
-from hopin.stores.session_transaction import session_transaction_of
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Coroutine, Mapping
@@ -85,7 +84,7 @@ if TYPE_CHECKING:
     from starlette.types import ASGIApp, Receive, Scope, Send
     from webauth.config import WebAuthConfig
     from webauth.oidc import OidcRelyingParty
-    from webauth.ports import SessionRecordStore, SignInTransaction
+    from webauth.ports import SessionTransaction, SignInTransaction
 
     from hopin.agent.speech_settings import SpeechService
     from hopin.participation.chat_window import WindowRead, WindowTalkedOver
@@ -452,7 +451,7 @@ class ParticipationFeature:
         self,
         *,
         relying_party: OidcRelyingParty,
-        sessions: SessionRecordStore,
+        session_transaction: SessionTransaction,
         auth_config: WebAuthConfig,
         scheduler: Scheduler,
         deadlines: Deadlines,
@@ -465,7 +464,7 @@ class ParticipationFeature:
             deadlines,
             auth_config.wall_clock,
             self.agent_adders,
-            SessionGroups(relying_party, session_transaction_of(sessions), auth_config),
+            SessionGroups(relying_party, session_transaction, auth_config),
             self.figure_sources,
             hears=self.hearing is not None,
             voices=self.voices,
@@ -498,7 +497,7 @@ class ParticipationFeature:
         )
         _add_file_routes(router, store, clip_store, built.current)
         self._add_voice_route(router, built.current)
-        self._add_hearing_route(router, built.current, relying_party, sessions, scheduler, hearing_tokens)
+        self._add_hearing_route(router, built.current, relying_party, session_transaction, scheduler, hearing_tokens)
         return BuiltParticipationFeature(built.participation, router, self._resource(transaction))
 
     def _clip_store(self) -> FigureStore:
@@ -520,7 +519,7 @@ class ParticipationFeature:
         router: APIRouter,
         participation: Callable[[], Participation],
         relying_party: OidcRelyingParty,
-        sessions: SessionRecordStore,
+        session_transaction: SessionTransaction,
         scheduler: Scheduler,
         hearing_tokens: HearingTokens,
     ) -> None:
@@ -530,7 +529,7 @@ class ParticipationFeature:
         hearing_route = HearingRoute(
             service=self.hearing,
             issuer=relying_party.issuer,
-            resolver=SessionIdentityResolver(sessions),
+            resolver=SessionIdentityResolver(session_transaction),
             participation=participation,
             tokens=hearing_tokens,
             relying_party=relying_party,
