@@ -893,6 +893,7 @@ body {
 }
 .tabs {
 	display: flex;
+	flex-wrap: wrap;
 	gap: 4px;
 }
 .read {
@@ -1015,6 +1016,7 @@ section[hidden] {
 }
 .char-canvas {
 	position: absolute;
+	z-index: 1;
 	inset: 0;
 	width: 100%;
 	height: 100%;
@@ -1078,6 +1080,73 @@ section[hidden] {
 	color: var(--text);
 }
 
+.room {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+}
+.room svg {
+	position: absolute;
+	display: block;
+	left: 50%;
+	transform: translateX(-50%);
+	width: calc(7 / var(--vh, 1.23) * 100cqh);
+	height: calc(3.5 / var(--vh, 1.23) * 100cqh);
+	top: calc(50cqh - (3 - var(--cy, 1.375)) / var(--vh, 1.23) * 100cqh);
+}
+.tile.agent:not(.has-char) .room {
+	display: none;
+}
+.tile.has-room::after {
+	z-index: 3;
+}
+.roomnote {
+	max-width: 1280px;
+	margin: 0 auto 16px;
+	padding: 12px 14px;
+	border-radius: 12px;
+	background: var(--stage-2);
+	color: var(--on-stage);
+	font-size: 13.5px;
+	line-height: 1.5;
+}
+.roomnote h2 {
+	margin: 0 0 6px;
+	font-size: 14px;
+}
+.roomnote p {
+	margin: 0;
+}
+.roomnote ol {
+	margin: 4px 0 0;
+	padding-left: 20px;
+}
+.roomsec {
+	max-width: 1280px;
+	margin: 0 auto 20px;
+}
+.roomsec > h2 {
+	margin: 0 0 8px;
+	padding: 0 4px;
+	font-size: 15px;
+}
+.roomsec > h2 small {
+	font-size: 12.5px;
+	font-weight: 500;
+	color: var(--text-muted);
+}
+.roomsec .pairgrid.one {
+	grid-template-columns: 1fr;
+}
+.roomsec .pairgrid.one .view {
+	max-width: 640px;
+}
+.whole {
+	display: block;
+	width: 100%;
+	max-width: 760px;
+	border-radius: 12px;
+}
 .stage.bare .ctop,
 .stage.bare .cbar {
 	display: none;
@@ -1088,7 +1157,7 @@ section[hidden] {
 </style></head>
 <body>
 <div class="top"><h1>Agent-Kachel mit 3D-Figur</h1>
-<nav class="tabs"><button type="button" data-tab="stage" aria-pressed="true">Bühne</button><button type="button" data-tab="gaze" aria-pressed="false">Blick</button><button type="button" data-tab="framing" aria-pressed="false">Rahmung</button><button type="button" data-tab="change" aria-pressed="false">Wechsel</button></nav></div>
+<nav class="tabs"><button type="button" data-tab="stage" aria-pressed="true">Bühne</button><button type="button" data-tab="gaze" aria-pressed="false">Blick</button><button type="button" data-tab="framing" aria-pressed="false">Rahmung</button><button type="button" data-tab="change" aria-pressed="false">Wechsel</button><button type="button" data-tab="room" aria-pressed="false">Raum</button><button type="button" data-tab="cases" aria-pressed="false">Raumfälle</button></nav></div>
 <p class="licence">Die Bilder zeigen pixivs Beispielmodell <code>VRM1_Constraint_Twist_Sample</code>, © 2022 pixiv Inc., unter <a href="https://vrm.dev/licenses/1.0/">https://vrm.dev/licenses/1.0/</a>, als Stellvertreter-Gesicht.</p>
 <section id="stageView">
 <div class="panel">
@@ -1100,6 +1169,7 @@ section[hidden] {
 <div class="grp"><span class="gl">Ausfall</span><div class="seg" id="grpFail"><button type="button" data-act="fail" data-v="loading" aria-pressed="false">loading</button><button type="button" data-act="fail" data-v="nowebgl" aria-pressed="false">no WebGL</button><button type="button" data-act="fail" data-v="lost" aria-pressed="false">lost</button><button type="button" data-act="fail" data-v="slow" aria-pressed="false">slow</button><button type="button" data-act="fail" data-v="ok" aria-pressed="true">ok</button></div></div>
 <div class="grp"><span class="gl">Dazu</span><div class="seg"><button type="button" data-act="muted" aria-pressed="false">muted for me</button><button type="button" data-act="reduce" aria-pressed="false">reduced motion</button></div></div>
 <div class="grp"><span class="gl">Rahmung</span><div class="seg" id="grpFraming"><button type="button" data-act="framing" data-v="face" aria-pressed="false">Gesicht</button><button type="button" data-act="framing" data-v="shoulders" aria-pressed="true">Schultern</button><button type="button" data-act="framing" data-v="upper" aria-pressed="false">Oberkörper</button><button type="button" data-act="framing" data-v="full" aria-pressed="false">ganzer Körper</button></div></div>
+<div class="grp"><span class="gl">Raum</span><div class="seg" id="grpRoom"><button type="button" data-act="room" data-v="none" aria-pressed="true">kein Raum</button><button type="button" data-act="room" data-v="salon" aria-pressed="false">Salon</button><button type="button" data-act="room" data-v="atelier" aria-pressed="false">Atelier</button><button type="button" data-act="room" data-v="failed" aria-pressed="false">Raum fehlt</button></div></div>
 <div class="grp"><span class="gl">Modell (.vrm)</span><input type="file" id="pick" accept=".vrm,model/gltf-binary"></div>
 <div class="read" id="read"></div>
 </div>
@@ -1120,6 +1190,19 @@ section[hidden] {
 </section>
 <section id="changeView" hidden>
 <div class="pairgrid three" id="changeGrid"></div>
+</section>
+<section id="roomView" hidden>
+<div class="roomnote" id="roomNote"><h2>Der Raum hinter der Figur: zwei offene Fragen</h2>
+<p>Die Räume hier sind Platzhalter aus flachen Formen, kein echtes Raumbild. Sie zeigen nur, wie ein Raum die Kachel verändert: Aus dem durchsichtigen Hintergrund wird eine undurchsichtige Szene. Die Figur steht davor, Hör-Schalter, Namensschild und Abdunklung liegen darüber.</p>
+<ol><li>Zeigt die Kachel den Raum hinter allen vier Rahmungen oder nur herausgezoomt? Empfehlung: bei allen vieren.</li>
+<li>Bei ganzem Körper zeigt das Sichtfeld von 22 Grad den Raum nur als schmalen Streifen hinter der Figur, nicht komplett. Reicht das?</li></ol></div>
+<div class="roomsec"><h2>Vier Rahmungen mit Raum <small>Hör-Schalter, Namensschild und Abdunklung liegen über dem Raum</small></h2><div class="pairgrid" id="roomGrid"></div></div>
+<div class="roomsec" id="wholeSec"><h2>Der ganze Raum und was jede Rahmung davon zeigt <small>Bei ganzem Körper bleibt ein Streifen, nicht der Raum komplett</small></h2><svg class="whole" id="roomWhole" viewBox="0 0 700 350" role="img" aria-label="Der ganze Raum mit dem Ausschnitt jeder Rahmung"></svg></div>
+</section>
+<section id="casesView" hidden>
+<div class="roomsec"><h2>Raumwechsel als Schnitt <small>Der Raum wechselt ohne Übergang, die Figur bleibt stehen</small></h2><div class="pairgrid" id="cutGrid"></div></div>
+<div class="roomsec"><h2>Raum lädt langsam oder fällt aus <small>Die Bühne bleibt schlicht, die Figur steht wie heute</small></h2><div class="pairgrid" id="failGrid"></div></div>
+<div class="roomsec"><h2>Ohne Raum <small>die Kachel wie heute</small></h2><div class="pairgrid one" id="noneGrid"></div></div>
 </section>
 <script type="module">
 import {TextureLoader,WebGLRenderer,Scene,DirectionalLight,AmbientLight,PerspectiveCamera,Vector3,MathUtils} from "three";
@@ -1320,6 +1403,17 @@ var eh = { aa: [800, 1200, 2600], ih: [300, 2300, 3e3], ou: [330, 800, 2500], ee
     upper: { r: 0.43, o: 0.75, a: 0.45 },
     full: { r: 0.7, o: 9, a: 0.6 },
   },
+  // Räume als flache Platzhalter-Formen. 1 m = 100 Einheiten, y = 300 ist der Boden unter den Füßen der Figur.
+  ROOMS = {
+    salon:
+      '<svg viewBox="0 0 700 350" preserveAspectRatio="none" aria-hidden="true"><rect width="700" height="250" fill="#d8c4a8"/><rect y="150" width="700" height="100" fill="#c9b08c"/><rect y="250" width="700" height="100" fill="#8d6b4c"/><ellipse cx="350" cy="312" rx="190" ry="26" fill="#b5533c"/><rect x="305" y="45" width="90" height="60" fill="#f4efe6"/><rect x="312" y="52" width="76" height="46" fill="#7fa6c9"/><polygon points="312,98 340,70 358,88 368,78 388,98" fill="#4f7a5a"/><rect x="70" y="50" width="130" height="120" fill="#f4efe6"/><rect x="78" y="58" width="114" height="104" fill="#a9cfe8"/><rect x="132" y="58" width="6" height="104" fill="#f4efe6"/><rect x="78" y="106" width="114" height="6" fill="#f4efe6"/><rect x="500" y="40" width="150" height="200" fill="#7a5a3c"/><rect x="508" y="48" width="134" height="56" fill="#5d4129"/><rect x="508" y="112" width="134" height="56" fill="#5d4129"/><rect x="508" y="176" width="134" height="56" fill="#5d4129"/><rect x="516" y="62" width="14" height="42" fill="#c0504d"/><rect x="532" y="56" width="14" height="48" fill="#4a7ba6"/><rect x="548" y="66" width="14" height="38" fill="#e0b84a"/><rect x="580" y="60" width="40" height="44" fill="#e8e0d0"/><rect x="516" y="126" width="30" height="42" fill="#5f8f5a"/><rect x="552" y="120" width="14" height="48" fill="#c0504d"/><rect x="570" y="130" width="50" height="38" fill="#4a7ba6"/><rect x="516" y="190" width="60" height="42" fill="#e0b84a"/><rect x="590" y="184" width="14" height="48" fill="#4a7ba6"/><rect x="225" y="205" width="26" height="45" fill="#b86b4b"/><circle cx="238" cy="185" r="22" fill="#5f8f5a"/><circle cx="222" cy="170" r="16" fill="#6fa068"/><circle cx="254" cy="168" r="16" fill="#6fa068"/><rect x="448" y="100" width="4" height="150" fill="#444"/><polygon points="430,100 470,100 460,70 440,70" fill="#f0c860"/></svg>',
+    atelier:
+      '<svg viewBox="0 0 700 350" preserveAspectRatio="none" aria-hidden="true"><rect width="700" height="250" fill="#a7c0b6"/><rect y="170" width="700" height="80" fill="#8fa99f"/><rect y="250" width="700" height="100" fill="#5f6b73"/><circle cx="350" cy="70" r="30" fill="#f4f1ea"/><rect x="348" y="48" width="4" height="24" fill="#333"/><rect x="348" y="68" width="18" height="4" fill="#333"/><rect x="440" y="50" width="200" height="130" fill="#d9d2c2"/><rect x="458" y="66" width="10" height="70" fill="#b5533c"/><rect x="486" y="66" width="40" height="8" fill="#555"/><rect x="486" y="90" width="26" height="26" fill="#e0b84a"/><rect x="548" y="66" width="12" height="60" fill="#4a7ba6"/><rect x="580" y="70" width="34" height="34" fill="#5f8f5a"/><rect x="60" y="170" width="200" height="14" fill="#c9a46a"/><rect x="72" y="184" width="10" height="66" fill="#8a6a3c"/><rect x="238" y="184" width="10" height="66" fill="#8a6a3c"/><rect x="90" y="140" width="46" height="30" fill="#e8e0d0"/><rect x="170" y="150" width="30" height="20" fill="#c0504d"/><rect x="214" y="120" width="4" height="50" fill="#444"/><polygon points="198,120 234,120 226,98 206,98" fill="#4a7ba6"/><rect x="60" y="40" width="70" height="90" fill="#f4efe6"/><rect x="68" y="48" width="54" height="74" fill="#e0b84a"/><rect x="150" y="50" width="60" height="70" fill="#f4efe6"/><rect x="158" y="58" width="44" height="54" fill="#b5533c"/><rect x="540" y="215" width="50" height="10" fill="#8a6a3c"/><rect x="560" y="225" width="8" height="40" fill="#8a6a3c"/></svg>',
+  },
+  // Sichtbare Höhe (m) auf Höhe der Raumwand: Bildhöhe an der Figur plus die Kegelaufweitung über 1,5 m Abstand zur Wand bei 22 Grad.
+  WALL_SPREAD = 0.58,
+  // Augenhöhe und Fußgrenze (Augenhöhe + 0,05) sind die des Mockup-Modells (pixivs Beispielmodell), kein Produktwert.
+  EYE_HEIGHT = 1.45,
   ih = class {
     constructor(e, t = {}) {
       ((this.tile = e),
@@ -1459,7 +1553,19 @@ var eh = { aa: [800, 1200, 2600], ih: [300, 2300, 3e3], ou: [330, 800, 2500], ee
         l = (r + o) / 2,
         c = this.headPos.y + (r - o) / 2,
         u = Math.max(l / s, a / (s * this.camera.aspect));
-      (this.camera.position.set(this.headPos.x, c, this.headPos.z + u), this.camera.lookAt(this.headPos.x, c, this.headPos.z), this.camera.updateProjectionMatrix());
+      (this.camera.position.set(this.headPos.x, c, this.headPos.z + u), this.camera.lookAt(this.headPos.x, c, this.headPos.z), this.camera.updateProjectionMatrix(), this.placeRoom());
+    }
+    placeRoom() {
+      let m = this.host.querySelector(".room"),
+        { r, o } = this.fr;
+      m && (m.style.setProperty("--vh", String(r + o + WALL_SPREAD)), m.style.setProperty("--cy", String(EYE_HEIGHT + (r - o) / 2)));
+    }
+    setRoom(n) {
+      (this.host.querySelector(".room")?.remove(), this.tile.classList.toggle("has-room", !!ROOMS[n]));
+      if (ROOMS[n]) {
+        let d = document.createElement("div");
+        ((d.className = "room"), (d.innerHTML = ROOMS[n]), this.host.prepend(d), this.fr && this.placeRoom());
+      }
     }
     glide(e) {
       let g = this.goal(),
@@ -1667,7 +1773,7 @@ var sh = class {
     }
   },
   co = class {
-    constructor(e, { count: t = 3, policy: n = "B", pair: s = !1, hearOn: r = !0, annaHeard: o = !0, agents: a = ["Mozart"], framing: f = "shoulders", bare: b = !1 } = {}) {
+    constructor(e, { count: t = 3, policy: n = "B", pair: s = !1, hearOn: r = !0, annaHeard: o = !0, agents: a = ["Mozart"], framing: f = "shoulders", bare: b = !1, room: rm = "none" } = {}) {
       ((this.root = e),
         (this.count = t),
         (this.policy = n),
@@ -1677,6 +1783,7 @@ var sh = class {
         (this.agentNames = a),
         (this.framing = f),
         (this.bare = b),
+        (this.room = rm),
         (this.agents = []),
         (this.people = new Map()),
         (this.speakerId = null));
@@ -1702,7 +1809,7 @@ var sh = class {
             ((a.hidden = !this.hearOn), this.people.set("You", { el: r, heard: () => this.hearOn }));
           } else if (r.classList.contains("agent")) {
             let a = new sh(this, r, e[o], { hue: e[o] === "Clara" ? 150 : 0, framing: this.framing });
-            this.agents.push(a);
+            (a.character.setRoom(this.room), this.agents.push(a));
           } else this.people.set(e[o], { el: r, heard: () => !(e[o] === "Anna" && this.pair && !this.annaHeard) });
         }),
         this.el.querySelectorAll(".hear-chip").forEach((r) => {
@@ -1750,7 +1857,7 @@ var sh = class {
       this.root.innerHTML = "";
     }
   },
-  lt = { stage: null, count: 3, policy: "B", framing: "shoulders" },
+  lt = { stage: null, count: 3, policy: "B", framing: "shoulders", room: "none" },
   Dt = { a: null, b: null, speaker: "Anna" },
   Fr = [],
   FRAMES = [
@@ -1764,6 +1871,18 @@ var sh = class {
     ["Unterwegs", "die Kamera gleitet", { from: "shoulders", to: "full", k: 0.5 }],
     ["Nachher", "ganzer Körper", { from: "shoulders", to: "full", k: 1 }],
   ],
+  ROOM_FRAMES = FRAMES.map(([id, t, n]) => ["room_" + id, t, id === "full" ? "Achtung: nur ein Streifen des Raums, nicht der ganze Raum" : n, id, "salon"]),
+  ROOM_CASES = {
+    cutGrid: [
+      ["cut_before", "Vorher", "Salon", "shoulders", "salon"],
+      ["cut_after", "Nachher", "Atelier, im selben Augenblick", "shoulders", "atelier"],
+    ],
+    failGrid: [
+      ["fail_slow", "Raum lädt noch", "langsam: schlichte Bühne, der Raum kommt per Schnitt dazu", "shoulders", "none"],
+      ["fail_failed", "Raum fehlgeschlagen", "schlichte Bühne bleibt", "shoulders", "failed"],
+    ],
+    noneGrid: [["none_today", "Kein Raum", "so zeigt die Kachel die Figur heute", "shoulders", "none"]],
+  },
   Vp = "stage",
   Rt = (i, e = document) => e.querySelector(i),
   ah = (i, e = document) => [...e.querySelectorAll(i)];
@@ -1779,12 +1898,13 @@ function Sl() {
 }
 function kp() {
   (lt.stage?.dispose(),
-    (lt.stage = new co(Rt("#mainCall"), { count: lt.count, policy: lt.policy, framing: lt.framing }).build()),
+    (lt.stage = new co(Rt("#mainCall"), { count: lt.count, policy: lt.policy, framing: lt.framing, room: lt.room }).build()),
     (Rt("#mainCall").closest(".view").dataset.count = lt.count),
     Sl(),
     Di(Rt("#grpLayout"), String(lt.count)),
     Di(Rt("#grpPolicy"), lt.policy),
-    Di(Rt("#grpFraming"), lt.framing));
+    Di(Rt("#grpFraming"), lt.framing),
+    Di(Rt("#grpRoom"), lt.room));
 }
 function gS() {
   (Dt.a?.dispose(), Dt.b?.dispose());
@@ -1798,26 +1918,44 @@ function lh(i) {
 function fgrid(i, entries, bare = !1) {
   let g = Rt(i);
   g.innerHTML = entries.map(([id, title, note]) => `<div class="view"><div class="pair-label">${title}<small>${note}</small></div><div class="call" id="fr_${id}"></div></div>`).join("");
-  return entries.map(([id, , , framing]) => {
-    let c = new co(Rt("#fr_" + id), { count: 3, pair: !0, bare, framing: typeof framing === "string" ? framing : "shoulders" }).build();
+  return entries.map(([id, , , framing, room]) => {
+    let c = new co(Rt("#fr_" + id), { count: 3, pair: !0, bare, framing: typeof framing === "string" ? framing : "shoulders", room: room ?? "none" }).build();
     return (typeof framing === "object" && c.mozart.character.setFraming(framing), c);
   });
+}
+function drawWhole() {
+  let vid = [...document.querySelectorAll("#roomGrid .vid")].sort((a, b) => b.clientHeight - a.clientHeight)[0],
+    aspect = vid && vid.clientHeight ? vid.clientWidth / vid.clientHeight : 1.6,
+    box = ["face", "shoulders", "upper", "full"].map((n, i) => {
+      let { r, o } = FR[n],
+        feet = EYE_HEIGHT + 0.05,
+        h = r + Math.min(o, feet) + WALL_SPREAD,
+        y = 300 - (EYE_HEIGHT + (r - Math.min(o, feet)) / 2) * 100,
+        w = h * 100 * aspect,
+        atTop = i % 2 === 1,
+        label = `<text x="${350 - w / 2 + 8}" y="${atTop ? y - h * 50 + 30 : y + h * 50 - 10}" font-size="30" font-weight="700" fill="#e8453c" stroke="#fff" stroke-width="5" paint-order="stroke">${FRAMES.find((f) => f[0] === n)[1]}</text>`;
+      return `<rect x="${350 - w / 2}" y="${y - h * 50}" width="${w}" height="${h * 100}" fill="none" stroke="#e8453c" stroke-width="3"/>${label}`;
+    }).join("");
+  Rt("#roomWhole").innerHTML = ROOMS.salon.replace(/^<svg[^>]*>|<\/svg>$/g, "") + box;
 }
 function ch(i) {
   ((Vp = i),
     ah("[data-tab]").forEach((e) => e.setAttribute("aria-pressed", String(e.dataset.tab === i))),
-    ["stage", "gaze", "framing", "change"].forEach((v) => (Rt("#" + v + "View").hidden = i !== v)),
+    ["stage", "gaze", "framing", "change", "room", "cases"].forEach((v) => (Rt("#" + v + "View").hidden = i !== v)),
     i !== "stage" && (lt.stage?.dispose(), (lt.stage = null)),
     Dt.a?.dispose(),
     Dt.b?.dispose(),
     (Dt.a = Dt.b = null),
     Fr.forEach((c) => c.dispose()),
     (Fr = []),
-    i === "stage" ? lt.stage || kp() : i === "gaze" ? gS() : i === "framing" ? (Fr = fgrid("#framingGrid", FRAMES.map(([id, t, n]) => [id, t, n, id]))) : (Fr = fgrid("#changeGrid", STEPS.map(([t, n, m]) => [t.toLowerCase(), t, n, m]), !0)));
+    i === "stage" ? lt.stage || kp() : i === "gaze" ? gS() : i === "framing" ? (Fr = fgrid("#framingGrid", FRAMES.map(([id, t, n]) => [id, t, n, id]))) : i === "room" ? ((Fr = fgrid("#roomGrid", ROOM_FRAMES)), drawWhole()) : i === "cases" ? (Fr = Object.entries(ROOM_CASES).flatMap(([g, e]) => fgrid("#" + g, e))) : (Fr = fgrid("#changeGrid", STEPS.map(([t, n, m]) => [t.toLowerCase(), t, n, m]), !0)));
 }
 var lo = {
   layout(i) {
     ((lt.count = Number(i)), kp());
+  },
+  room(i) {
+    ((lt.room = i), lt.stage.mozart.character.setRoom(i), Di(Rt("#grpRoom"), i));
   },
   framing(i) {
     ((lt.framing = i), lt.stage.mozart.character.setFraming(i), Di(Rt("#grpFraming"), i));
@@ -1962,7 +2100,7 @@ window.proto = {
   },
 };
 var rh = oh;
-ch(["gaze", "framing", "change"].includes(rh.get("view")) ? rh.get("view") : "stage");
+ch(["gaze", "framing", "change", "room", "cases"].includes(rh.get("view")) ? rh.get("view") : "stage");
 rh.get("count") && lo.layout(rh.get("count"));
 Rt("#pick").addEventListener("change", async (i) => {
   let e = i.target.files[0];
