@@ -91,7 +91,8 @@ class TestMigrate:
 
         main(["migrate"])
 
-        assert (migrated_database.rows(LIST_VERSIONS), migrated_database.rows(LIST_TABLES)) == before
+        after = (migrated_database.rows(LIST_VERSIONS), migrated_database.rows(LIST_TABLES))
+        assert after == before
 
     def test_runs_concurrent_migrations_one_after_the_other(self, empty_database, served_environment):
         with empty_database.connect() as holder, ThreadPoolExecutor(max_workers=2) as pool:
