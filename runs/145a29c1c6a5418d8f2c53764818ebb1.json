@@ -69,7 +69,81 @@
     {
       "run": "3a3c6d8671364d5387ff5ca607aba866",
       "start_tip": "8f82cbe4522647ec5ed12bcd85664e69765d2a8e",
-      "follows": true
+      "follows": true,
+      "end_tip": "21c58da7cf8ac8a9b49177868732da755f0e1283",
+      "ran": [
+        "review",
+        "fix",
+        "test",
+        "gate"
+      ],
+      "record": {
+        "version": 1,
+        "stages": {
+          "build": "sonnet/high",
+          "fix": "sonnet/high",
+          "review": "opus/medium",
+          "test": "sonnet/high",
+          "gate": "gpt-6-astra/high",
+          "land": "haiku/low"
+        },
+        "fix_rounds": {
+          "review": 1,
+          "gate": 0,
+          "ci": 1,
+          "test": 1
+        },
+        "blocking": {
+          "review": 1,
+          "gate": 0,
+          "ci": 1,
+          "test": 1
+        },
+        "misses": {
+          "review": 0,
+          "gate": 0,
+          "ci": 1,
+          "test": 1
+        },
+        "verdicts": [
+          {
+            "stage": "review",
+            "verdict": "revise",
+            "sha": "8f82cbe4522647ec5ed12bcd85664e69765d2a8e"
+          },
+          {
+            "stage": "gate",
+            "verdict": "approve",
+            "sha": "8f82cbe4522647ec5ed12bcd85664e69765d2a8e"
+          },
+          {
+            "stage": "review",
+            "verdict": "approve",
+            "sha": "0cf7b295eaa93b7f087a02e738a60693ed472b6f"
+          },
+          {
+            "stage": "review",
+            "verdict": "approve",
+            "sha": "6ad8c3bb24872714730ab16569ccc7a3358ef22a"
+          },
+          {
+            "stage": "gate",
+            "verdict": "approve",
+            "sha": "6ad8c3bb24872714730ab16569ccc7a3358ef22a"
+          },
+          {
+            "stage": "review",
+            "verdict": "approve",
+            "sha": "21c58da7cf8ac8a9b49177868732da755f0e1283"
+          },
+          {
+            "stage": "gate",
+            "verdict": "approve",
+            "sha": "21c58da7cf8ac8a9b49177868732da755f0e1283"
+          }
+        ],
+        "risk": "material"
+      }
     }
   ]
 }
