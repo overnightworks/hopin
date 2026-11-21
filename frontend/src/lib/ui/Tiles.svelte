@@ -92,7 +92,7 @@
             >
             <span class="agent-activity" aria-hidden="true"><i></i><i></i><i></i></span>
         </div>
-        {#if kitWords !== undefined && (agent.hearing !== undefined || agent.seeing !== undefined)}
+        {#if kitWords !== undefined && (agent.hearing !== undefined || agent.listening !== undefined || agent.seeing !== undefined)}
             <div class="hear-set" class:narrow>
                 {#if agent.hearing !== undefined}
                     <HearingSwitch
@@ -101,6 +101,15 @@
                         onChange={agent.hearing.onChange}
                         words={kitWords}
                         compact={chips.hearing}
+                    />
+                {/if}
+                {#if agent.listening !== undefined}
+                    <HearingSwitch
+                        kind="listen"
+                        on={agent.listening.on}
+                        onChange={agent.listening.onChange}
+                        words={kitWords}
+                        compact={chips.listening}
                     />
                 {/if}
                 {#if agent.seeing !== undefined}
