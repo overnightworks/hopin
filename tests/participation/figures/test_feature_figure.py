@@ -15,7 +15,6 @@ from agents.member import (
 from hopin.agent.tools import LEAVE_CALL, SAY
 from hopin.config.constants import CALL_FEATURES_PATH
 from hopin.participation.figures import figure_refusal
-from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import (
     CLIP_MAX_BYTES,
     CLIP_PATH,
@@ -66,21 +65,6 @@ WAVE = "wave"
 @pytest.fixture
 def adding_call_adders(adding_call_adders):
     return adding_call_adders | {SECOND_OWNER: ADDERS_GROUP}
-
-
-@pytest.fixture
-def sources():
-    return [SOURCE_PREFIX]
-
-
-@pytest.fixture
-def figure_sources(sources):
-    return ParticipationSettings(figure_sources=sources).figure_sources
-
-
-@pytest.fixture
-def figure_transport(figure_origin):
-    return figure_origin
 
 
 def read_figure(scene, path, method="GET", **headers):

@@ -402,9 +402,11 @@ describe("an agent tile's chips in a component", () => {
         document.body.innerHTML = "";
     });
 
-    async function hearingChipOf(figure: string | undefined) {
+    const chips = [{ switch: "hearing" as const }, { switch: "seeing" as const }];
+
+    async function chipOf(chip: (typeof chips)[number], figure: string | undefined) {
         showAgentTile(
-            { name: "Ada", activity: "present", figure, hearing: { on: true, onChange: () => {} } } as never,
+            { name: "Ada", activity: "present", figure, [chip.switch]: { on: true, onChange: () => {} } } as never,
             "agent-a1",
         );
         const component = mount(Tiles, { target: document.body });
@@ -417,11 +419,14 @@ describe("an agent tile's chips in a component", () => {
         return compact;
     }
 
-    it("CALL-77: makes the hearing chip compact while the tile names a figure, and not otherwise", async () => {
-        const withFigure = await hearingChipOf("/api/participation/figures/abc");
-        document.body.innerHTML = "";
-        const withoutFigure = await hearingChipOf(undefined);
+    it.each(chips)(
+        "CALL-77: makes the $switch chip compact while the tile names a figure, and not otherwise",
+        async (chip) => {
+            const withFigure = await chipOf(chip, "/api/participation/figures/abc");
+            document.body.innerHTML = "";
+            const withoutFigure = await chipOf(chip, undefined);
 
-        expect([withFigure, withoutFigure]).toEqual([true, false]);
-    });
+            expect([withFigure, withoutFigure]).toEqual([true, false]);
+        },
+    );
 });
