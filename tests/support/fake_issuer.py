@@ -258,6 +258,8 @@ class FakeIssuer:
         issued = self._codes.pop(request.form["code"], None)
         if issued is None or not self._proves_possession(issued, request.form["code_verifier"]):
             return self._refusal(HTTPStatus.BAD_REQUEST, "invalid_grant")
+        with self._guard:
+            self._subjects_of_refresh_tokens[self.refresh_token] = str(issued.claims["sub"])
         body = {"id_token": self._sign({"nonce": issued.nonce, **issued.claims}), "refresh_token": self.refresh_token}
         return TokenEndpointAnswer(HTTPStatus.OK, json.dumps(body).encode())
 

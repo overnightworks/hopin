@@ -159,9 +159,9 @@ class LoopbackSignIn:
         return port_of(self.listener)
 
 
-def loopback_sign_in(directory: Path, public_host: str = LOOPBACK_HOST) -> LoopbackSignIn:
+def loopback_sign_in(directory: Path, public_host: str = LOOPBACK_HOST, issuer: str | None = None) -> LoopbackSignIn:
     """The sign-in of a HopIn that listens on a free loopback port and is reached as `public_host`, which must
-    resolve to the loopback address."""
+    resolve to the loopback address, and whose issuer is at `issuer` when one is given."""
     listener = bound_loopback_socket()
     port = port_of(listener)
     sign_in = build_sign_in_settings(
@@ -170,6 +170,7 @@ def loopback_sign_in(directory: Path, public_host: str = LOOPBACK_HOST) -> Loopb
         port=port,
         public_origin=f"https://{public_host}:{port}",
         trusted_proxies=LOOPBACK_HOST,
+        **({} if issuer is None else {"oidc_issuer": issuer}),
     )
     return LoopbackSignIn(
         listener, public_host, sign_in, single_process_stores(), FakeIssuer(sign_in), in_thread_stores()

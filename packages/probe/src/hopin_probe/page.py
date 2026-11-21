@@ -33,6 +33,7 @@ NO_SOUND_DEVICE_ENVIRONMENT = {"PULSE_SERVER": "unix:/dev/null", "ALSA_CONFIG_PA
 MEDIA_PERMISSIONS = ["camera", "microphone"]
 MEDIA_FLOWING_TIMEOUT_MILLISECONDS = 30_000
 LOCALE = "de-DE"
+HEARING_SWITCH_SECONDS = 5
 
 PREJOIN_MICROPHONE = "#prejoinMicBtn"
 PREJOIN_CAMERA = "#prejoinCamBtn"
@@ -46,10 +47,10 @@ HEARING_SWITCH_ON_A_TILE = f'role=switch[name="{kit_text("de", "hearing.agentMay
 AGENT_HEARING_SWITCH = f"{AGENT_TILE} >> {HEARING_SWITCH_ON_A_TILE}"
 
 # The sign-in form of Keycloak's login page; the field ids are Keycloak's own, not hopin's.
-USERNAME_FIELD = "#username"
-PASSWORD_FIELD = "#password"
-SIGN_IN_BUTTON = "#kc-login"
-SIGN_IN_ERROR = "#input-error"
+USERNAME_FIELD_ID = "username"
+PASSWORD_FIELD_ID = "password"
+SIGN_IN_BUTTON_ID = "kc-login"
+SIGN_IN_ERROR_ID = "input-error"
 # Cloudflare marks the response of a challenge it serves in place of the page with this header.
 CHALLENGE_HEADER = "cf-mitigated"
 CHALLENGE = "challenge"
@@ -147,12 +148,12 @@ def sign_in(page: Page, origin: str, username: str, password: SecretStr) -> None
     """Sign in once through the issuer's form; a refusal or a required action ends the stage, and nothing is accepted
     on the account's behalf."""
     page.goto(f"{origin}{AUTH_START_PATH}")
-    page.fill(USERNAME_FIELD, username)
-    page.fill(PASSWORD_FIELD, password.get_secret_value())
-    page.click(SIGN_IN_BUTTON)
+    page.fill(f"#{USERNAME_FIELD_ID}", username)
+    page.fill(f"#{PASSWORD_FIELD_ID}", password.get_secret_value())
+    page.click(f"#{SIGN_IN_BUTTON_ID}")
     result = page.wait_for_function(
         SIGN_IN_RESULT,
-        arg=[origin, SIGN_IN_ERROR, PASSWORD_FIELD, SIGNED_IN],
+        arg=[origin, f"#{SIGN_IN_ERROR_ID}", f"#{PASSWORD_FIELD_ID}", SIGNED_IN],
         timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     ).json_value()
     if result != SIGNED_IN:
@@ -230,7 +231,7 @@ class AgentSeat:
     def hearing_switch(self) -> SwitchState:
         switch = self._page.locator(AGENT_HEARING_SWITCH)
         try:
-            switch.wait_for(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+            switch.wait_for(timeout=HEARING_SWITCH_SECONDS * 1000)
         except PlaywrightTimeoutError:
             return SwitchState.MISSING
         return SwitchState(switch.get_attribute("aria-checked") or SwitchState.MISSING)
