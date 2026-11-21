@@ -97,7 +97,8 @@ jobs:
       postgres:
         image: postgres:17.11-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
         env:
-          POSTGRES_PASSWORD: postgres
+          # Only this job reaches the service, so it takes any password; the tests' URL carries one because HopIn refuses an empty one.
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-
