@@ -5,21 +5,16 @@ configured API group. Only the agent settings are read, so it runs in the pod wi
 """
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING
 
-from agents.backend import TurnPerson
-from agents.turn import Principal
 from starlette.requests import HTTPConnection
 
-from hopin.agent.backend import QuizBackend, QuizGameMaster, gateway_backend
+from hopin.agent.backend import QuizBackend, QuizGameMaster, ThrowawayStarter, gateway_backend
 from hopin.agent.settings import AgentSettings
 from hopin.game.verdict_repeatability import VerdictAgreement, agreements, recorded_cases
 
 if TYPE_CHECKING:
     import argparse
-
-IDENTITY: Final = "hopin-verdict-repeatability"
-LANGUAGE: Final = "de"
 
 type BackendOf = Callable[[AgentSettings], QuizBackend]
 
@@ -32,23 +27,6 @@ def add_command(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -
     )
     repeatability.add_argument("--runs", type=int, default=10, help="how many times each recorded reveal is asked")
     repeatability.add_argument("--minimum", type=float, default=1.0, help="the least share of runs that must agree")
-
-
-class ThrowawayStarter:
-    """Stands for the starter of a run: a fixed identity of the API group, in German."""
-
-    def __init__(self, api_group: str) -> None:
-        self._person = TurnPerson(Principal(iss=IDENTITY, sub=IDENTITY), "user", self._groups)
-        self._api_group = api_group
-
-    async def _groups(self) -> frozenset[str]:
-        return frozenset({self._api_group})
-
-    async def language_of(self, _starter: HTTPConnection) -> str:
-        return LANGUAGE
-
-    async def person_of(self, _starter: HTTPConnection) -> TurnPerson:
-        return self._person
 
 
 async def configured_agreements(runs: int, backend_of: BackendOf = gateway_backend) -> list[VerdictAgreement]:

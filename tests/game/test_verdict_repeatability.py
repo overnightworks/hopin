@@ -3,8 +3,7 @@
 import pytest
 from starlette.requests import HTTPConnection
 
-from hopin.agent.backend import QuizGameMaster
-from hopin.agent.verdict_check import ThrowawayStarter
+from hopin.agent.backend import QuizGameMaster, ThrowawayStarter
 from hopin.game.quiz import Judgement
 from hopin.game.verdict_repeatability import (
     RecordedAnswer,
