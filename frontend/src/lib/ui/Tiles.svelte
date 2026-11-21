@@ -128,7 +128,7 @@
                             on={agent.seeing.on}
                             onChange={agent.seeing.onChange}
                             words={kitWords}
-                            compact
+                            compact={chips.seeing}
                         />
                     {/if}
                 </div>

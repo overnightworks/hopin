@@ -78,9 +78,13 @@ export function tileIdOf(key: string) {
     return "container-" + key;
 }
 
-/** Which of an agent tile's chips shrink to their icon: the hearing chip while the tile shows a figure, which leaves less room, and on a sponsor's narrow tile, where the listen chip shares its lower corners; it stays whole on any other narrow tile, where hopin.css moves it into a corner; the listen chip on a narrow or figured tile and beside the see chip, which always shrinks, the two sharing one row under the hearing chip. Only a sponsor's tile has a see chip, and it has the hearing chip too. */
+/** Which of an agent tile's chips shrink to their icon: the see chip on a narrow tile and while the tile shows a figure, which leave less room; the hearing chip while the tile shows a figure, and on a sponsor's narrow tile, where the listen chip shares its lower corners (it stays whole on any other narrow tile, where hopin.css moves it into a corner); the listen chip wherever it and the see chip would not fit whole in one row: on a narrow or figured tile and beside the see chip, which is whole only on a wide tile with no figure. Only a sponsor's tile has a see chip, and it has the hearing chip too. */
 export function compactChips(tile: { figured: boolean; narrow: boolean; seeing: boolean }) {
-    return { hearing: tile.narrow ? tile.seeing : tile.figured, listening: tile.narrow || tile.figured || tile.seeing };
+    return {
+        hearing: tile.narrow ? tile.seeing : tile.figured,
+        seeing: tile.narrow || tile.figured,
+        listening: tile.narrow || tile.figured || tile.seeing,
+    };
 }
 
 // The call core draws no figure itself: the feature that does hands over its drawer, and a tile without one or without a path stays as it is.

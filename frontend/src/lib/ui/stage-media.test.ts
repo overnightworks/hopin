@@ -402,11 +402,10 @@ describe("an agent tile's chips in a component", () => {
         document.body.innerHTML = "";
     });
 
-    // The see chip is always compact, for it shares a row with the listen chip.
     const chips = [
         { switch: "hearing" as const, expected: [true, false] },
         { switch: "listening" as const, expected: [true, false] },
-        { switch: "seeing" as const, expected: [true, true] },
+        { switch: "seeing" as const, expected: [true, false] },
     ];
 
     async function chipOf(chip: (typeof chips)[number], figure: string | undefined) {
