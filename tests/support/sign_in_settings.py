@@ -11,6 +11,7 @@ TEST_ISSUER = "https://issuer.test.invalid/realms/test"
 END_SESSION_URL = f"{TEST_ISSUER}/protocol/openid-connect/logout"
 TEST_PUBLIC_ORIGIN = "https://hopin.test.invalid"
 TEST_REDIS_URL = "redis://redis.test.invalid:6379"
+TEST_DATABASE_URL = "postgresql://hopin@postgres.test.invalid:5432/hopin"
 SESSION_SECRET_BYTES = 36
 CLIENT_SECRET_BYTES = 24
 
@@ -31,12 +32,16 @@ def build_sign_in_settings(directory: Path, **overrides: str | int | Path | None
     session_secret_file = directory / "session-secret"
     client_secret_file.write_text(client_secret + "\n")
     session_secret_file.write_text(session_secret + "\n")
+    database_password_file = directory / "database-password"
+    database_password_file.write_text(secrets.token_urlsafe(CLIENT_SECRET_BYTES) + "\n")
     values: dict[str, str | int | Path | None] = {
         "oidc_issuer": TEST_ISSUER,
         "oidc_client_secret_file": client_secret_file,
         "public_origin": TEST_PUBLIC_ORIGIN,
         "session_secret_file": session_secret_file,
         "redis_url": TEST_REDIS_URL,
+        "database_url": TEST_DATABASE_URL,
+        "database_password_file": database_password_file,
         **overrides,
     }
     present = {name: value for name, value in values.items() if value is not None}

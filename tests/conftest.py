@@ -40,10 +40,10 @@ def logging_restored() -> Iterator[None]:
 @pytest.fixture
 def serve_refusal(
     sign_in_settings: Callable[..., SignInSettings], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> Callable[[str, str | None, str], None]:
-    """Asserts `hopin serve` refuses in one line naming the setting and never its value."""
+) -> Callable[..., None]:
+    """Asserts `hopin serve` (or another command) refuses in one line naming the setting and never its value."""
 
-    def assert_refused(setting: str, value: str | None, expected_line: str) -> None:
+    def assert_refused(setting: str, value: str | None, expected_line: str, command: str = "serve") -> None:
         for name, environment_value in sign_in_settings().environment.items():
             monkeypatch.setenv(name, environment_value)
         if value is None:
@@ -52,7 +52,7 @@ def serve_refusal(
             monkeypatch.setenv(setting, value)
 
         with pytest.raises(SystemExit) as refusal:
-            main(["serve"])
+            main([command])
 
         assert refusal.value.code == 1
         lines = capsys.readouterr().err.splitlines()

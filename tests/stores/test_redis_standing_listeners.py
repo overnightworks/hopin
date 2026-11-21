@@ -11,7 +11,7 @@ from agents.member import STANDING_URI
 from hopin.agent.mcp import LISTENERS_READ_FAILED_EVENT
 from hopin.participation.vocabulary import ParticipationSignal
 from hopin.stores.redis import connect_shared_stores
-from tests.stores.support.redis_gate import RedisGate
+from tests.stores.support.service_gate import ServiceGate
 from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.dialed_call import DialedCall, Seat, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
@@ -30,7 +30,7 @@ class Process:
     a call of their own, and the agent has called it once, so that its lease runs there."""
 
     call: DialedCall
-    gate: RedisGate
+    gate: ServiceGate
     owner: Seat
     agent_token: str
 
@@ -48,7 +48,7 @@ def processes(sign_in_settings, redis_url, agent_subject):
     with ExitStack() as stack:
         started = []
         for _ in range(2):
-            gate = RedisGate(redis_url)
+            gate = ServiceGate(redis_url)
             stack.callback(gate.close)
             call = stack.enter_context(
                 serving_dialed_call(

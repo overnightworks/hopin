@@ -82,7 +82,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # The store the processes share; the test stops it for its clients by closing its own forwarder, never the service.
+    # The stores the processes share; a test stops one for its clients by closing its own forwarder, never the service.
+    # Postgres is platform's image (infrastructure/postgres), and each test creates a database of its own on it.
     services:
       redis:
         image: redis:7.4-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
@@ -90,6 +91,18 @@ jobs:
           - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 15
+      postgres:
+        image: postgres:17.11-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+        env:
+          # The service keeps password authentication, so the tests prove that the engine sends the password it reads from the file.
+          POSTGRES_PASSWORD: ${{ github.run_id }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready --username postgres"
           --health-interval 2s
           --health-timeout 2s
           --health-retries 15
@@ -111,12 +124,14 @@ jobs:
           uv sync --locked --no-install-project --no-build
           echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
 
-      # Two `hopin serve` processes with their own ports against the one Redis, and apps in the test process over
-      # it. Only the test process writes coverage data: the Coverage job counts the in-process apps, not the
-      # `hopin serve` processes.
-      - name: Run two processes against one Redis
+      # Two `hopin serve` processes with their own ports against the one Redis and the one Postgres, and apps in the
+      # test process over them; `hopin migrate` and `hopin serve`'s database checks run in the test process too. Only
+      # the test process writes coverage data: the Coverage job counts those, not the `hopin serve` processes.
+      # The refusals of the database and password-file settings carry the marker too, so this job is where they run.
+      - name: Run two processes against one Redis and one Postgres
         env:
           HOPIN_TEST_REDIS_URL: redis://localhost:6379
+          HOPIN_TEST_POSTGRES_URL: postgresql://postgres:${{ github.run_id }}@localhost:5432/postgres
           COVERAGE_FILE: .coverage.shared-stores
         run: pytest -q -n auto -m shared_stores
 
