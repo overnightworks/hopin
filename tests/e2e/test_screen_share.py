@@ -65,10 +65,10 @@ def area_of(person: Page, selector: str) -> float:
     return box["width"] * box["height"]
 
 
-def expect_the_screen_beside_the_cameras(watcher: Page, cameras: int) -> None:
+def expect_the_screen_beside_the_cameras(watcher: Page, cameras: int, cameras_off: int = 0) -> None:
     expect(watcher.locator(SCREEN_TILE)).to_have_count(1, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     wait_for_the_screen_tile_to_show_the_screen(watcher)
-    expect(watcher.locator(PICTURE_ONLY_ON_THE_TILES)).to_have_count(cameras)
+    expect(watcher.locator(PICTURE_ONLY_ON_THE_TILES)).to_have_count(cameras - cameras_off)
     expect(watcher.locator(OTHER_TILE)).to_have_count(cameras)
 
 
@@ -122,14 +122,21 @@ def test_a_share_leaves_a_camera_that_is_off_off_and_the_screen_still_arrives(sh
     expect(sharer.locator(CAMERA_BUTTON)).to_have_attribute("aria-pressed", "true")
 
 
+@pytest.mark.parametrize("camera_on", [True, False], ids=["camera-on", "camera-off"])
 def test_a_person_who_joins_during_a_share_sees_the_screen_and_the_camera(
-    share_call: ShareCall, open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+    share_call: ShareCall, open_person: Callable[..., Page], base_url: str, page_errors: list[str], camera_on: bool
 ) -> None:
     """CALL-24: A person who joins during a share sees the screen and the camera."""
+    if not camera_on:
+        share_call.sharer.click(CAMERA_BUTTON)
+        expect(share_call.watcher.locator(ICON_ONLY_ON_THE_TILES)).to_have_count(
+            1, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+        )
     share_the_screen(share_call.sharer)
     expect(share_call.watcher.locator(SCREEN_TILE)).to_have_count(1, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
     late = join(open_person, share_call.invite_link, DESKTOP, (RECORD_PEER_CONNECTIONS,), page_errors)
 
     wait_for_peer_count(late, 2)
-    expect_the_screen_beside_the_cameras(late, 2)
+    expect_the_screen_beside_the_cameras(late, 2, cameras_off=0 if camera_on else 1)
+    expect(late.locator(ICON_ONLY_ON_THE_TILES)).to_have_count(0 if camera_on else 1)
