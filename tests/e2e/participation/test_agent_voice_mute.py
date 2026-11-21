@@ -3,9 +3,12 @@ from typing import TYPE_CHECKING
 import pytest
 from playwright.sync_api import expect
 
+from hopin.words import text
+from tests.e2e.support.calls import press_through_the_prejoin
 from tests.e2e.support.dialed_agent import AGENT_LISTEN_SWITCH, AGENT_TILE, REMOVE
+from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS
 from tests.e2e.support.people import FORM_FACTORS
-from tests.e2e.support.speaker import SPEAKING_TILE, Speaker
+from tests.e2e.support.speaker import RECORD_PLAYBACK, SPEAKING_TILE, Speaker
 
 if TYPE_CHECKING:
     from playwright.sync_api import Locator
@@ -19,6 +22,7 @@ LONGER_SOUND_SECONDS = 5.0
 LATER_SOUND_SECONDS = 1.5
 PLAYBACK_WAIT_MILLISECONDS = 15_000
 TOLERANCE_PIXELS = 1
+IN_CALL = text("de", "call.statusInCall")
 
 
 @pytest.fixture
@@ -89,3 +93,24 @@ def test_each_person_mutes_an_agents_voice_in_their_own_browser_alone(speaker: S
 
     expect(muting.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
     assert speaker.started(muting) == [LONGER_SOUND_SECONDS, LATER_SOUND_SECONDS]
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_muted_agent_voice_is_on_again_after_the_browser_reloads(speaker: Speaker) -> None:
+    """CALL-79: The mute lives in the page only: the browser that muted the agent and reloads, rejoining the call,
+    shows the switch on and plays the agent's next sentence."""
+    muting = speaker.scene.everyone[0]
+    switch = muting.locator(AGENT_LISTEN_SWITCH)
+    switch.click()
+    expect(switch).to_have_attribute("aria-checked", "false")
+
+    muting.reload()
+    press_through_the_prejoin(muting)
+    expect(muting.locator("#status")).to_have_text(IN_CALL, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    muting.evaluate(RECORD_PLAYBACK)
+    expect(muting.locator(AGENT_TILE)).to_have_count(1)
+    expect(switch).to_have_attribute("aria-checked", "true")
+
+    speaker.speak(SOUND_SECONDS)
+    muting.wait_for_function("() => window.soundsStarted.length === 1", timeout=PLAYBACK_WAIT_MILLISECONDS)
+    assert speaker.started(muting) == [SOUND_SECONDS]
