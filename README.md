@@ -9,7 +9,7 @@ Only members of the Keycloak group `/apps/hopin` use it. Why HopIn exists and wh
 ## What a Call Offers
 
 - **Up to 6 people** in one call, each seeing and hearing everyone else
-- **Screen sharing**, switchable with the camera mid-call
+- **Screen sharing**, shown to the others as a large tile beside your camera
 - **Microphone and camera** muted independently, with a preview before joining
 - **Chat** beside the video: a line goes straight from browser to browser, up to 600 characters, and shows whether it arrived; HopIn's server sees it only while an AI is joined and reading along
 - **Room lock**: the host locks the call from the "Mehr" menu, so no new person joins except the host's own account, which can return while there is room; the host unlocks at any time

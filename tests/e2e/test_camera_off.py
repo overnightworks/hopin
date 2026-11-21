@@ -7,33 +7,22 @@ from playwright.sync_api import Page, expect
 from hopin.words import text
 from tests.e2e.support.calls import add_init_scripts, join, record_page_errors, start_call
 from tests.e2e.support.media import (
-    AFTER_PENDING_REJECTIONS_ARE_REPORTED,
     COUNT_OFFERS,
     EVERY_VIDEO_CAP_IS,
-    HOLD_CAMERA_REQUESTS,
-    HOLD_SCREEN_REQUESTS,
     ICON_ONLY_ON_THE_TILES,
-    LATE_CAMERA_IS_STOPPED,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
-    MEDIA_REQUEST_COUNT,
-    MEDIA_REQUEST_IS_HELD,
     OFFER_COUNT,
     ONE_CAP_PER_CONNECTION,
     PICTURE_ONLY_ON_THE_TILES,
     RECORD_MEDIA_TRACKS,
     RECORD_PEER_CONNECTIONS,
     REFUSE_THE_CAMERA,
-    REJECT_MEDIA,
-    RELEASE_MEDIA,
     camera_track_states,
     inbound_per_connection,
-    share_the_screen,
-    stop_the_screen_share,
     wait_for_inbound_growth,
     wait_for_peer_count,
     wait_for_the_light_to_go_out,
     wait_for_the_picture,
-    wait_for_the_tile_to_show_the_screen,
     wait_for_video_tracks,
 )
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
@@ -45,11 +34,7 @@ pytestmark = pytest.mark.e2e
 
 LIVE = "live"
 CAMERA_BUTTON = "#videoBtn"
-SCREEN_BUTTON = "#screenBtn"
 STATUS = "#status"
-OWN_CAMERA_OFF = "#localPlaceholder:not(.hidden)"
-CAMERA_ERROR_STATUS = text("de", "call.statusCameraMissing", errorName="NotFoundError")
-IN_CALL_STATUS = text("de", "call.statusInCall")
 # About one second of Opus (20 ms packets): the first video bytes of a camera that is on arrive within
 # about 0.1 s of the first audio, so a zero-video read after this many packets sees an off camera.
 AUDIO_PACKETS_THAT_SPAN_FIRST_VIDEO = 50.0
@@ -106,11 +91,6 @@ def call_with_watcher(start_call_with: Callable[..., Any]) -> CallWithWatcher:
 @pytest.fixture
 def call_with_host_watching_the_guest(start_call_with: Callable[..., Any]) -> CallWithWatcher:
     return start_call_with(start_call_with_watcher, presser_joins=True)
-
-
-@pytest.fixture
-def call_with_watcher_and_no_camera(start_call_with: Callable[..., Any]) -> CallWithWatcher:
-    return start_call_with(start_call_with_watcher, (REFUSE_THE_CAMERA,))
 
 
 def press_camera_button(person: Page, *, pressed: bool) -> None:
@@ -193,173 +173,3 @@ def test_a_later_joiner_gets_no_frame_from_a_camera_that_is_off_and_then_the_pic
     wait_for_video_tracks(presser, own=[], senders=[None])
     press_camera_button(presser, pressed=False)
     wait_for_the_picture(later_joiner)
-
-
-def test_camera_off_during_a_share_keeps_the_share_and_leaves_the_camera_off_when_it_ends(
-    call_with_watcher: CallWithWatcher,
-) -> None:
-    """CALL-24: Camera off during a share keeps the share and leaves the camera off when it ends."""
-    presser, watcher = call_with_watcher.presser, call_with_watcher.watcher
-    wait_for_the_picture(watcher)
-    share_the_screen(presser)
-    expect_the_shared_picture(watcher)
-
-    turn_the_camera_off(presser)
-
-    expect(presser.locator(SCREEN_BUTTON)).to_have_attribute("aria-pressed", "true")
-    wait_for_the_light_to_go_out(presser)
-    wait_for_video_tracks(presser, own=[LIVE], senders=[LIVE])
-    expect_the_shared_picture(watcher)
-    wait_for_the_tile_to_show_the_screen(watcher)
-    cameras_before_the_stop = camera_track_states(presser)
-
-    stop_the_screen_share(presser)
-
-    wait_for_video_tracks(presser, own=[], senders=[None])
-    assert camera_track_states(presser) == cameras_before_the_stop
-    expect_the_icon(watcher)
-
-
-def test_camera_on_during_a_share_opens_no_camera_until_the_share_ends(call_with_watcher: CallWithWatcher) -> None:
-    presser, watcher = call_with_watcher.presser, call_with_watcher.watcher
-    turn_the_camera_off(presser)
-    share_the_screen(presser)
-    cameras_before = camera_track_states(presser)
-
-    press_camera_button(presser, pressed=False)
-
-    assert camera_track_states(presser) == cameras_before
-    wait_for_the_light_to_go_out(presser)
-    expect_the_shared_picture(watcher)
-
-    stop_the_screen_share(presser)
-
-    wait_for_video_tracks(presser, own=[LIVE], senders=[LIVE])
-    wait_for_the_picture(watcher)
-
-
-def test_a_share_without_a_camera_ends_without_asking_for_one(call_with_watcher_and_no_camera: CallWithWatcher) -> None:
-    presser, watcher = call_with_watcher_and_no_camera.presser, call_with_watcher_and_no_camera.watcher
-    share_the_screen(presser)
-    expect_the_shared_picture(watcher)
-    requests_before_the_stop = presser.evaluate(MEDIA_REQUEST_COUNT)
-
-    stop_the_screen_share(presser)
-
-    wait_for_video_tracks(presser, own=[], senders=[None])
-    assert presser.evaluate(MEDIA_REQUEST_COUNT) == requests_before_the_stop
-    expect_the_icon(watcher)
-
-
-def test_a_camera_that_cannot_reopen_when_the_share_ends_leaves_the_camera_off_and_says_so(
-    call_with_watcher_and_no_camera: CallWithWatcher,
-) -> None:
-    presser, watcher = call_with_watcher_and_no_camera.presser, call_with_watcher_and_no_camera.watcher
-    share_the_screen(presser)
-    press_camera_button(presser, pressed=False)
-
-    stop_the_screen_share(presser)
-
-    expect(presser.locator(CAMERA_BUTTON)).to_have_attribute("aria-pressed", "true")
-    wait_for_video_tracks(presser, own=[], senders=[None])
-    expect(presser.locator(STATUS)).to_have_text(CAMERA_ERROR_STATUS)
-    expect(presser.locator(STATUS)).to_have_text(IN_CALL_STATUS)
-    expect_the_icon(watcher)
-    expect(presser.locator(OWN_CAMERA_OFF)).to_be_visible()
-
-
-def wait_for_the_late_camera_to_be_stopped(person: Page, cameras_before: int) -> None:
-    person.wait_for_function(
-        LATE_CAMERA_IS_STOPPED,
-        arg=cameras_before,
-        timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
-    )
-
-
-def test_a_camera_that_arrives_after_camera_off_at_the_end_of_a_share_is_stopped(
-    call_with_watcher: CallWithWatcher,
-) -> None:
-    presser, watcher = call_with_watcher.presser, call_with_watcher.watcher
-    share_the_screen(presser)
-    cameras_before = len(camera_track_states(presser))
-    presser.evaluate(HOLD_CAMERA_REQUESTS)
-    presser.click(SCREEN_BUTTON)
-    presser.wait_for_function(MEDIA_REQUEST_IS_HELD)
-
-    turn_the_camera_off(presser)
-    presser.evaluate(RELEASE_MEDIA)
-
-    wait_for_the_late_camera_to_be_stopped(presser, cameras_before)
-    expect(presser.locator(SCREEN_BUTTON)).to_have_attribute("aria-pressed", "false")
-    wait_for_video_tracks(presser, own=[], senders=[None])
-    expect_the_icon(watcher)
-
-
-def test_a_camera_that_arrives_after_a_share_started_is_stopped_and_the_share_stays(
-    call_with_watcher: CallWithWatcher,
-) -> None:
-    presser, watcher = call_with_watcher.presser, call_with_watcher.watcher
-    turn_the_camera_off(presser)
-    cameras_before = len(camera_track_states(presser))
-    presser.evaluate(HOLD_CAMERA_REQUESTS)
-    presser.click(CAMERA_BUTTON)
-    presser.wait_for_function(MEDIA_REQUEST_IS_HELD)
-
-    share_the_screen(presser)
-    presser.evaluate(RELEASE_MEDIA)
-
-    wait_for_the_late_camera_to_be_stopped(presser, cameras_before)
-    wait_for_video_tracks(presser, own=[LIVE], senders=[LIVE])
-    expect(presser.locator(CAMERA_BUTTON)).to_have_attribute("aria-pressed", "true")
-    expect_the_shared_picture(watcher)
-
-
-@pytest.mark.parametrize("camera_on_while_the_picker_is_open", [False, True], ids=["camera-off", "camera-on"])
-def test_a_camera_press_does_not_overtake_the_screen_picker(
-    call_with_watcher: CallWithWatcher, camera_on_while_the_picker_is_open: bool
-) -> None:
-    presser, watcher = call_with_watcher.presser, call_with_watcher.watcher
-    if camera_on_while_the_picker_is_open:
-        turn_the_camera_off(presser)
-    presser.evaluate(HOLD_SCREEN_REQUESTS)
-    presser.click(SCREEN_BUTTON)
-    presser.wait_for_function(MEDIA_REQUEST_IS_HELD)
-
-    press_camera_button(presser, pressed=camera_on_while_the_picker_is_open is False)
-    presser.evaluate(RELEASE_MEDIA)
-
-    expect(presser.locator(SCREEN_BUTTON)).to_have_attribute("aria-pressed", "true")
-    wait_for_video_tracks(presser, own=[LIVE], senders=[LIVE])
-    wait_for_the_light_to_go_out(presser)
-    expect_the_shared_picture(watcher)
-
-
-@pytest.mark.parametrize("overtaken_by_a_share", [False, True], ids=["camera-off-pressed", "share-adopted"])
-def test_a_camera_request_that_fails_after_a_newer_choice_changes_nothing(
-    call_with_watcher: CallWithWatcher, overtaken_by_a_share: bool
-) -> None:
-    presser, watcher = call_with_watcher.presser, call_with_watcher.watcher
-    if overtaken_by_a_share:
-        turn_the_camera_off(presser)
-        presser.evaluate(HOLD_CAMERA_REQUESTS)
-        presser.click(CAMERA_BUTTON)
-        presser.wait_for_function(MEDIA_REQUEST_IS_HELD)
-        share_the_screen(presser)
-    else:
-        share_the_screen(presser)
-        presser.evaluate(HOLD_CAMERA_REQUESTS)
-        presser.click(SCREEN_BUTTON)
-        presser.wait_for_function(MEDIA_REQUEST_IS_HELD)
-        turn_the_camera_off(presser)
-
-    presser.evaluate(REJECT_MEDIA)
-    presser.evaluate(AFTER_PENDING_REJECTIONS_ARE_REPORTED)
-
-    assert presser.locator(STATUS).text_content() == IN_CALL_STATUS
-    expect(presser.locator(CAMERA_BUTTON)).to_have_attribute("aria-pressed", "true")
-    if overtaken_by_a_share:
-        wait_for_video_tracks(presser, own=[LIVE], senders=[LIVE])
-        expect_the_shared_picture(watcher)
-    else:
-        wait_for_video_tracks(presser, own=[], senders=[None])
-        expect_the_icon(watcher)

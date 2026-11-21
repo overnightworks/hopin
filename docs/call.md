@@ -42,7 +42,7 @@ Ruled by the operator:
 - CALL-21: A person with the camera off shows as a neutral person icon, the same for everyone.
 - CALL-22: On a phone, the small own picture can be dragged to any corner; it snaps to the nearest one and stays there for the rest of the call, also when people join or leave.
 - CALL-23: Everyone in a call sees, on that person's tile, who has muted the microphone or turned the camera off; people who join later see it too, and I see my own mute mark on my own tile.
-- CALL-24: After I stop sharing my screen, my camera comes back only if it was on before.
+- CALL-24: While I share my screen, everyone else sees it as a large tile of its own beside my camera tile, also joiners who come during the share; on a phone the screen tile spans the width. When I stop sharing, the screen tile goes and my camera is as it was.
 - CALL-25: Without a camera I still see and hear everyone; when I turn my camera on later, everyone in the call sees it, those who were there before me and those who joined after me.
 - CALL-34: Alone in the call, the host sees "Warten auf andere" with a way to invite: "Link kopieren", and on a phone "Teilen", which opens the system share menu. No share box stands in the call otherwise.
 - CALL-35: HopIn writes the clipboard only when the person presses Copy.

@@ -26,6 +26,8 @@ ICE_SERVERS_URL_PATTERN = f"**{ICE_SERVERS_PATH}"
 OTHER_TILE = "#videoGrid .tile:not(.self)"
 OTHER_VIDEO = f"{OTHER_TILE} video"
 OTHER_CAMERA_OFF = f"{OTHER_TILE} .vid.off"
+SCREEN_TILE = "#stage .screens .tile"
+SCREEN_VIDEO = f"{SCREEN_TILE} video"
 PICTURE_ONLY_ON_THE_TILES = f"{OTHER_VIDEO}:not(.hidden)"
 ICON_ONLY_ON_THE_TILES = f"{OTHER_CAMERA_OFF}:not(.hidden)"
 
@@ -254,7 +256,6 @@ window.WebSocket = class extends NativeWebSocket {
 """
 HOLD_MEDIA = "window.holdMedia()"
 HOLD_CAMERA_REQUESTS = 'window.holdMedia("camera")'
-HOLD_SCREEN_REQUESTS = 'window.holdMedia("screen")'
 RELEASE_MEDIA = "window.releaseMedia()"
 REJECT_MEDIA = "window.rejectMedia()"
 MEDIA_REQUEST_COUNT = "() => window.mediaRequests"
@@ -264,10 +265,6 @@ MORE_TRACKS_THAN = "(count) => window.requestedTracks.length > count"
 REQUESTED_TRACK_COUNT = "() => window.requestedTracks.length"
 LIVE_TRACK_COUNT = "() => window.requestedTracks.filter((track) => track.readyState === 'live').length"
 CAMERA_TRACK_STATES = "() => window.cameraTracks.map((track) => track.readyState)"
-LATE_CAMERA_IS_STOPPED = """
-(before) => window.cameraTracks.length > before
-    && window.cameraTracks.every((track) => track.readyState === "ended")
-"""
 VIDEO_TRACKS_NOW = """
 () => {
     const own = document.getElementById("localVideo").srcObject?.getVideoTracks() ?? [];
@@ -354,8 +351,8 @@ def wait_for_the_light_to_go_out(person: Page) -> None:
     )
 
 
-def wait_for_the_tile_to_show_the_screen(person: Page) -> None:
-    person.wait_for_function(TILE_SHOWS_THE_SCREEN, arg=OTHER_VIDEO, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+def wait_for_the_screen_tile_to_show_the_screen(person: Page) -> None:
+    person.wait_for_function(TILE_SHOWS_THE_SCREEN, arg=SCREEN_VIDEO, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
 def wait_for_peer_count(person: Page, count: int) -> None:
