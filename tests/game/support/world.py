@@ -16,6 +16,7 @@ from hopin.agent.backend import QuizGameMaster, StarterPerson
 from hopin.agent.settings import AgentSettings
 from hopin.auth.sign_in import build_relying_party, build_sign_in_configs
 from hopin.game.quiz import QUIZ_TOPICS, Speaker, Turn, question_request
+from hopin.stores.session_transaction import session_transaction_of
 from hopin.web.page_build import APP_LANGUAGES
 from hopin.web.request_language import RequestLanguage
 from tests.game.support.fake_agent_backend import FakeAgentBackend
@@ -71,11 +72,13 @@ class World:
 
     @property
     def starter_person(self):
-        return StarterPerson(self.relying_party, self.sessions, self.web_auth, self.request_language)
+        return StarterPerson(
+            self.relying_party, session_transaction_of(self.sessions), self.web_auth, self.request_language
+        )
 
     @property
     def request_language(self):
-        return RequestLanguage(self.languages, self.sessions, self.web_auth)
+        return RequestLanguage(self.languages, session_transaction_of(self.sessions), self.web_auth)
 
     def starter(self, name="anna", *, with_refresh_token=True, role=None, account_language=None):
         """A socket's connection carrying the session cookie of a member, whose account has `account_language` as
