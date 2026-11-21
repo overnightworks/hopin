@@ -1,6 +1,6 @@
-// The own camera, microphone and screen share, with their requests and their end.
+// The own camera, microphone and screen share, with their requests and their end. The screen goes beside the camera, never in its place.
 
-import { addTrackToPeers, removeTrackFromPeers, replaceVideoTrackOnPeers } from "#lib/call/mesh.ts";
+import { addScreenToPeers, removeScreenFromPeers, replaceVideoTrackOnPeers } from "#lib/call/mesh.ts";
 import { announceMediaState } from "#lib/call/media-state.ts";
 import { microphoneChanged } from "#lib/call/microphone.ts";
 import { showLocalStream, updateLocalPreview } from "#lib/call/stage-port.ts";
@@ -149,13 +149,7 @@ function sendNoVideo() {
     void replaceVideoTrackOnPeers(null);
 }
 
-// While a share runs the choice is only recorded; the share's end applies it.
 export async function addCamera(): Promise<void> {
-    if (state.screenStream) {
-        state.videoEnabled = true;
-        localMediaChanged();
-        return;
-    }
     await openCamera((cameraTrack) => {
         replaceVideoTrack(cameraTrack);
         state.videoEnabled = true;
@@ -167,29 +161,14 @@ export async function addCamera(): Promise<void> {
 export function releaseCamera() {
     cameraRequest += 1;
     state.videoEnabled = false;
-    if (!state.screenStream) sendNoVideo();
+    sendNoVideo();
     localMediaChanged();
 }
 
-async function stopScreenShare(screenStream: MediaStream) {
-    const screenAudioTrack = screenStream.getAudioTracks()[0];
-    if (screenAudioTrack) {
-        removeTrackFromPeers(screenAudioTrack);
-    }
+function stopScreenShare(screenStream: MediaStream) {
+    removeScreenFromPeers(screenStream);
     stopTracks(screenStream);
     state.screenStream = null;
-    if (!state.videoEnabled) {
-        sendNoVideo();
-        return;
-    }
-    try {
-        await openCamera(replaceVideoTrack);
-    } catch (error) {
-        state.videoEnabled = false;
-        sendNoVideo();
-        localMediaChanged();
-        throw error;
-    }
 }
 
 async function startScreenShare(onEnded: () => void) {
@@ -198,13 +177,8 @@ async function startScreenShare(onEnded: () => void) {
         () => navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }),
         (screenStream) => {
             const screenTrack = videoTrackOf(screenStream);
-            cameraRequest += 1;
             state.screenStream = screenStream;
-            replaceVideoTrack(screenTrack);
-            const screenAudioTrack = screenStream.getAudioTracks()[0];
-            if (screenAudioTrack) {
-                addTrackToPeers(screenAudioTrack, screenStream);
-            }
+            addScreenToPeers(screenStream);
             screenTrack.onended = onEnded;
         },
     );
@@ -212,7 +186,7 @@ async function startScreenShare(onEnded: () => void) {
 
 async function changeScreenShare(onEnded: () => void) {
     if (state.screenStream) {
-        await stopScreenShare(state.screenStream);
+        stopScreenShare(state.screenStream);
     } else {
         await startScreenShare(onEnded);
     }

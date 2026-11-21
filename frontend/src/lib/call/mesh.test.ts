@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CONNECTION_OUTCOME, ICE_SERVERS_PATH, SIGNAL_TYPE } from "#lib/wire.ts";
-import { FakeConnection, FakeDescription, FakeSender, type Frame } from "./mesh.fixture.ts";
+import { FakeConnection, FakeDescription, FakeSender, type Frame, streamWith, track } from "./mesh.fixture.ts";
 import type { StagePort } from "./stage-port.ts";
 
 const signal = vi.hoisted(() => ({
@@ -18,18 +18,6 @@ vi.mock("#lib/call/signaling.ts", () => ({
     isConnected: () => true,
     isLive: () => true,
 }));
-
-function track(kind: string) {
-    return { kind } as unknown as MediaStreamTrack;
-}
-
-function streamWith(...kinds: string[]) {
-    const tracks = kinds.map(track);
-    return {
-        getTracks: () => tracks,
-        getVideoTracks: () => tracks.filter((candidate) => candidate.kind === "video"),
-    } as unknown as MediaStream;
-}
 
 const reportError = vi.fn();
 const iceServers = [{ urls: "ice-server-from-the-endpoint" }];
@@ -54,6 +42,7 @@ async function freshMesh({ watchPeers = true } = {}) {
         addRemoteTile: vi.fn(),
         removeRemoteTile: vi.fn(() => true),
         showRemoteStream: vi.fn(),
+        showRemoteScreen: vi.fn(),
         setConnectionQuality: vi.fn(),
         setRemoteSpeaking: vi.fn(),
     };
@@ -338,6 +327,8 @@ describe("answering an offer", () => {
     it("reuses the connection of a person already met", async () => {
         const mesh = await freshMesh();
         await meetPeer(mesh, "p1");
+        deliver(SIGNAL_TYPE.ANSWER, { from: "p1", sdp: { type: "answer", sdp: "a" } });
+        await settle();
 
         deliver(SIGNAL_TYPE.OFFER, offer);
         await settle();
@@ -360,19 +351,18 @@ describe("answering an offer", () => {
         const mesh = await freshMesh();
         const stream = streamWith("video");
         mesh.state.localStream = stream;
-        await meetPeer(mesh, "p1");
-        const connection = connectionOf();
-        connection.transceivers = [
+        FakeConnection.incoming.push(
             { direction: "recvonly", receiver: { track: { kind: "video" } }, sender: new FakeSender(null) },
             { direction: "recvonly", receiver: { track: { kind: "video" } }, sender: new FakeSender(null) },
             { direction: "sendrecv", receiver: { track: { kind: "video" } }, sender: new FakeSender(null) },
-        ];
-        Object.defineProperty(connection.transceivers[1]?.sender, "setStreams", { value: undefined });
+        );
+        Object.defineProperty(FakeConnection.incoming[1]?.sender, "setStreams", { value: undefined });
 
         deliver(SIGNAL_TYPE.OFFER, offer);
         await settle();
+        const connection = connectionOf();
 
-        const [handedOver, withoutSetStreams, alreadySending] = connection.transceivers;
+        const [handedOver, withoutSetStreams, alreadySending] = connection.transceivers.slice(1);
         expect(handedOver?.direction).toBe("sendrecv");
         expect(handedOver?.sender.setStreams).toHaveBeenCalledWith(stream);
         expect(handedOver?.sender.replaceTrack).toHaveBeenCalledWith(stream.getVideoTracks()[0]);
@@ -383,16 +373,17 @@ describe("answering an offer", () => {
     it("hands over no track when the local stream has no camera", async () => {
         const mesh = await freshMesh();
         mesh.state.localStream = streamWith("audio");
-        await meetPeer(mesh, "p1");
-        const connection = connectionOf();
-        connection.transceivers = [
-            { direction: "recvonly", receiver: { track: { kind: "video" } }, sender: new FakeSender(null) },
-        ];
+        FakeConnection.incoming.push({
+            direction: "recvonly",
+            receiver: { track: { kind: "video" } },
+            sender: new FakeSender(null),
+        });
 
         deliver(SIGNAL_TYPE.OFFER, offer);
         await settle();
+        const connection = connectionOf();
 
-        expect(connection.transceivers[0]?.sender.replaceTrack).toHaveBeenCalledWith(null);
+        expect(connection.transceivers.at(-1)?.sender.replaceTrack).toHaveBeenCalledWith(null);
     });
 
     it("sends no answer when the connection closed while the offer was applied", async () => {
@@ -581,48 +572,224 @@ describe("people leaving", () => {
 });
 
 describe("changing the local media on every connection", () => {
-    it("adds a track to every connection", async () => {
+    it("sends the screen on a transceiver of its own beside the camera of every connection", async () => {
         const mesh = await freshMesh();
+        const camera = streamWith("audio", "video");
+        mesh.state.localStream = camera;
         const connections = await meetPeer(mesh, "p1", "p2");
+        const screen = streamWith("video", "audio");
 
-        mesh.addTrackToPeers(track("audio"), streamWith("audio"));
+        mesh.addScreenToPeers(screen);
 
-        expect(connections.map((connection) => connection.transceivers.length)).toEqual([1, 1]);
+        for (const connection of connections) {
+            expect(connection.transceivers.map((transceiver) => transceiver.direction)).toEqual([
+                "sendrecv",
+                "sendrecv",
+                "sendonly",
+                "sendonly",
+            ]);
+            expect(connection.transceivers.slice(2).map((transceiver) => transceiver.sender.track)).toEqual(
+                screen.getTracks(),
+            );
+        }
     });
 
-    it("removes the track from the senders that carry it", async () => {
+    it("takes the screen's tracks from the senders that carry them and keeps the camera's", async () => {
         const mesh = await freshMesh();
-        const mine = track("audio");
+        mesh.state.localStream = streamWith("audio", "video");
         const [connection] = await meetPeer(mesh, "p1");
-        connection?.addTrack(mine);
-        connection?.addTrack(track("audio"));
+        const screen = streamWith("video", "audio");
+        mesh.addScreenToPeers(screen);
 
-        mesh.removeTrackFromPeers(mine);
+        mesh.removeScreenFromPeers(screen);
 
-        expect(connection?.transceivers.map((transceiver) => transceiver.sender.track === null)).toEqual([true, false]);
+        expect(connection?.transceivers.map((transceiver) => transceiver.sender.track === null)).toEqual([
+            false,
+            false,
+            true,
+            true,
+        ]);
     });
 
-    it("leaves a connection alone that does not carry the track", async () => {
+    it("reuses the idle screen transceivers for the next share so a call carries one screen line per kind", async () => {
+        const mesh = await freshMesh();
+        const [connection] = await meetPeer(mesh, "p1");
+        const first = streamWith("video", "audio");
+        mesh.addScreenToPeers(first);
+        mesh.removeScreenFromPeers(first);
+        const second = streamWith("video", "audio");
+
+        mesh.addScreenToPeers(second);
+
+        expect(connection?.transceivers.map((transceiver) => transceiver.direction)).toEqual(["sendonly", "sendonly"]);
+        expect(connection?.transceivers.slice(-2).map((transceiver) => transceiver.sender.track)).toEqual(
+            second.getTracks(),
+        );
+    });
+
+    it("leaves a connection alone that does not carry the screen", async () => {
         const mesh = await freshMesh();
         const [connection] = await meetPeer(mesh, "p1");
         connection?.addTrack(track("audio"));
 
-        mesh.removeTrackFromPeers(track("audio"));
+        mesh.removeScreenFromPeers(streamWith("audio"));
 
         expect(connection?.transceivers[0]?.sender.track).not.toBeNull();
     });
 
-    it("replaces the video track on every video transceiver and caps again", async () => {
+    it("replaces the video track on every camera transceiver and caps again, never on the screen's", async () => {
         const mesh = await freshMesh();
         const connections = await meetPeer(mesh, "p1", "p2");
         for (const connection of connections) connection.addTrack(track("video"));
-        const screen = track("video");
+        mesh.addScreenToPeers(streamWith("video"));
+        const camera = track("video");
 
-        await mesh.replaceVideoTrackOnPeers(screen);
+        await mesh.replaceVideoTrackOnPeers(camera);
 
         for (const connection of connections) {
-            expect(connection.transceivers[0]?.sender.replaceTrack).toHaveBeenCalledWith(screen);
+            expect(connection.transceivers[0]?.sender.replaceTrack).toHaveBeenCalledWith(camera);
+            expect(connection.transceivers[1]?.sender.replaceTrack).not.toHaveBeenCalled();
             expect(connection.transceivers[0]?.sender.capped).toEqual([1_000_000]);
         }
+    });
+});
+
+describe("a screen beside the camera", () => {
+    it("offers again when a screen is added after the first exchange", async () => {
+        const mesh = await freshMesh();
+        const [connection] = await meetPeer(mesh, "p1");
+        signal.sent.length = 0;
+
+        connection?.onnegotiationneeded?.();
+        await settle();
+
+        expect(sentOfType(SIGNAL_TYPE.OFFER)).toHaveLength(1);
+    });
+
+    it("does not offer on a change that the first exchange carries", async () => {
+        const mesh = await freshMesh();
+        const gate = FakeConnection.holdOffers();
+        deliver(SIGNAL_TYPE.EXISTING_PARTICIPANTS, { participants: ["p1"] });
+        await settle();
+        signal.sent.length = 0;
+
+        connectionOf().onnegotiationneeded?.();
+        gate();
+        await settle();
+
+        expect(sentOfType(SIGNAL_TYPE.OFFER)).toHaveLength(1);
+        expect(mesh.peerCount()).toBe(1);
+    });
+
+    it("sends a screen being shared to a person who joins during the share", async () => {
+        const mesh = await freshMesh();
+        mesh.state.localStream = streamWith("audio", "video");
+        mesh.state.screenStream = streamWith("video");
+
+        await meetPeer(mesh, "p1");
+
+        expect(connectionOf().transceivers.map((transceiver) => transceiver.direction)).toEqual([
+            "sendrecv",
+            "sendrecv",
+            "sendonly",
+        ]);
+    });
+
+    it("shows the first stream of a person as their camera and a later one as their screen", async () => {
+        const mesh = await freshMesh();
+        const [connection] = await meetPeer(mesh, "p1");
+        const camera = streamWith("audio", "video");
+        const screen = streamWith("video");
+
+        connection?.ontrack?.({ streams: [camera], transceiver: {} });
+        connection?.ontrack?.({ streams: [screen], transceiver: {} });
+
+        expect(mesh.stage.showRemoteStream.mock.calls).toEqual([["p1", camera]]);
+        expect(mesh.stage.showRemoteScreen.mock.calls).toEqual([["p1", screen]]);
+    });
+
+    it("ends the shown screen when its stream loses its tracks", async () => {
+        const mesh = await freshMesh();
+        const [connection] = await meetPeer(mesh, "p1");
+        const screen = streamWith("video");
+        connection?.ontrack?.({ streams: [streamWith("audio")], transceiver: {} });
+        connection?.ontrack?.({ streams: [screen], transceiver: {} });
+
+        screen.loseTracks();
+
+        expect(mesh.stage.showRemoteScreen).toHaveBeenLastCalledWith("p1", null);
+    });
+
+    it("keeps the shown screen while its stream still has a track left", async () => {
+        const mesh = await freshMesh();
+        const [connection] = await meetPeer(mesh, "p1");
+        const screen = streamWith("video", "audio");
+        connection?.ontrack?.({ streams: [streamWith("audio")], transceiver: {} });
+        connection?.ontrack?.({ streams: [screen], transceiver: {} });
+
+        screen.loseTrack();
+
+        expect(mesh.stage.showRemoteScreen).not.toHaveBeenCalledWith("p1", null);
+    });
+
+    it("does not hand the camera over on a receive-only video that a later offer brings", async () => {
+        const mesh = await freshMesh();
+        mesh.state.localStream = streamWith("video");
+        await meetPeer(mesh, "p1");
+        const connection = connectionOf();
+        deliver(SIGNAL_TYPE.ANSWER, { from: "p1", sdp: { type: "answer", sdp: "a" } });
+        await settle();
+        const incomingScreen = {
+            direction: "recvonly",
+            receiver: { track: { kind: "video" } },
+            sender: new FakeSender(null),
+        };
+        connection.transceivers.push(incomingScreen);
+
+        deliver(SIGNAL_TYPE.OFFER, { from: "p1", sdp: { type: "offer", sdp: "screen" } });
+        await settle();
+
+        expect(incomingScreen.direction).toBe("recvonly");
+        expect(incomingScreen.sender.replaceTrack).not.toHaveBeenCalled();
+    });
+
+    it("ignores an offer that meets its own offer when it is the impolite side", async () => {
+        const mesh = await freshMesh();
+        await meetPeer(mesh, "p1");
+        signal.sent.length = 0;
+
+        deliver(SIGNAL_TYPE.OFFER, { from: "p1", sdp: { type: "offer", sdp: "o" } });
+        await settle();
+
+        expect(sentOfType(SIGNAL_TYPE.ANSWER)).toEqual([]);
+        expect(connectionOf().remoteDescriptions).toEqual([]);
+    });
+
+    it("gives way to an offer that meets its own offer when it is the polite side", async () => {
+        await freshMesh();
+        deliver(SIGNAL_TYPE.OFFER, { from: "p1", sdp: { type: "offer", sdp: "first" } });
+        await settle();
+        const connection = connectionOf();
+        await connection.setLocalDescription({ type: "offer" });
+        signal.sent.length = 0;
+
+        deliver(SIGNAL_TYPE.OFFER, { from: "p1", sdp: { type: "offer", sdp: "second" } });
+        await settle();
+
+        expect(sentOfType(SIGNAL_TYPE.ANSWER)).toHaveLength(1);
+    });
+
+    it("lets a candidate of an ignored offer fail without a report", async () => {
+        const mesh = await freshMesh();
+        await meetPeer(mesh, "p1");
+        deliver(SIGNAL_TYPE.OFFER, { from: "p1", sdp: { type: "offer", sdp: "o" } });
+        await settle();
+        connectionOf().addIceCandidate = () => Promise.reject(new Error("no remote description"));
+
+        deliver(SIGNAL_TYPE.ICE_CANDIDATE, { from: "p1", candidate: { candidate: "c" } });
+        await settle();
+
+        expect(reportError).not.toHaveBeenCalled();
+        expect(mesh.peerCount()).toBe(1);
     });
 });
