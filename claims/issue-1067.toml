@@ -1,8 +1,0 @@
-claim_id = "ce18bc97cd1f46f58cbd329dd27d1cc5"
-agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
-role = "builder"
-base = "0d8e8ee4a83df5b42c655927050d65cc7a81c335"
-branch = "claude/issue-1067-verdict-proofs"
-scope = ["scripts/verdict_repeatability.py", "tests/e2e/game/game_page.py", "tests/e2e/game/test_game_master_verdicts.py", "tests/game"]
-opened_commit = "5c7a4b3867fdb799c615e1d82788181ffddd0d84"
-whole_reason = "Three small proofs of one feature's verdict path."
