@@ -1,5 +1,5 @@
 claim_id = "1d214ca539124aeb96bdaf790093aba7"
-agent = "Claude 67aaab2c-9f94-4d9f-afe6-2b43deb759a9"
+agent = "Claude d102189c-9f27-4985-8ccc-1652f4bd968e"
 role = "builder"
 base = "025deb2fd508ea0d8fad58aa4c24cc66bbf14d42"
 branch = "claude/issue-1089-hopin-s-live-probe-signs-in-and-reads-wh"
