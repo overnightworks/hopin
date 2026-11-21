@@ -2,6 +2,7 @@
 import { flushSync, mount, unmount } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { screenMedia } from "#lib/ui/stage-media.ts";
 import Fixture from "#lib/ui/stage-media.fixture.svelte";
 import ScreenTiles from "#lib/ui/ScreenTiles.svelte";
 import Tiles from "#lib/ui/Tiles.svelte";
@@ -307,6 +308,35 @@ describe("shared screens in a component", () => {
         flushSync();
 
         expect(document.getElementById("screen-a")).toBeNull();
+        tracking.restore();
+        void unmount(component);
+    });
+
+    it("leaves the video alone when the share has ended before its update runs", () => {
+        const video = document.createElement("video");
+
+        screenMedia(video, { participantId: "a", delivery: 0 }).update();
+
+        expect(video.srcObject).toBeFalsy();
+    });
+
+    it("plays a muted screen picture once it unmutes and takes a second delivery of the stream", () => {
+        vi.stubGlobal("MediaStream", FakeStream);
+        const tracking = trackedAssignments();
+        const component = mount(ScreenTiles, { target: document.body });
+        const audio = fakeTrack("audio");
+        const picture = fakeTrack("video", true);
+        const stream = new FakeStream([audio, picture]) as unknown as MediaStream;
+        showRemoteScreen("a", stream);
+        flushSync();
+        const video = document.getElementById("screen-video-a") as HTMLVideoElement;
+
+        Object.defineProperty(picture, "muted", { value: false });
+        picture.dispatchEvent(new Event("unmute"));
+        showRemoteScreen("a", stream);
+        flushSync();
+
+        expect((video.srcObject as unknown as FakeStream).getTracks()).toEqual([audio, picture]);
         tracking.restore();
         void unmount(component);
     });

@@ -327,14 +327,16 @@ export function showRemoteStream(participantId: string, stream: MediaStream) {
 }
 
 export function showRemoteScreen(participantId: string, stream: MediaStream | null) {
-    const index = screenShares.findIndex((share) => share.participantId === participantId);
+    const existing = screenShares.find((share) => share.participantId === participantId);
     if (stream === null) {
         screenStreams.delete(participantId);
-        if (index !== -1) screenShares.splice(index, 1);
+        if (existing) screenShares.splice(screenShares.indexOf(existing), 1);
         return;
     }
     screenStreams.set(participantId, stream);
-    if (index === -1) {
+    if (existing) {
+        existing.streamDelivery += 1;
+    } else {
         screenShares.push({
             participantId,
             get name() {
@@ -342,9 +344,6 @@ export function showRemoteScreen(participantId: string, stream: MediaStream | nu
             },
             streamDelivery: 1,
         });
-    } else {
-        const share = screenShares[index];
-        if (share) share.streamDelivery += 1;
     }
 }
 

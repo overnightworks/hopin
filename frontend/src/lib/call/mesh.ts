@@ -62,9 +62,8 @@ interface Negotiation {
 const negotiations = new WeakMap<RTCPeerConnection, Negotiation>();
 
 function negotiationOf(connection: RTCPeerConnection): Negotiation {
-    const negotiation = negotiations.get(connection);
-    if (!negotiation) throw new Error("The connection has no negotiation");
-    return negotiation;
+    // createPeerConnection registers every connection it hands out.
+    return negotiations.get(connection) as Negotiation;
 }
 
 // The transceivers that carry a screen, sent or received; the camera's changes never touch them.

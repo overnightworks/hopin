@@ -34,11 +34,15 @@ function streamWith(...kinds: string[]) {
         getTracks: () => tracks,
         getVideoTracks: () => tracks.filter((candidate) => candidate.kind === "video"),
         addEventListener: (_type: string, listener: () => void) => listeners.push(listener),
+        loseTrack: () => {
+            tracks.pop();
+            for (const listener of listeners) listener();
+        },
         loseTracks: () => {
             tracks.length = 0;
             for (const listener of listeners) listener();
         },
-    } as unknown as MediaStream & { loseTracks(): void };
+    } as unknown as MediaStream & { loseTracks(): void; loseTrack(): void };
 }
 
 const reportError = vi.fn();
@@ -724,6 +728,18 @@ describe("a screen beside the camera", () => {
         screen.loseTracks();
 
         expect(mesh.stage.showRemoteScreen).toHaveBeenLastCalledWith("p1", null);
+    });
+
+    it("keeps the shown screen while its stream still has a track left", async () => {
+        const mesh = await freshMesh();
+        const [connection] = await meetPeer(mesh, "p1");
+        const screen = streamWith("video", "audio");
+        connection?.ontrack?.({ streams: [streamWith("audio")], transceiver: {} });
+        connection?.ontrack?.({ streams: [screen], transceiver: {} });
+
+        screen.loseTrack();
+
+        expect(mesh.stage.showRemoteScreen).not.toHaveBeenCalledWith("p1", null);
     });
 
     it("does not hand the camera over on a receive-only video that a later offer brings", async () => {
