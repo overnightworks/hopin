@@ -200,11 +200,11 @@ def test_a_video_track_that_mutes_unannounced_shows_the_icon_then_a_picture_with
     turn_the_camera_on(guest)
     wait_for_the_picture(host)
 
-    renegotiate_the_video_direction(guest, host, "inactive")
+    renegotiate_the_video_direction(guest, "inactive")
     expect(host.locator(ICON_ONLY_ON_THE_TILES)).to_be_visible()
     expect(host.locator(PICTURE_ONLY_ON_THE_TILES)).to_have_count(0)
     expect(guest.locator("#videoBtn")).to_have_attribute("aria-pressed", "false")
-    renegotiate_the_video_direction(guest, host, "sendrecv")
+    renegotiate_the_video_direction(guest, "sendrecv")
     wait_for_the_picture(host)
 
     _expect_the_video_shown_only_with_a_picture(_stop_the_tile_picture_watch_once_the_picture_settles(host))

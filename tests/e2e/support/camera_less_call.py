@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 from tests.e2e.support.calls import join, record_page_errors, start_call
 from tests.e2e.support.media import (
     COUNT_OFFERS,
+    MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     RECORD_MEDIA_TRACKS,
     RECORD_PEER_CONNECTIONS,
     REFUSE_THE_CAMERA,
@@ -67,27 +68,21 @@ def start_camera_less_host_call(
     return CameraLessHostCall(host, later_joiner, invite_link)
 
 
-OFFER_THE_VIDEO_DIRECTION = """
-async (direction) => {
-    const connection = window.recordedConnections[0];
-    connection.getTransceivers()
+CHANGE_THE_VIDEO_DIRECTION = """
+(direction) => {
+    window.recordedConnections[0].getTransceivers()
         .filter((transceiver) => transceiver.receiver.track.kind === "video")
         .forEach((transceiver) => { transceiver.direction = direction; });
-    await connection.setLocalDescription(await connection.createOffer());
-    return connection.localDescription.sdp;
 }
 """
-ANSWER_THE_OFFER = """
-async (sdp) => {
-    const connection = window.recordedConnections[0];
-    await connection.setRemoteDescription({ type: "offer", sdp });
-    await connection.setLocalDescription(await connection.createAnswer());
-    return connection.localDescription.sdp;
-}
+VIDEO_DIRECTION_IS_AGREED = """
+(direction) => window.recordedConnections[0].getTransceivers()
+    .filter((transceiver) => transceiver.receiver.track.kind === "video")
+    .every((transceiver) => transceiver.currentDirection === direction)
 """
-ACCEPT_THE_ANSWER = "(sdp) => window.recordedConnections[0].setRemoteDescription({ type: 'answer', sdp })"
 
 
-def renegotiate_the_video_direction(offerer: Page, answerer: Page, direction: str) -> None:
-    offer = offerer.evaluate(OFFER_THE_VIDEO_DIRECTION, direction)
-    offerer.evaluate(ACCEPT_THE_ANSWER, answerer.evaluate(ANSWER_THE_OFFER, offer))
+def renegotiate_the_video_direction(person: Page, direction: str) -> None:
+    """The change makes the page offer by itself; the other side answers through the call's signaling."""
+    person.evaluate(CHANGE_THE_VIDEO_DIRECTION, direction)
+    person.wait_for_function(VIDEO_DIRECTION_IS_AGREED, arg=direction, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
