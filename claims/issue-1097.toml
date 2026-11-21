@@ -1,8 +1,0 @@
-claim_id = "9f14586c092540ebae68bdeb5710a24e"
-agent = "Claude d102189c-9f27-4985-8ccc-1652f4bd968e"
-role = "builder"
-base = "64b2853e78ac0a57c37c29818d9b879c0b07ee36"
-branch = "claude/issue-1097-logline-v1-8-0"
-scope = ["pyproject.toml", "tests/participation/test_hearing_trace.py", "tests/signaling/support/flow.py", "tests/signaling/test_handler_connect.py", "tests/test_app.py", "uv.lock"]
-opened_commit = "2ddb2f7c11b3a3b2946e04bbcd8205c9dd3e9421"
-whole_reason = "One pin raise and the same one-line import in each test module that restates the literal."
