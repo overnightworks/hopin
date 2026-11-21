@@ -393,20 +393,7 @@ class Game(TransitionFeature):
             return _Delivery(ended=run is not None and run.ended)
         transition.log_broken_writes_as(_RUN_WRITE_BROKE)
         recipients = view.members
-        quiz = None
-        if isinstance(outcome, Line):
-            quiz = run.quiz.heard(outcome.text, frozenset(recipients), outcome.verdicts)
-            line = LineFrame(
-                outcome.text,
-                voiced=True if self._voice is not None else None,
-                round=run.quiz.round if run.quiz.is_asking else None,
-                scores=_score_entries(quiz) if run.quiz.is_revealing else None,
-            )
-            _send_each(transition, recipients, line)
-        else:
-            transition.send(run.quiz.starter, _refusal_frame(outcome).to_json())
-            if not run.quiz.is_opening:
-                _send_each(transition, (seat for seat in recipients if seat != run.quiz.starter), EndedFrame())
+        quiz = self._deliver(run, outcome, recipients, transition)
         # Each phase's recipients are read in the same step that sets it, so every seat seated now is told here, a
         # seat that joins later is greeted by `seat_joined`, and idle greets no one.
         chained = None
@@ -421,6 +408,26 @@ class Game(TransitionFeature):
             transition.put(TABLE, replace(table, quiz=quiz, phase=phase))
             _send_each(transition, recipients, phase.frame)
         return _Delivery(recipients=recipients, chained=chained)
+
+    def _deliver(
+        self, run: _Run, outcome: GameOutcome, recipients: tuple[PeerId, ...], transition: Transition
+    ) -> Quiz | None:
+        """Send the outcome to the seats: the line for every seat, or the refusal for the starter and, past the
+        opening, the end for the others. The quiz the line moves on, or none for a refusal."""
+        if not isinstance(outcome, Line):
+            transition.send(run.quiz.starter, _refusal_frame(outcome).to_json())
+            if not run.quiz.is_opening:
+                _send_each(transition, (seat for seat in recipients if seat != run.quiz.starter), EndedFrame())
+            return None
+        quiz = run.quiz.heard(outcome.text, frozenset(recipients), outcome.verdicts)
+        line = LineFrame(
+            outcome.text,
+            voiced=True if self._voice is not None else None,
+            round=run.quiz.round if run.quiz.is_asking else None,
+            scores=_score_entries(quiz) if run.quiz.is_revealing else None,
+        )
+        _send_each(transition, recipients, line)
+        return quiz
 
     async def _send_voice(self, room: WorkRoom, key: str, live: _LiveRun, recipients: tuple[PeerId, ...]) -> None:
         """Wait for the line's voice, then send its one frame, made or empty, to the line's recipients still seated
