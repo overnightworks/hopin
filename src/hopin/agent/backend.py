@@ -142,13 +142,13 @@ class ThrowawayStarter:
         self._person = TurnPerson(Principal(iss=self._IDENTITY, sub=self._IDENTITY), "user", self._groups)
         self._api_group = api_group
 
-    async def _groups(self) -> frozenset[str]:
+    async def _groups(self) -> frozenset[str]:  # NOSONAR(S7503) TurnPerson awaits its groups
         return frozenset({self._api_group})
 
-    async def language_of(self, _starter: HTTPConnection) -> str:
+    async def language_of(self, _starter: HTTPConnection) -> str:  # NOSONAR(S7503) QuizStarter is async
         return self._LANGUAGE
 
-    async def person_of(self, _starter: HTTPConnection) -> TurnPerson:
+    async def person_of(self, _starter: HTTPConnection) -> TurnPerson:  # NOSONAR(S7503) QuizStarter is async
         return self._person
 
 
