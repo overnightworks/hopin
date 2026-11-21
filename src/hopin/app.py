@@ -347,11 +347,13 @@ def create_app(
     turn_transport: TurnCredentialsPost = TURN_OVER_HTTPS,
     call_features: Sequence[CallFeatureBuilder] = (),
     monotonic_clock: Callable[[], float] = time.monotonic,
+    wall_clock: Callable[[], float] = time.time,
 ) -> FastAPI:
     sign_in_configs = build_sign_in_configs(
         settings,
         tuple(scope for builder in call_features for scope in builder.sign_in_scopes),
         shared_stores.rate_limits,
+        wall_clock,
     )
     turn_relay = build_turn_relay(settings, turn_transport)
 

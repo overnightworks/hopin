@@ -82,7 +82,10 @@ ISSUER_OVER_HTTPS = IssuerTransports(
 
 
 def build_sign_in_configs(
-    settings: ServerSettings, feature_scopes: tuple[str, ...], rate_limits: RateLimitBackend
+    settings: ServerSettings,
+    feature_scopes: tuple[str, ...],
+    rate_limits: RateLimitBackend,
+    wall_clock: Callable[[], float] = time.time,
 ) -> SignInConfigs:
     client_secret = read_secret_file(settings.oidc_client_secret_file, "HOPIN_OIDC_CLIENT_SECRET_FILE")
     session_secret = read_secret_file(settings.session_secret_file, "HOPIN_SESSION_SECRET_FILE")
@@ -92,7 +95,7 @@ def build_sign_in_configs(
         raise SignInConfigurationError(f"HOPIN_OIDC_ISSUER and HOPIN_PUBLIC_ORIGIN are refused: {refusal}") from None
     trusted_proxies = _parse_trusted_proxies(settings.trusted_proxies)
     try:
-        web_auth = _build_web_auth(settings, session_secret, rate_limits)
+        web_auth = _build_web_auth(settings, session_secret, rate_limits, wall_clock)
     except ValueError as refusal:
         raise SignInConfigurationError(f"HOPIN_SESSION_SECRET_FILE is refused: {refusal}") from None
     return SignInConfigs(oidc_client=oidc_client, web_auth=web_auth, trusted_proxies=trusted_proxies)
@@ -125,11 +128,15 @@ def _build_oidc_client(
 
 
 def _build_web_auth(
-    settings: ServerSettings, session_secret: SecretStr, rate_limits: RateLimitBackend
+    settings: ServerSettings,
+    session_secret: SecretStr,
+    rate_limits: RateLimitBackend,
+    wall_clock: Callable[[], float],
 ) -> WebAuthConfig:
     return WebAuthConfig(
         session_secret=session_secret,
         rate_limits=rate_limits,
+        wall_clock=wall_clock,
         allowed_hosts_exact=frozenset({urlsplit(settings.public_origin).netloc.lower()}),
         session_lifetime=SessionLifetime(
             idle_seconds=SESSION_LIFETIME_SECONDS, absolute_max_age_seconds=SESSION_LIFETIME_SECONDS
