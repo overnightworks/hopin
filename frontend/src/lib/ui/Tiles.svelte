@@ -77,7 +77,13 @@
     >
         <div
             class="vid off"
-            use:agentFigure={{ key, path: agent.figure, gestures: agent.gestures, framing: agent.framing }}
+            use:agentFigure={{
+                key,
+                path: agent.figure,
+                gestures: agent.gestures,
+                room: agent.room,
+                framing: agent.framing,
+            }}
         >
             <span class="av"
                 ><svg

@@ -75,6 +75,23 @@ describe("dialed-in agents", () => {
         ]);
     });
 
+    it("CALL-80: hands the path of an agent's room to its tile, and none for an agent without", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, {
+            ...joined("someone"),
+            figure: "/api/participation/figures/abc",
+            room: "/api/participation/persona-rooms/ghi",
+        });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a2"));
+
+        expect([...page.tiles.values()].map(({ room }) => room)).toEqual([
+            "/api/participation/persona-rooms/ghi",
+            undefined,
+        ]);
+    });
+
     it("CALL-56: reports the closed code a figure ended with, with the id of its agent", async () => {
         const page = await installedParticipation();
         page.seat(false);

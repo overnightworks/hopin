@@ -422,6 +422,7 @@ describe("an agent tile's figure", () => {
             gesture: ReturnType<typeof vi.fn>;
             frame: ReturnType<typeof vi.fn>;
             framing: string | undefined;
+            room: string | undefined;
             listen: ReturnType<typeof vi.fn>;
             speak: ReturnType<typeof vi.fn>;
             think: ReturnType<typeof vi.fn>;
@@ -432,6 +433,7 @@ describe("an agent tile's figure", () => {
             show: (figure: AgentFigure, reason?: string) => void,
             gestures?: Record<string, string>,
             framing?: string,
+            room?: string,
         ) => {
             const stop = vi.fn();
             const gesture = vi.fn();
@@ -439,7 +441,7 @@ describe("an agent tile's figure", () => {
             const listen = vi.fn();
             const speak = vi.fn();
             const think = vi.fn();
-            started.push({ host, path, gestures, show, stop, gesture, frame, framing, listen, speak, think });
+            started.push({ host, path, gestures, show, stop, gesture, frame, framing, room, listen, speak, think });
             return { stop, gesture, frame, listen, speak, think };
         };
         return { drawer, started };
@@ -475,6 +477,19 @@ describe("an agent tile's figure", () => {
         });
 
         expect(started[0]?.gestures).toEqual({ wave: "/api/participation/clips/def" });
+    });
+
+    it.each([
+        { given: "a room", room: "/api/participation/persona-rooms/ghi" },
+        { given: "no room", room: undefined },
+    ])("CALL-80: hands the drawer the path of the persona's room, $given", async ({ room }) => {
+        const { agentFigure, drawAgentFigures } = await freshStage();
+        const { drawer, started } = drawerOf();
+        drawAgentFigures(drawer);
+
+        agentFigure(document.createElement("div"), { key: KEY, path: PATH, room });
+
+        expect(started[0]?.room).toBe(room);
     });
 
     it("CALL-56: brings the symbol back when the drawer ends the figure", async () => {

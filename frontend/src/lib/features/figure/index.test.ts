@@ -15,6 +15,8 @@ interface Mounting {
     gesture: ReturnType<typeof vi.fn>;
     frame: ReturnType<typeof vi.fn>;
     framing: string | undefined;
+    room: Uint8Array | undefined;
+    handleRoom: ReturnType<typeof vi.fn>;
     listen: ReturnType<typeof vi.fn>;
     speak: ReturnType<typeof vi.fn>;
     think: ReturnType<typeof vi.fn>;
@@ -26,12 +28,18 @@ const drawing = vi.hoisted(() => ({ mounts: [] as Mounting[] }));
 function fakeMount(
     canvas: HTMLCanvasElement,
     bytes: Uint8Array,
-    options: { onSignal: (signal: Signal) => void; gestures?: Record<string, Uint8Array>; framing?: string },
+    options: {
+        onSignal: (signal: Signal) => void;
+        gestures?: Record<string, Uint8Array>;
+        framing?: string;
+        room?: Uint8Array;
+    },
 ) {
     return new Promise((resolve) => {
         const dispose = vi.fn();
         const gesture = vi.fn();
         const frame = vi.fn();
+        const handleRoom = vi.fn();
         const listen = vi.fn();
         const speak = vi.fn();
         const think = vi.fn();
@@ -40,9 +48,11 @@ function fakeMount(
             bytes,
             gestures: options.gestures,
             framing: options.framing,
+            room: options.room,
+            handleRoom,
             give: options.onSignal,
             resolve: () => {
-                resolve({ signal: "drawn", dispose, gesture, frame, listen, speak, think });
+                resolve({ signal: "drawn", dispose, gesture, frame, room: handleRoom, listen, speak, think });
             },
             dispose,
             gesture,
@@ -95,7 +105,7 @@ async function installedDrawer(importFails = false): Promise<AgentFigureDrawer> 
     return drawer;
 }
 
-function draw(drawer: AgentFigureDrawer, gestures?: Record<string, string>, framing?: string) {
+function draw(drawer: AgentFigureDrawer, gestures?: Record<string, string>, framing?: string, room?: string) {
     const host = document.createElement("div");
     const shown: AgentFigure[] = [];
     // The reason each report gave, undefined for none.
@@ -109,6 +119,7 @@ function draw(drawer: AgentFigureDrawer, gestures?: Record<string, string>, fram
         },
         gestures,
         framing,
+        room,
     );
     return { host, shown, reasons, stop, gesture, frame, listen, speak, think };
 }
@@ -118,8 +129,8 @@ const runtime = (globalThis as unknown as { process: UnhandledRejectionSource })
 
 const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-async function mounted(drawer: AgentFigureDrawer, gestures?: Record<string, string>, framing?: string) {
-    const drawn = draw(drawer, gestures, framing);
+async function mounted(drawer: AgentFigureDrawer, gestures?: Record<string, string>, framing?: string, room?: string) {
+    const drawn = draw(drawer, gestures, framing, room);
     await vi.waitFor(() => {
         expect(drawing.mounts).toHaveLength(1);
     });
@@ -513,5 +524,148 @@ describe("a persona's clips on an agent's figure", () => {
         } finally {
             vi.useRealTimers();
         }
+    });
+});
+
+describe("a persona's room behind an agent's figure", () => {
+    const ROOM_PATH = "/api/participation/persona-rooms/ghi";
+    const ROOM_BYTES = new Uint8Array([5, 6, 7]);
+
+    // A fetch the test answers when it chooses; the room's signal is kept to see whether the page stops the fetch.
+    function held() {
+        let release: () => void = () => undefined;
+        const gate = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        return { gate, release };
+    }
+
+    function fetchedRoom(
+        room: (init?: RequestInit) => Promise<Response>,
+        figureGate: Promise<void> = Promise.resolve(),
+    ) {
+        const roomSignals: (AbortSignal | null | undefined)[] = [];
+        vi.stubGlobal(
+            "fetch",
+            vi.fn((path: unknown, init?: RequestInit) => {
+                if (path === FIGURE_PATH) return figureGate.then(() => new Response(BYTES));
+                roomSignals.push(init?.signal);
+                return room(init);
+            }),
+        );
+        return roomSignals;
+    }
+
+    const roomServed = () => Promise.resolve(new Response(ROOM_BYTES));
+    const roomPending = (init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => {
+                reject(new DOMException("aborted", "AbortError"));
+            });
+        });
+
+    it("CALL-80: mounts the figure with the room's bytes when they arrive before mount is called", async () => {
+        const figure = held();
+        fetchedRoom(roomServed, figure.gate);
+        const drawer = await installedDrawer();
+        draw(drawer, undefined, undefined, ROOM_PATH);
+        await settled();
+        figure.release();
+        await vi.waitFor(() => {
+            expect(drawing.mounts).toHaveLength(1);
+        });
+        const [mounting] = drawing.mounts;
+        mounting?.resolve();
+        await settled();
+
+        expect([[...(mounting?.room ?? [])], mounting?.handleRoom.mock.calls]).toEqual([[...ROOM_BYTES], []]);
+    });
+
+    it("CALL-80: hands the handle the room's bytes that arrive while mount is awaited, once it resolves", async () => {
+        const arrival = held();
+        fetchedRoom(() => arrival.gate.then(roomServed));
+        const { mounting } = await mounted(await installedDrawer(), undefined, undefined, ROOM_PATH);
+
+        arrival.release();
+        await settled();
+        mounting.resolve();
+        await settled();
+
+        expect([mounting.room, mounting.handleRoom.mock.calls.map(([bytes]) => [...(bytes as Uint8Array)])]).toEqual([
+            undefined,
+            [[...ROOM_BYTES]],
+        ]);
+    });
+
+    it("CALL-80: hands the handle the room's bytes that arrive after the figure is drawn", async () => {
+        const arrival = held();
+        fetchedRoom(() => arrival.gate.then(roomServed));
+        const { mounting } = await mounted(await installedDrawer(), undefined, undefined, ROOM_PATH);
+        mounting.resolve();
+        await settled();
+        expect(mounting.handleRoom).not.toHaveBeenCalled();
+
+        arrival.release();
+        await settled();
+
+        expect(mounting.handleRoom.mock.calls.map(([bytes]) => [...(bytes as Uint8Array)])).toEqual([[...ROOM_BYTES]]);
+    });
+
+    it("CALL-80: mounts the figure while the room's fetch is still pending", async () => {
+        fetchedRoom(roomPending);
+
+        const { mounting } = await mounted(await installedDrawer(), undefined, undefined, ROOM_PATH);
+
+        expect(mounting.room).toBeUndefined();
+    });
+
+    it.each([
+        {
+            ending: "the figure ends",
+            end: (_figure: { stop: () => void }, mounting: Mounting) => {
+                mounting.give("lost");
+            },
+        },
+        {
+            ending: "the tile stops it",
+            end: (figure: { stop: () => void }) => {
+                figure.stop();
+            },
+        },
+    ])(
+        "CALL-80: aborts the room's fetch when $ending while it is pending, and hands the figure no room",
+        async ({ end }) => {
+            const roomSignals = fetchedRoom(roomPending);
+            const drawn = await mounted(await installedDrawer(), undefined, undefined, ROOM_PATH);
+
+            end(drawn, drawn.mounting);
+            drawn.mounting.resolve();
+            await settled();
+
+            expect([roomSignals[0]?.aborted, drawn.mounting.room, drawn.mounting.handleRoom.mock.calls]).toEqual([
+                true,
+                undefined,
+                [],
+            ]);
+        },
+    );
+
+    it("CALL-80: draws the figure with no room and no end signal when the room cannot be fetched", async () => {
+        fetchedRoom(() => Promise.resolve(new Response("no", { status: 502 })));
+
+        const { mounting, shown } = await mounted(await installedDrawer(), undefined, undefined, ROOM_PATH);
+        mounting.resolve();
+        mounting.give("drawn");
+        await settled();
+
+        expect([mounting.room, mounting.handleRoom.mock.calls, shown]).toEqual([undefined, [], [AGENT_FIGURE.DRAWN]]);
+    });
+
+    it("CALL-80: fetches no room for a figure that is seen in none", async () => {
+        const fetchStub = fetchedBytes();
+
+        await mounted(await installedDrawer());
+
+        expect(fetchStub.mock.calls.map(([path]) => path)).toEqual([FIGURE_PATH]);
     });
 });
