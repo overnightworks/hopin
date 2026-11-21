@@ -1,0 +1,8 @@
+claim_id = "1d214ca539124aeb96bdaf790093aba7"
+agent = "Claude 67aaab2c-9f94-4d9f-afe6-2b43deb759a9"
+role = "builder"
+base = "025deb2fd508ea0d8fad58aa4c24cc66bbf14d42"
+branch = "claude/issue-1089-hopin-s-live-probe-signs-in-and-reads-wh"
+scope = [".github/workflows/ci.yml", ".github/workflows/release.yml", "Dockerfile", "README.md", "docs/ARCHITECTURE.md", "packages/probe", "pyproject.toml", "scripts", "tests/e2e", "tests/unit", "uv.lock"]
+opened_commit = "faa32e40112911bb8c645986d422e20b97e108ec"
+whole_reason = "One runnable probe: the member, its image and the moved page steps have no effect without each other, and CI proves them together."
