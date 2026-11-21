@@ -1,14 +1,18 @@
 import io
 import json
+import secrets
 import zipfile
 from contextlib import ExitStack
+from datetime import timedelta
 from urllib.parse import urlencode
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 from starlette.websockets import WebSocketDisconnect
 from webauth.admission import AppRole
 from webauth.config import installed_web_auth_config
+from webauth.oidc_login import new_session_id
 from webauth.ports import AccountKind
 
 from hopin.app import create_app
@@ -31,7 +35,7 @@ from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signaling_fakes import ManualScheduler
-from tests.support.signed_in import cookie_header, handshake_headers, seed_member
+from tests.support.signed_in import cookie_header, handshake_headers, new_id_token, seed_member
 
 ABNORMAL_CLOSE_CODE = 4999
 FOUND_ELSEWHERE = 302
@@ -315,3 +319,34 @@ class TestExportAfterTheErasure:
         assert withheld_before["resume_token"] == 1
         assert data_after == {"account": anna, "sessions": [], "seats": []}
         assert set(withheld_after.values()) == {0}
+
+
+class TestExportOfASessionHoldingPerson:
+    def test_lists_each_session_oldest_first_and_counts_the_tokens_it_holds(self, client, stores, members):
+        admin = members("olga", role=AppRole.ADMIN)
+        current = members("anna").session
+        older_start = current.created_at - timedelta(hours=1)
+        older_expiry = current.expires_at - timedelta(hours=2)
+        stores.sessions.create(
+            "anna",
+            session_id=new_session_id(),
+            now=older_start,
+            expires_at=older_expiry,
+            refresh_token=SecretStr(secrets.token_urlsafe()),
+            id_token=new_id_token(),
+            account_language=None,
+        )
+
+        data, withheld = export_of(client, admin, "anna")
+
+        assert data["sessions"] == [
+            {
+                "started_at": older_start.isoformat().replace("+00:00", "Z"),
+                "expires_at": older_expiry.isoformat().replace("+00:00", "Z"),
+            },
+            {
+                "started_at": current.created_at.isoformat().replace("+00:00", "Z"),
+                "expires_at": current.expires_at.isoformat().replace("+00:00", "Z"),
+            },
+        ]
+        assert (withheld["session_id"], withheld["refresh_token"], withheld["id_token"]) == (2, 1, 2)
