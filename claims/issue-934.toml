@@ -1,8 +1,0 @@
-claim_id = "483cc93a9f8545b68a6fb47dea77b979"
-agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
-role = "builder"
-base = "00feb0fda6f933d1c872ddf3caa56d3b7b0744e6"
-branch = "claude/issue-934-quiz-verdicts"
-scope = ["Makefile", "README.md", "docs/game-master.md", "frontend/src/lib/catalogs", "frontend/src/lib/features/game", "frontend/src/lib/words", "scripts", "src/hopin/agent", "src/hopin/agents/quiz.md", "src/hopin/game", "src/hopin/words.py", "tests/e2e/game", "tests/game"]
-opened_commit = "4ce3250a665aaf17ef44081cce2e48aaf7024298"
-whole_reason = "The verdict record, the code that counts it, the quiz master's prompt, the score view and the repeatability check change together."
