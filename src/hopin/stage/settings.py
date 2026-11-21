@@ -159,3 +159,13 @@ def linked_context(apps: Sequence[StageApp], link: str) -> LinkedContext | None:
         if path is not None and linked_origin == canonical_origin(app.origin):
             return LinkedContext(app, path[1], frame_source(app, path[1]))
     return None
+
+
+def named_context(apps: Sequence[StageApp], app_name: str, context: str) -> LinkedContext | None:
+    """The table a registered app's name and a context key name, or nothing when either is none."""
+    if re.fullmatch(CONTEXT_KEY_PATTERN, context) is None:
+        return None
+    for app in apps:
+        if app.name == app_name:
+            return LinkedContext(app, context, frame_source(app, context))
+    return None

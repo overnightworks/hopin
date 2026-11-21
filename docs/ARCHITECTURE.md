@@ -66,7 +66,7 @@ Caption: what each part may import, from the `layers` contract in `pyproject.tom
 | `people` | the admin download of what HopIn holds about one person |
 | `game` | optional: one quiz per call |
 | `participation` | optional: the agents a person dials in, with no AI in it |
-| `stage` | optional: the table of a registered app that a call shows |
+| `stage` | optional: the table of a registered app that a call shows, and its start link `/c/new`, which sends a member to the open call showing a table or starts one |
 | `agent` | optional connector: the MCP surface of a person's agents and the quiz agent; the only speaker to LiteLLM and the speech service |
 | `app` | the composition root: wires the packages, names no feature |
 | `main` | starts the server and switches the optional features in |

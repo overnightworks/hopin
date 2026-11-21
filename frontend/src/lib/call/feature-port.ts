@@ -4,11 +4,12 @@
 // The slots are the call core's few: a frame handler, sending a frame and asking whether the socket is connected,
 // a toast, an item in More, a chat line no person wrote or a line pinned last, a card between the chat's header
 // and its lines, the agents that read the chat's lines, a view on the stage, an agent's tile and the drawer of its
-// figure, the person's microphone and a hook for the call's end. The three chat slots take a feature view, a component bound to its props that a feature
+// figure, the person's microphone, a hook for the call's end and the start link the page was opened at. The three chat slots take a feature view, a component bound to its props that a feature
 // builds with core chat's `featureView`; the core renders it and never names what it shows or any agent kind.
 
 import type { AgentLink } from "#lib/call/lines.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
+import type { StartLink } from "#lib/ui/navigation.ts";
 import type { TOAST_KIND, ToastAction, ToastKind } from "#lib/ui/toast.svelte.ts";
 import type { ServerFrameByType } from "#lib/wire.ts";
 
@@ -138,6 +139,8 @@ export interface FeatureCore<Frames extends object = object> {
     /** One still picture of the person's own camera as JPEG base64 within the bounds, or null when no camera is on: the camera is off, a screen share replaces it, or the person is not in a call. Never a screen share's, a peer's or an agent's picture. */
     takePicture(bounds: PictureBounds): Promise<string | null>;
     onCallEnded(hook: () => void): void;
+    /** The start link the page was opened at, null at any other address; it does not change, so a feature that acts on it does so once. */
+    startLink: StartLink | null;
 }
 
 export interface FeatureModule {

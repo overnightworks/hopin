@@ -2,7 +2,7 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -14,6 +14,7 @@ from hopin.config.constants import (
     IMMUTABLE_ASSET_CACHE_CONTROL,
     IMMUTABLE_ASSET_DIRECTORY,
     READ_METHODS,
+    START_LINK_PATH,
     WEBSOCKET_PATH,
 )
 from hopin.web.page_build import built_page_response
@@ -65,9 +66,12 @@ def create_router(
     def home_page(request: Request) -> Response:
         return shell(request)
 
-    # Every call address answers the page; whether the call exists is decided when someone joins.
+    # Every call address answers the page; whether the call exists is decided when someone joins. The start link is the
+    # one address that names no call: the stage answers it, and without a stage it is nothing.
     @router.api_route(f"{CALL_PATH}/{{room_id}}", methods=READ_METHODS)
-    def call_page(request: Request) -> Response:
+    def call_page(room_id: str, request: Request) -> Response:
+        if f"{CALL_PATH}/{room_id}" == START_LINK_PATH:
+            raise HTTPException(status_code=HTTPStatus.NOT_FOUND)
         return shell(request)
 
     router.mount(APP_ASSET_PATH, _PageBuildFiles(page_build.app_directory), name="page-build")

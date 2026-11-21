@@ -13,6 +13,7 @@ from hopin.config.constants import (
     HOME_PATH,
     IMMUTABLE_ASSET_CACHE_CONTROL,
     IMMUTABLE_ASSET_DIRECTORY,
+    START_LINK_PATH,
 )
 from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
@@ -101,6 +102,9 @@ class TestCallPage:
         response = client.get(f"{CALL_PATH}/nonexistent")
 
         assert (response.status_code, response.content) == (200, fixture_page_build().shell.variants["de"].content)
+
+    def test_the_start_link_address_is_no_page_without_the_stage_that_answers_it(self, client):
+        assert client.get(START_LINK_PATH).status_code == 404
 
     @pytest.mark.parametrize("path", ["/call", "/join/x"])
     def test_the_retired_addresses_answer_404(self, client, path):

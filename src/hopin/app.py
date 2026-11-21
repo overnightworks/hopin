@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 
 import structlog
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from logline import RequestLineMiddleware
 from webauth.config import install_web_auth_config
 from webauth.middleware import ClientAddressMiddleware, install_resource_metadata, install_web_auth_middleware
@@ -25,6 +25,7 @@ from hopin.auth.sign_in import (
     ISSUER_OVER_HTTPS,
     IssuerTransports,
     LoggingAuditSink,
+    SignInConfigs,
     build_relying_party,
     build_sign_in_configs,
     install_sign_in,
@@ -55,7 +56,7 @@ from hopin.web.turn_relay import TURN_OVER_HTTPS, TurnCredentialsPost, build_tur
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable, Sequence
 
-    from fastapi import APIRouter
+    from starlette.routing import BaseRoute
     from webauth.config import WebAuthConfig
     from webauth.middleware import ProtectedResource
     from webauth.oidc import OidcRelyingParty
@@ -65,6 +66,7 @@ if TYPE_CHECKING:
     from hopin.config.settings import ServerSettings
     from hopin.signaling.features import TransitionFeature
     from hopin.stores.shared import SharedStores
+    from hopin.web.ice_servers import TurnRelay
     from hopin.web.page_build import PageBuild
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -109,6 +111,7 @@ class CallFeatureBuilder(Protocol):
         deadlines: Deadlines,
         transaction: SignInTransaction,
         request_language: RequestLanguage,
+        page_build: PageBuild,
     ) -> BuiltCallFeature:
         """The feature, its router and its bearer resource."""
 
@@ -200,9 +203,51 @@ def _install_web_auth(
     )
 
 
-def _include_feature_routes(app: FastAPI, built_features: list[BuiltCallFeature], issuer: str) -> None:
+def _is_templated(route: BaseRoute) -> bool:
+    return "{" in getattr(route, "path", "{")
+
+
+def _split_by_path_form(built_features: list[BuiltCallFeature]) -> tuple[list[APIRouter], list[APIRouter]]:
+    """Each feature's routes in two routers: those with a fixed path, which go ahead of the call core's routes and keep
+    the feature's lifespan, and those with a path parameter, which go after them so they never take a core address."""
+    fixed_routers: list[APIRouter] = []
+    templated_routers: list[APIRouter] = []
     for built in built_features:
-        app.include_router(built.router)
+        fixed = APIRouter(lifespan=built.router.lifespan_context)
+        templated = APIRouter()
+        fixed.routes.extend(route for route in built.router.routes if not _is_templated(route))
+        templated.routes.extend(route for route in built.router.routes if _is_templated(route))
+        fixed_routers.append(fixed)
+        templated_routers.append(templated)
+    return fixed_routers, templated_routers
+
+
+def _include_routes(
+    app: FastAPI,
+    settings: ServerSettings,
+    built_features: list[BuiltCallFeature],
+    signaling_handler: SignalingHandler,
+    sessions: SingleProcessSessionStore,
+    page_build: PageBuild,
+    request_language: RequestLanguage,
+    shared_stores: SharedStores,
+    turn_relay: TurnRelay | None,
+) -> None:
+    fixed_feature_routers, templated_feature_routers = _split_by_path_form(built_features)
+    call_core_routers = [
+        create_router(signaling_handler, page_build, request_language, shared_stores.answers),
+        create_ice_servers_router(settings.stun_server, turn_relay),
+        create_call_features_router(signaling_handler.features),
+    ]
+    for router in (*fixed_feature_routers, *call_core_routers, *templated_feature_routers):
+        app.include_router(router)
+    _install_bearer_resources(app, built_features, settings.oidc_issuer)
+    app.include_router(create_account_router(settings.oidc_issuer))
+    app.include_router(create_people_router(sessions, signaling_handler))
+
+
+def _install_bearer_resources(app: FastAPI, built_features: list[BuiltCallFeature], issuer: str) -> None:
+    for built in built_features:
         if built.bearer_resource is not None:
             install_resource_metadata(app, built.bearer_resource, issuer=issuer)
 
@@ -216,6 +261,49 @@ def _bearer_of(
     return (relying_party, resources[0]) if resources else None
 
 
+def _install_sign_in_surface(
+    app: FastAPI,
+    sign_in_configs: SignInConfigs,
+    sign_in_stores: SingleProcessStores,
+    relying_party: OidcRelyingParty,
+    page_build: PageBuild,
+    request_language: RequestLanguage,
+    bearer: tuple[OidcRelyingParty, ProtectedResource] | None,
+    call_features: Sequence[CallFeatureBuilder],
+) -> None:
+    install_web_auth_config(app, sign_in_configs.web_auth)
+    install_sign_in(
+        app, relying_party, sign_in_stores.transaction, page_build, request_language, words_logout_button_label
+    )
+    _install_web_auth(app, sign_in_stores.sessions, page_build, bearer, call_features)
+    app.add_middleware(ClientAddressMiddleware, trusted_proxies=sign_in_configs.trusted_proxies)
+    app.add_middleware(RequestLineMiddleware)
+
+
+def _new_app(
+    settings: ServerSettings,
+    sign_in_stores: SingleProcessStores,
+    auth_config: WebAuthConfig,
+    timers: Scheduler,
+    deadlines: Deadlines,
+    built_features: list[BuiltCallFeature],
+) -> tuple[FastAPI, SignalingHandler]:
+    signaling_handler = SignalingHandler(
+        RoomManager(max_participants_per_room=settings.max_participants_per_room),
+        SessionIdentityResolver(sign_in_stores.sessions),
+        timers,
+        deadlines,
+        [built.feature for built in built_features],
+    )
+    app = FastAPI(
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        lifespan=_lifespan(sign_in_stores.sessions, auth_config.wall_clock, timers, signaling_handler),
+    )
+    return app, signaling_handler
+
+
 def _build_features(
     call_features: Sequence[CallFeatureBuilder],
     relying_party: OidcRelyingParty,
@@ -224,6 +312,7 @@ def _build_features(
     timers: Scheduler,
     deadlines: Deadlines,
     request_language: RequestLanguage,
+    page_build: PageBuild,
 ) -> list[BuiltCallFeature]:
     return [
         builder(
@@ -234,6 +323,7 @@ def _build_features(
             deadlines=deadlines,
             transaction=sign_in_stores.transaction,
             request_language=request_language,
+            page_build=page_build,
         )
         for builder in call_features
     ]
@@ -260,41 +350,37 @@ def create_app(
 
     sign_in_stores = stores if stores is not None else SingleProcessStores(audit=LoggingAuditSink())
     relying_party = build_relying_party(sign_in_configs, issuer_transports, monotonic_clock)
-    room_manager = RoomManager(max_participants_per_room=settings.max_participants_per_room)
     timers = scheduler if scheduler is not None else AsyncioScheduler()
     deadlines = InMemoryDeadlines(timers)
     request_language = RequestLanguage(page_build.languages, sign_in_stores.sessions, sign_in_configs.web_auth)
     built_features = _build_features(
-        call_features, relying_party, sign_in_stores, sign_in_configs.web_auth, timers, deadlines, request_language
-    )
-    bearer = _bearer_of(built_features, relying_party)
-    signaling_handler = SignalingHandler(
-        room_manager,
-        SessionIdentityResolver(sign_in_stores.sessions),
+        call_features,
+        relying_party,
+        sign_in_stores,
+        sign_in_configs.web_auth,
         timers,
         deadlines,
-        [built.feature for built in built_features],
+        request_language,
+        page_build,
     )
-
-    app = FastAPI(
-        docs_url=None,
-        redoc_url=None,
-        openapi_url=None,
-        lifespan=_lifespan(sign_in_stores.sessions, sign_in_configs.web_auth.wall_clock, timers, signaling_handler),
+    bearer = _bearer_of(built_features, relying_party)
+    app, signaling_handler = _new_app(
+        settings, sign_in_stores, sign_in_configs.web_auth, timers, deadlines, built_features
     )
-    app.include_router(create_router(signaling_handler, page_build, request_language, shared_stores.answers))
-    app.include_router(create_ice_servers_router(settings.stun_server, turn_relay))
-    app.include_router(create_call_features_router(signaling_handler.features))
-    _include_feature_routes(app, built_features, settings.oidc_issuer)
-    app.include_router(create_account_router(settings.oidc_issuer))
-    app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
+    _include_routes(
+        app,
+        settings,
+        built_features,
+        signaling_handler,
+        sign_in_stores.sessions,
+        page_build,
+        request_language,
+        shared_stores,
+        turn_relay,
+    )
     app.state.settings = settings
-    install_web_auth_config(app, sign_in_configs.web_auth)
-    install_sign_in(
-        app, relying_party, sign_in_stores.transaction, page_build, request_language, words_logout_button_label
+    _install_sign_in_surface(
+        app, sign_in_configs, sign_in_stores, relying_party, page_build, request_language, bearer, call_features
     )
-    _install_web_auth(app, sign_in_stores.sessions, page_build, bearer, call_features)
-    app.add_middleware(ClientAddressMiddleware, trusted_proxies=sign_in_configs.trusted_proxies)
-    app.add_middleware(RequestLineMiddleware)
 
     return app
