@@ -22,7 +22,7 @@ from tests.e2e.support.media import (
     wait_for_the_screen_tile_to_show_the_screen,
     wait_for_video_tracks,
 )
-from tests.e2e.support.people import DESKTOP, FORM_FACTORS
+from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -36,6 +36,15 @@ CAMERA_AND_SCREEN_SENT = [LIVE, f"foreign {LIVE}"]
 CAMERA_SENT_AND_SCREEN_GONE = [LIVE, None]
 SCREEN_SENDERS_WITHOUT_CAMERA = [None, f"foreign {LIVE}"]
 SCREEN_WIDTH_MARGIN_PIXELS = 24
+SHARE_CYCLES = 3
+# The camera's video m-line and at most one for the screen.
+MOST_VIDEO_LINES_PER_CONNECTION = 2
+VIDEO_LINES_PER_OPEN_CONNECTION = """
+() => window.recordedConnections
+    .filter((connection) => connection.signalingState !== "closed")
+    .map((connection) => connection.getTransceivers()
+        .filter((transceiver) => (transceiver.sender.track || transceiver.receiver.track).kind === "video").length)
+"""
 
 
 @dataclass
@@ -140,3 +149,31 @@ def test_a_person_who_joins_during_a_share_sees_the_screen_and_the_camera(
     wait_for_peer_count(late, 2)
     expect_the_screen_beside_the_cameras(late, 2, cameras_off=0 if camera_on else 1)
     expect(late.locator(ICON_ONLY_ON_THE_TILES)).to_have_count(0 if camera_on else 1)
+
+
+def test_repeated_shares_show_the_screen_to_a_desktop_and_a_phone_guest_on_one_video_line_each(
+    open_person: Callable[..., Page], base_url: str, page_errors: list[str]
+) -> None:
+    """CALL-24: Repeated shares show the screen to every guest and add no further video line per connection."""
+    sharer = record_page_errors(open_person(**DESKTOP), page_errors)
+    add_init_scripts(sharer, [RECORD_MEDIA_TRACKS, RECORD_PEER_CONNECTIONS])
+    invite_link = start_call(sharer, base_url)
+    guests = [
+        join(open_person, invite_link, form, (RECORD_PEER_CONNECTIONS,), page_errors) for form in (DESKTOP, PHONE)
+    ]
+    everyone = [sharer, *guests]
+    for person in everyone:
+        wait_for_peer_count(person, 2)
+
+    for _ in range(SHARE_CYCLES):
+        share_the_screen(sharer)
+        for guest in guests:
+            expect(guest.locator(SCREEN_TILE)).to_have_count(1, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+            wait_for_the_screen_tile_to_show_the_screen(guest)
+        stop_the_screen_share(sharer)
+        for guest in guests:
+            expect(guest.locator(SCREEN_TILE)).to_have_count(0, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+
+    share_the_screen(sharer)
+    for person in everyone:
+        assert max(person.evaluate(VIDEO_LINES_PER_OPEN_CONNECTION)) <= MOST_VIDEO_LINES_PER_CONNECTION
