@@ -11,7 +11,9 @@ from tests.e2e.game.game_page import (
     GAME_MASTER_NAME_GAP,
     QUIZ_ENDED,
     SCORE,
+    STATUS,
     answer_on_card,
+    answer_sent_status,
     call_of_two,
     open_chat,
     score_line,
@@ -39,6 +41,7 @@ def answered_by_both(host: Page, guest: Page) -> None:
         open_chat(person)
         expect(person.locator(CARD)).to_be_visible()
     answer_on_card(host, "Tejo")
+    expect(host.locator(CARD).locator(STATUS)).to_have_text(answer_sent_status(1, 2))
     answer_on_card(guest, "Mondego")
 
 
