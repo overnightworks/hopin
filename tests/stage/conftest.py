@@ -9,8 +9,13 @@ from tests.support.signaling_fakes import SocketAccountResolver
 
 
 @pytest.fixture
-def handler(room_manager, scheduler, deadlines):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, deadlines, [StageTransitions([SKAT])])
+def stage():
+    return StageTransitions([SKAT])
+
+
+@pytest.fixture
+def handler(room_manager, scheduler, deadlines, stage):
+    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, deadlines, [stage])
 
 
 @pytest_asyncio.fixture

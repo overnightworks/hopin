@@ -44,3 +44,25 @@ class RoomState:
         return RoomState(
             self.revision + 1, Attachment(held.number, app=held.app, table=held.table, source=held.source, opener=None)
         )
+
+
+class OpenCalls:
+    """Which open call shows which table of which app, for this process: the first call to attach a table keeps its
+    entry, and an entry goes only with the call it names."""
+
+    def __init__(self) -> None:
+        self._room_by_table: dict[tuple[str, str], str] = {}
+
+    def showing(self, app: str, context: str) -> str | None:
+        return self._room_by_table.get((app, context))
+
+    def attached(self, app: str, context: str, room_id: str) -> None:
+        self._room_by_table.setdefault((app, context), room_id)
+
+    def detached(self, app: str, context: str, room_id: str) -> None:
+        if self._room_by_table.get((app, context)) == room_id:
+            del self._room_by_table[app, context]
+
+    def ended(self, room_id: str) -> None:
+        for table in [table for table, shown_in in self._room_by_table.items() if shown_in == room_id]:
+            del self._room_by_table[table]

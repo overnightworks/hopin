@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 
 import structlog
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from logline import RequestLineMiddleware
 from webauth.config import install_web_auth_config
 from webauth.middleware import ClientAddressMiddleware, install_resource_metadata, install_web_auth_middleware
@@ -55,7 +55,6 @@ from hopin.web.turn_relay import TURN_OVER_HTTPS, TurnCredentialsPost, build_tur
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable, Sequence
 
-    from fastapi import APIRouter
     from webauth.config import WebAuthConfig
     from webauth.middleware import ProtectedResource
     from webauth.oidc import OidcRelyingParty
@@ -109,6 +108,7 @@ class CallFeatureBuilder(Protocol):
         deadlines: Deadlines,
         transaction: SignInTransaction,
         request_language: RequestLanguage,
+        page_build: PageBuild,
     ) -> BuiltCallFeature:
         """The feature, its router and its bearer resource."""
 
@@ -200,9 +200,23 @@ def _install_web_auth(
     )
 
 
-def _include_feature_routes(app: FastAPI, built_features: list[BuiltCallFeature], issuer: str) -> None:
+def _split_by_path_form(built_features: list[BuiltCallFeature]) -> tuple[list[APIRouter], list[APIRouter]]:
+    """Each feature's routes in two routers: those with a fixed path, which go ahead of the call core's routes and keep
+    the feature's lifespan, and those with a path parameter, which go after them so they never take a core address."""
+    fixed_routers: list[APIRouter] = []
+    templated_routers: list[APIRouter] = []
     for built in built_features:
-        app.include_router(built.router)
+        fixed = APIRouter(lifespan=built.router.lifespan_context)
+        templated = APIRouter()
+        for route in built.router.routes:
+            (templated if "{" in getattr(route, "path", "{") else fixed).routes.append(route)
+        fixed_routers.append(fixed)
+        templated_routers.append(templated)
+    return fixed_routers, templated_routers
+
+
+def _install_bearer_resources(app: FastAPI, built_features: list[BuiltCallFeature], issuer: str) -> None:
+    for built in built_features:
         if built.bearer_resource is not None:
             install_resource_metadata(app, built.bearer_resource, issuer=issuer)
 
@@ -224,6 +238,7 @@ def _build_features(
     timers: Scheduler,
     deadlines: Deadlines,
     request_language: RequestLanguage,
+    page_build: PageBuild,
 ) -> list[BuiltCallFeature]:
     return [
         builder(
@@ -234,6 +249,7 @@ def _build_features(
             deadlines=deadlines,
             transaction=sign_in_stores.transaction,
             request_language=request_language,
+            page_build=page_build,
         )
         for builder in call_features
     ]
@@ -265,7 +281,14 @@ def create_app(
     deadlines = InMemoryDeadlines(timers)
     request_language = RequestLanguage(page_build.languages, sign_in_stores.sessions, sign_in_configs.web_auth)
     built_features = _build_features(
-        call_features, relying_party, sign_in_stores, sign_in_configs.web_auth, timers, deadlines, request_language
+        call_features,
+        relying_party,
+        sign_in_stores,
+        sign_in_configs.web_auth,
+        timers,
+        deadlines,
+        request_language,
+        page_build,
     )
     bearer = _bearer_of(built_features, relying_party)
     signaling_handler = SignalingHandler(
@@ -282,10 +305,15 @@ def create_app(
         openapi_url=None,
         lifespan=_lifespan(sign_in_stores.sessions, sign_in_configs.web_auth.wall_clock, timers, signaling_handler),
     )
+    fixed_feature_routers, templated_feature_routers = _split_by_path_form(built_features)
+    for fixed_router in fixed_feature_routers:
+        app.include_router(fixed_router)
     app.include_router(create_router(signaling_handler, page_build, request_language, shared_stores.answers))
     app.include_router(create_ice_servers_router(settings.stun_server, turn_relay))
     app.include_router(create_call_features_router(signaling_handler.features))
-    _include_feature_routes(app, built_features, settings.oidc_issuer)
+    for templated_router in templated_feature_routers:
+        app.include_router(templated_router)
+    _install_bearer_resources(app, built_features, settings.oidc_issuer)
     app.include_router(create_account_router(settings.oidc_issuer))
     app.include_router(create_people_router(sign_in_stores.sessions, signaling_handler))
     app.state.settings = settings

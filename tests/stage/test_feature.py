@@ -6,7 +6,7 @@ from hopin.config.constants import SESSION_RECHECK_SECONDS, SignalType
 from hopin.signaling.frames import ForeignFrame
 from hopin.stage.vocabulary import StageRefusal, StageSignal
 from tests.signaling.support.browsers import HeldWrite, clear_sent
-from tests.stage.support.tables import OTHER_TABLE_LINK, SKAT, TABLE_ID, TABLE_LINK
+from tests.stage.support.tables import OTHER_TABLE_ID, OTHER_TABLE_LINK, SKAT, TABLE_ID, TABLE_LINK
 from tests.support.signaling_fakes import account_named, text_frame
 
 pytestmark = pytest.mark.integration
@@ -275,3 +275,111 @@ class TestTheCallsEnd:
         await feature.seat_joined(host.peer_id)
 
         assert tables(host)[-1]["attachment"] is None
+
+
+async def attach_named(browser, app=SKAT.name, context=TABLE_ID):
+    await browser.say({"type": StageSignal.STAGE_ATTACH.value, "app": app, "context": context})
+
+
+@pytest.mark.asyncio
+class TestAttachByName:
+    async def test_an_app_and_a_context_attach_the_same_table_as_its_link(self, link):
+        host, opener, _guest = await host_opener_and_guest(link)
+
+        await attach_named(opener)
+
+        shown = tables(host)[-1]
+        assert (shown["app"], shown["table"], shown["src"]) == (SKAT.name, TABLE_ID, TABLE_LINK + "?mode=call")
+
+    @pytest.mark.parametrize(
+        ("app", "context"), [("chess", TABLE_ID), (SKAT.name, "a/b"), (SKAT.name, ""), (SKAT.name, "a" * 65)]
+    )
+    async def test_an_unknown_app_or_a_context_outside_the_bound_is_refused(self, link, app, context):
+        host, opener, _guest = await host_opener_and_guest(link)
+
+        await attach_named(opener, app, context)
+
+        assert refusals(opener) == [StageRefusal.BAD_LINK.value]
+        assert tables(host)[-1]["attachment"] is None
+
+    @pytest.mark.parametrize("fields", [{}, {"app": SKAT.name}, {"context": TABLE_ID}, {"app": 7, "context": TABLE_ID}])
+    async def test_a_frame_naming_neither_a_link_nor_an_app_and_a_context_is_an_invalid_message(self, link, fields):
+        _host, opener, _guest = await host_opener_and_guest(link)
+
+        await opener.say({"type": StageSignal.STAGE_ATTACH.value, **fields})
+
+        assert [error["reason"] for error in opener.frames(SignalType.ERROR)] == ["invalid_message"]
+
+
+@pytest.mark.asyncio
+class TestTheOpenCallShowingATable:
+    async def test_a_call_that_attaches_a_table_is_the_call_showing_it_whether_it_used_a_link_or_a_name(
+        self, link, stage
+    ):
+        first = await link.join("first")
+        second = await link.join("second")
+        assert stage.room_showing(SKAT.name, TABLE_ID) is None
+
+        await attach(first)
+        await attach_named(second, context=OTHER_TABLE_ID)
+
+        assert stage.room_showing(SKAT.name, TABLE_ID) == first.room_id
+        assert stage.room_showing(SKAT.name, OTHER_TABLE_ID) == second.room_id
+
+    async def test_the_first_call_to_attach_a_table_keeps_it_when_a_second_shows_the_same_one(self, link, stage):
+        first = await link.join("first")
+        second = await link.join("second")
+
+        await attach(first)
+        await attach(second)
+
+        assert stage.room_showing(SKAT.name, TABLE_ID) == first.room_id
+
+    async def test_a_refused_attach_names_no_call(self, link, stage):
+        _host, opener, guest = await host_opener_and_guest(link)
+        await attach(opener)
+
+        await attach(guest, OTHER_TABLE_LINK)
+        await attach(guest, "https://elsewhere.example/t/x")
+
+        assert stage.room_showing(SKAT.name, OTHER_TABLE_ID) is None
+
+    async def test_a_detach_frees_the_table_for_the_next_call_to_attach(self, link, stage):
+        first = await link.join("first")
+        second = await link.join("second")
+        await attach(first)
+        await attach(second)
+
+        await detach(first, tables(first)[-1]["attachment"])
+        assert stage.room_showing(SKAT.name, TABLE_ID) is None
+
+        await attach(first)
+        assert stage.room_showing(SKAT.name, TABLE_ID) == first.room_id
+
+    async def test_the_detach_of_a_call_that_does_not_hold_the_table_leaves_the_winner_in_place(self, link, stage):
+        winner = await link.join("winner")
+        other = await link.join("other")
+        await attach(winner)
+        await attach(other)
+
+        await detach(other, tables(other)[-1]["attachment"])
+
+        assert stage.room_showing(SKAT.name, TABLE_ID) == winner.room_id
+
+    async def test_the_end_of_the_call_frees_the_table(self, link, stage):
+        host, opener, _guest = await host_opener_and_guest(link)
+        await attach(opener)
+
+        await host.say({"type": SignalType.END_ROOM.value})
+
+        assert stage.room_showing(SKAT.name, TABLE_ID) is None
+
+    async def test_the_end_of_another_call_leaves_the_winner_in_place(self, link, stage):
+        winner = await link.join("winner")
+        other = await link.join("other")
+        await attach(winner)
+        await attach(other)
+
+        await other.say({"type": SignalType.END_ROOM.value})
+
+        assert stage.room_showing(SKAT.name, TABLE_ID) == winner.room_id
