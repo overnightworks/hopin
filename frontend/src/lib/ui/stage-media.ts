@@ -7,6 +7,7 @@ import {
     remoteQualityOf,
     remoteStreamOf,
     remoteVideoOf,
+    screenStreamOf,
 } from "#lib/ui/stage.svelte.ts";
 
 // Svelte runs `update` when the delivery changes, never at mount: the own videos mount before any stream arrives.
@@ -69,6 +70,29 @@ export function remoteMedia(video: HTMLVideoElement, { participantId }: RemoteDe
             attachRemoteStream(video, participantId);
         },
         destroy: unregister,
+    };
+}
+
+function attachScreenStream(video: HTMLVideoElement, participantId: string) {
+    const stream = screenStreamOf(participantId);
+    if (!stream) return;
+    attachTracksThatHaveData(video, stream);
+    for (const track of stream.getVideoTracks()) {
+        if (tracksWatched.has(track)) continue;
+        tracksWatched.add(track);
+        track.addEventListener("unmute", () => {
+            attachTracksThatHaveData(video, stream);
+        });
+    }
+}
+
+// The video of a shared screen takes the stream that arrived before it mounted, and each one that arrives later.
+export function screenMedia(video: HTMLVideoElement, { participantId }: RemoteDelivery) {
+    attachScreenStream(video, participantId);
+    return {
+        update() {
+            attachScreenStream(video, participantId);
+        },
     };
 }
 

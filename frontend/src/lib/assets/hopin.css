@@ -964,10 +964,42 @@ textarea {
 .stage[data-surface] .tile .name {
     display: none;
 }
+.stage {
+    --surface-top: 116px;
+}
 .surface {
     position: absolute;
-    inset: 116px 8px var(--stage-bottom) 8px;
+    inset: var(--surface-top) 8px var(--stage-bottom) 8px;
     z-index: 1;
+}
+/* A shared screen is the largest tile, under the strip of the camera tiles and across the stage's width. When a
+   stage view is shown too, the two share the height. */
+.screens {
+    position: absolute;
+    inset: var(--surface-top) 8px var(--stage-bottom) 8px;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.stage[data-surface] .screens .tile {
+    position: relative;
+    inset: auto;
+    flex: 1 1 0;
+    aspect-ratio: auto;
+    border-radius: 14px;
+}
+.stage[data-surface] .screens .tile .name {
+    display: inline-flex;
+}
+.screens .tile video {
+    object-fit: contain;
+}
+.stage:has(.screens):has(.surface) .screens {
+    bottom: calc(var(--stage-bottom) + (100% - var(--surface-top) - var(--stage-bottom)) / 2 + 3px);
+}
+.stage:has(.screens):has(.surface) .surface {
+    top: calc(var(--surface-top) + (100% - var(--surface-top) - var(--stage-bottom)) / 2 + 3px);
 }
 @media (min-width: 601px) {
     .stage[data-surface] .grid {
@@ -981,8 +1013,18 @@ textarea {
         flex-basis: 140px;
         border-radius: 16px;
     }
-    .surface {
-        inset: 158px 20px var(--stage-bottom) 20px;
+    .stage {
+        --surface-top: 158px;
+    }
+    .surface,
+    .screens {
+        inset: var(--surface-top) 20px var(--stage-bottom) 20px;
+    }
+    .screens {
+        gap: 10px;
+    }
+    .stage[data-surface] .screens .tile {
+        border-radius: 16px;
     }
 }
 

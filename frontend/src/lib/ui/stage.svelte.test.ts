@@ -88,6 +88,55 @@ function videoShowing(stream: MediaStream | null, readyState: number) {
     return video;
 }
 
+describe("shared screens", () => {
+    it("shows a person's screen as a tile of its own beside their camera tile", async () => {
+        const { addRemoteTile, remoteTiles, screenShares, screenStreamOf, showRemoteScreen, state } =
+            await freshStage();
+        state.namesByParticipant.set("a", "Ada");
+        addRemoteTile("a");
+        const screen = streamOf(fakeTrack("video"));
+
+        showRemoteScreen("a", screen);
+
+        expect(remoteTiles.map((tile) => tile.id)).toEqual(["a"]);
+        expect(screenShares.map((share) => [share.participantId, share.name])).toEqual([["a", "Ada"]]);
+        expect(screenStreamOf("a")).toBe(screen);
+    });
+
+    it("counts a delivery when the same person's screen arrives again", async () => {
+        const { screenShares, showRemoteScreen } = await freshStage();
+        showRemoteScreen("a", streamOf(fakeTrack("video")));
+        const first = screenShares[0]?.streamDelivery ?? 0;
+
+        showRemoteScreen("a", streamOf(fakeTrack("audio")));
+
+        expect(screenShares).toHaveLength(1);
+        expect(screenShares[0]?.streamDelivery).toBeGreaterThan(first);
+    });
+
+    it("removes the screen when it ends and leaves the camera tile", async () => {
+        const { addRemoteTile, remoteTiles, screenShares, screenStreamOf, showRemoteScreen } = await freshStage();
+        addRemoteTile("a");
+        showRemoteScreen("a", streamOf(fakeTrack("video")));
+
+        showRemoteScreen("a", null);
+
+        expect(screenShares).toEqual([]);
+        expect(screenStreamOf("a")).toBeUndefined();
+        expect(remoteTiles).toHaveLength(1);
+    });
+
+    it("removes the screen with the person", async () => {
+        const { addRemoteTile, removeRemoteTile, screenShares, showRemoteScreen } = await freshStage();
+        addRemoteTile("a");
+        showRemoteScreen("a", streamOf(fakeTrack("video")));
+
+        removeRemoteTile("a");
+
+        expect(screenShares).toEqual([]);
+    });
+});
+
 describe("remote tiles", () => {
     it("appends tiles in join order and removes one from the middle", async () => {
         const { addRemoteTile, remoteTiles, removeRemoteTile } = await freshStage();

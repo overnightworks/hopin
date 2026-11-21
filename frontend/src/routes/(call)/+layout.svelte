@@ -5,6 +5,7 @@
     import { DELIVERY } from "#lib/call/lines.ts";
     import { LEGAL_LINKS } from "#lib/legal.ts";
     import { words } from "#lib/words.ts";
+    import ScreenTiles from "#lib/ui/ScreenTiles.svelte";
     import Tiles from "#lib/ui/Tiles.svelte";
     import Toasts from "#lib/ui/Toasts.svelte";
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
@@ -59,7 +60,7 @@
     import { SCREEN, screens } from "#lib/ui/screens.svelte.ts";
     import { pictureInPicture } from "#lib/ui/pip.ts";
     import { ownPictureMedia } from "#lib/ui/stage-media.ts";
-    import { OWN_TILE_ID, ownPicture, stageSurface, stageTileCount } from "#lib/ui/stage.svelte.ts";
+    import { OWN_TILE_ID, ownPicture, screenShares, stageSurface, stageTileCount } from "#lib/ui/stage.svelte.ts";
     import { ACCOUNT_CONSOLE_PATH, LOGOUT_PATH } from "#lib/wire.ts";
 
     import { lockTag, participantCount, statusLine } from "#lib/ui/status.svelte.ts";
@@ -176,7 +177,7 @@
 
 <!-- prettier-ignore -->
 <main class="call" class:hidden={screens.current !== SCREEN.CALL} data-screen="call">
-    <div class="stage" id="stage" data-count={stageTileCount()} data-surface={stageSurface.view === null ? undefined : ""}>
+    <div class="stage" id="stage" data-count={stageTileCount()} data-surface={stageSurface.view === null && screenShares.length === 0 ? undefined : ""}>
         <div class="ctop">
             <div class="left">
                 <div id="status" class={"status status-" + statusLine.type}>{statusLine.text}</div>
@@ -194,6 +195,7 @@
                 <Tiles />
             </div>
         </div>
+        <ScreenTiles />
         {#if stageSurface.view !== null}<div class="surface"><stageSurface.view /></div>{/if}
         <div id="waitingCard" class={["waiting", !invite.isWaitingCardShown && "hidden"]} data-share={invite.share}>
             <h3>{words["call.waitingTitle"]}</h3>

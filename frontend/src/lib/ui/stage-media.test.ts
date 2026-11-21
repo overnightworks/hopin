@@ -3,6 +3,7 @@ import { flushSync, mount, unmount } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import Fixture from "#lib/ui/stage-media.fixture.svelte";
+import ScreenTiles from "#lib/ui/ScreenTiles.svelte";
 import Tiles from "#lib/ui/Tiles.svelte";
 import {
     addRemoteTile,
@@ -10,6 +11,7 @@ import {
     setConnectionQuality,
     setRemoteSpeaking,
     showLocalStream,
+    showRemoteScreen,
     showRemoteStream,
 } from "#lib/ui/stage.svelte.ts";
 
@@ -276,5 +278,36 @@ describe("remote tiles in a component", () => {
         flushSync();
 
         expect(document.querySelector<HTMLElement>("#container-a .connection-quality")?.dataset.quality).toBe("poor");
+    });
+});
+
+describe("shared screens in a component", () => {
+    afterEach(() => {
+        showRemoteScreen("a", null);
+        vi.unstubAllGlobals();
+        document.body.innerHTML = "";
+    });
+
+    it("renders a tile for a shared screen, plays its stream, and removes the tile when the share ends", () => {
+        vi.stubGlobal("MediaStream", FakeStream);
+        const tracking = trackedAssignments();
+        const component = mount(ScreenTiles, { target: document.body });
+        flushSync();
+        expect(document.querySelector(".screens")).toBeNull();
+        const audio = fakeTrack("audio");
+
+        showRemoteScreen("a", new FakeStream([audio, fakeTrack("video", true)]) as unknown as MediaStream);
+        flushSync();
+
+        const video = document.getElementById("screen-video-a") as HTMLVideoElement;
+        expect(video.srcObject).not.toBeNull();
+        expect((video.srcObject as unknown as FakeStream).getTracks()).toEqual([audio]);
+
+        showRemoteScreen("a", null);
+        flushSync();
+
+        expect(document.getElementById("screen-a")).toBeNull();
+        tracking.restore();
+        void unmount(component);
     });
 });
