@@ -893,6 +893,7 @@ body {
 }
 .tabs {
 	display: flex;
+	flex-wrap: wrap;
 	gap: 4px;
 }
 .read {
@@ -1411,6 +1412,7 @@ var eh = { aa: [800, 1200, 2600], ih: [300, 2300, 3e3], ou: [330, 800, 2500], ee
   },
   // Sichtbare Höhe (m) auf Höhe der Raumwand: Bildhöhe an der Figur plus die Kegelaufweitung über 1,5 m Abstand zur Wand bei 22 Grad.
   WALL_SPREAD = 0.58,
+  // Augenhöhe und Fußgrenze (Augenhöhe + 0,05) sind die des Mockup-Modells (pixivs Beispielmodell), kein Produktwert.
   EYE_HEIGHT = 1.45,
   ih = class {
     constructor(e, t = {}) {
@@ -1922,12 +1924,17 @@ function fgrid(i, entries, bare = !1) {
   });
 }
 function drawWhole() {
-  let box = ["face", "shoulders", "upper", "full"].map((n) => {
+  let vid = [...document.querySelectorAll("#roomGrid .vid")].sort((a, b) => b.clientHeight - a.clientHeight)[0],
+    aspect = vid && vid.clientHeight ? vid.clientWidth / vid.clientHeight : 1.6,
+    box = ["face", "shoulders", "upper", "full"].map((n, i) => {
       let { r, o } = FR[n],
         feet = EYE_HEIGHT + 0.05,
         h = r + Math.min(o, feet) + WALL_SPREAD,
-        y = 300 - (EYE_HEIGHT + (r - Math.min(o, feet)) / 2) * 100;
-      return `<rect x="${350 - h * 80}" y="${y - h * 50}" width="${h * 160}" height="${h * 100}" fill="none" stroke="#e8453c" stroke-width="3"/><text x="${350 - h * 80 + 6}" y="${y - h * 50 + 18}" font-size="16" font-weight="700" fill="#e8453c" stroke="#fff" stroke-width="3" paint-order="stroke">${FRAMES.find((f) => f[0] === n)[1]}</text>`;
+        y = 300 - (EYE_HEIGHT + (r - Math.min(o, feet)) / 2) * 100,
+        w = h * 100 * aspect,
+        atTop = i % 2 === 1,
+        label = `<text x="${350 - w / 2 + 8}" y="${atTop ? y - h * 50 + 30 : y + h * 50 - 10}" font-size="30" font-weight="700" fill="#e8453c" stroke="#fff" stroke-width="5" paint-order="stroke">${FRAMES.find((f) => f[0] === n)[1]}</text>`;
+      return `<rect x="${350 - w / 2}" y="${y - h * 50}" width="${w}" height="${h * 100}" fill="none" stroke="#e8453c" stroke-width="3"/>${label}`;
     }).join("");
   Rt("#roomWhole").innerHTML = ROOMS.salon.replace(/^<svg[^>]*>|<\/svg>$/g, "") + box;
 }
