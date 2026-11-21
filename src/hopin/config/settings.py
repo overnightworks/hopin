@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Annotated, Self
+from urllib.parse import urlsplit
 
 from pydantic import AfterValidator, Field, RedisDsn, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -33,15 +34,43 @@ def _require_absolute_path(path: Path) -> Path:
     return path
 
 
+def _require_postgres_url_without_password(url: str) -> str:
+    try:
+        parsed = urlsplit(url)
+        parsed.port  # noqa: B018 - reading it raises for a malformed port
+    except ValueError:
+        # The parser's messages quote parts of the URL, which may hold the password.
+        raise ValueError("must be a postgresql URL") from None
+    if parsed.scheme != "postgresql":
+        raise ValueError("must be a postgresql URL")
+    if not (parsed.hostname and parsed.username and parsed.path.removeprefix("/")):
+        raise ValueError("must name a host, a user and a database")
+    if parsed.password is not None:
+        raise ValueError("must not carry a password")
+    # libpq reads query parameters over the authority, so any of them can redirect the password.
+    if parsed.query:
+        raise ValueError("must not carry query parameters")
+    return url
+
+
 IssuerUrl = Annotated[str, AfterValidator(_require_no_trailing_slash)]
 OriginUrl = Annotated[str, AfterValidator(_require_origin_without_path)]
 AbsolutePath = Annotated[Path, AfterValidator(_require_absolute_path)]
+PasswordlessPostgresUrl = Annotated[str, AfterValidator(_require_postgres_url_without_password)]
 
 
-class ServerSettings(BaseSettings):
-    # The sign-in settings are secrets or name them, so a refusal never echoes an input.
+class DatabaseSettings(BaseSettings):
+    """The settings `hopin migrate` needs, so it runs before any other setting or the page build is read."""
+
+    # The settings are secrets or name them, so a refusal never echoes an input.
     model_config = SettingsConfigDict(env_prefix="HOPIN_", hide_input_in_errors=True)
 
+    # Names the database without its password, which the file holds.
+    database_url: PasswordlessPostgresUrl = Field(repr=False)
+    database_password_file: AbsolutePath = Field(repr=False)
+
+
+class ServerSettings(DatabaseSettings):
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT
     stun_server: str = STUN_SERVER_URL

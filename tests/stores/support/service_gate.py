@@ -1,4 +1,5 @@
-"""A TCP forwarder in front of the Redis a test runs against; closing it is that Redis going down for its clients."""
+"""A TCP forwarder in front of the Redis or Postgres a test runs against; closing it is that service going down for its
+clients."""
 
 import contextlib
 import socket
@@ -50,16 +51,18 @@ def _pump(source: socket.socket, target: socket.socket, sent: Callable[[bytes], 
             end.shutdown(socket.SHUT_RDWR)
 
 
-class RedisGate:
-    def __init__(self, redis_url: str, port: int = 0) -> None:
-        target = urlsplit(redis_url)
-        self._target = (target.hostname or LOCALHOST, target.port or 6379)
+class ServiceGate:
+    def __init__(self, service_url: str, port: int = 0) -> None:
+        target = urlsplit(service_url)
+        self._target = (target.hostname or LOCALHOST, target.port)
         self._listener = socket.socket()
         self._listener.bind((LOCALHOST, port))
         self._listener.listen()
         self._forwards: list[_Forward] = []
         self._lock = threading.Lock()
-        self.url = f"redis://{LOCALHOST}:{self._listener.getsockname()[1]}{target.path}"
+        userinfo = target.netloc.rpartition("@")[0]
+        authority = f"{userinfo}@" if userinfo else ""
+        self.url = target._replace(netloc=f"{authority}{LOCALHOST}:{self._listener.getsockname()[1]}").geturl()
         threading.Thread(target=self._accept, daemon=True).start()
 
     def _accept(self) -> None:
