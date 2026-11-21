@@ -9,17 +9,8 @@ from webauth.dependencies import admit_session, session_id_from_request
 from webauth.ports import AuthenticatedUser
 
 from hopin.words import text
-from tests.e2e.support.calls import (
-    PREJOIN_START,
-    add_init_scripts,
-    join,
-    join_by_link,
-    open_host,
-    open_prejoin,
-    record_page_errors,
-    start_call,
-    wait_until_the_prejoin_media_answered,
-)
+from hopin_probe.page import PREJOIN_START, open_prejoin, wait_until_the_prejoin_media_answered
+from tests.e2e.support.calls import add_init_scripts, join, join_by_link, open_host, record_page_errors, start_call
 from tests.e2e.support.media import (
     COUNT_SOCKETS,
     ICE_SERVERS_URL_PATTERN,

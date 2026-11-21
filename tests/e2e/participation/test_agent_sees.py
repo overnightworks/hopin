@@ -6,7 +6,8 @@ from playwright.sync_api import expect
 
 from hopin.participation.jpeg import size_of
 from hopin.participation.vocabulary import LOOK_MAX_PIXELS
-from tests.e2e.support.dialed_agent import AGENT_TILE, REQUEST_SECONDS, SEE_SWITCH_ON_A_TILE, refusal_of, room_of_link
+from hopin_probe.page import AGENT_TILE
+from tests.e2e.support.dialed_agent import REQUEST_SECONDS, SEE_SWITCH_ON_A_TILE, refusal_of, room_of_link
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
 if TYPE_CHECKING:

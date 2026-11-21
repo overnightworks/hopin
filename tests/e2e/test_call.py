@@ -3,7 +3,8 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from hopin.config.constants import APP_ASSET_PATH, CALL_FEATURES_PATH, IMMUTABLE_ASSET_DIRECTORY
-from tests.e2e.support.calls import join_by_link, open_more, start_call
+from hopin_probe.page import open_more
+from tests.e2e.support.calls import join_by_link, start_call
 from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS
 from tests.e2e.support.people import DESKTOP, PHONE
 

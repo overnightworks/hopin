@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hopin-probe"
+version = "0.1.0"
+description = "A live probe that signs in to HopIn as a test account, starts a call and reads whether a test agent joins and answers."
+requires-python = ">=3.14"
+dependencies = [
+    "hopin",
+    "overnightworks-design",
+    "piper-tts==1.8.0",
+    "playwright>=1.50",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+]
+
+[project.scripts]
+hopin-probe = "hopin_probe.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hopin_probe"]
+
+[tool.uv.sources]
+hopin = { workspace = true }

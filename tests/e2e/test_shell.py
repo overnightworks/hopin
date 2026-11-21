@@ -4,13 +4,8 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from hopin.words import text
-from tests.e2e.support.calls import (
-    PREJOIN_START,
-    more_legal_links,
-    open_prejoin,
-    record_page_errors,
-    wait_until_the_prejoin_media_answered,
-)
+from hopin_probe.page import PREJOIN_START, open_prejoin, wait_until_the_prejoin_media_answered
+from tests.e2e.support.calls import more_legal_links, record_page_errors
 from tests.e2e.support.page_assertions import (
     expect_both_legal_links,
     expect_both_legal_links_in_the_profile_menu,

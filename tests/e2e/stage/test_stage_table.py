@@ -6,6 +6,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from hopin.words import text
+from hopin_probe.page import AGENT_TILE, open_more, press_through_the_prejoin
 from tests.e2e.stage.stage_page import (
     FRAME,
     LINK_FIELD,
@@ -22,16 +23,8 @@ from tests.e2e.stage.stage_page import (
     show_table,
     table_link,
 )
-from tests.e2e.support.calls import (
-    add_init_scripts,
-    join,
-    open_call,
-    open_more,
-    press_through_the_prejoin,
-    record_page_errors,
-    start_call,
-)
-from tests.e2e.support.dialed_agent import AGENT_TILE, REMOVE
+from tests.e2e.support.calls import add_init_scripts, join, open_call, record_page_errors, start_call
+from tests.e2e.support.dialed_agent import REMOVE
 from tests.e2e.support.media import (
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     RECORD_MEDIA_TRACKS,

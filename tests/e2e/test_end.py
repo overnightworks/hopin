@@ -19,17 +19,16 @@ from hopin.config.constants import (
 )
 from hopin.errors import NotHostError
 from hopin.words import text
+from hopin_probe.page import press_through_the_prejoin, wait_until_the_prejoin_media_answered
 from tests.e2e.support.calls import (
     add_init_scripts,
     call_link_of,
     join_by_link,
     open_prejoin_by_link,
     press_start_call,
-    press_through_the_prejoin,
     record_page_errors,
     start_call,
     toggle_the_lock,
-    wait_until_the_prejoin_media_answered,
 )
 from tests.e2e.support.media import (
     COUNT_SOCKETS,

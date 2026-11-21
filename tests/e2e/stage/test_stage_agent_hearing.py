@@ -3,9 +3,10 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
+from hopin_probe.page import AGENT_HEARING_SWITCH, AGENT_TILE
 from tests.e2e.stage.stage_page import expect_table_on_stage, show_table, table_link
 from tests.e2e.support.calls import open_call
-from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_SEE_SWITCH, AGENT_TILE, REMOVE
+from tests.e2e.support.dialed_agent import AGENT_SEE_SWITCH, REMOVE
 from tests.e2e.support.people import FORM_FACTORS, PHONE
 
 if TYPE_CHECKING:

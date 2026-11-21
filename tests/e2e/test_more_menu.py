@@ -6,11 +6,11 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from hopin.words import text
+from hopin_probe.page import open_more
 from tests.e2e.support.calls import (
     join,
     more_legal_links,
     open_call,
-    open_more,
     press_start_call,
     record_page_errors,
     toggle_the_lock,

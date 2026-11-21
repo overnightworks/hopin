@@ -7,15 +7,9 @@ from design.words import text as kit_text
 from playwright.sync_api import Page, expect
 
 from hopin.words import text
-from tests.e2e.support.calls import join_by_link, open_more, press_through_the_prejoin, record_page_errors
-from tests.e2e.support.dialed_agent import (
-    AGENT_NAME,
-    AGENT_TILE,
-    OWNER_SUBJECT,
-    OWNER_USERNAME,
-    REMOVE,
-    OwnAccountAgent,
-)
+from hopin_probe.page import AGENT_TILE, open_more, press_through_the_prejoin
+from tests.e2e.support.calls import join_by_link, record_page_errors
+from tests.e2e.support.dialed_agent import AGENT_NAME, OWNER_SUBJECT, OWNER_USERNAME, REMOVE, OwnAccountAgent
 from tests.e2e.support.participation_scene import INVITATION_WAKE_SECONDS
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 

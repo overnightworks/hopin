@@ -3,7 +3,7 @@ import re
 from design.words import text as kit_text
 from playwright.sync_api import Locator, Page, expect
 
-from tests.e2e.support.media import MEDIA_PERMISSIONS
+from hopin_probe.page import MEDIA_PERMISSIONS
 
 LEGAL_LINKS = {
     "Impressum": "https://hallucinai.de/impressum#hopin",

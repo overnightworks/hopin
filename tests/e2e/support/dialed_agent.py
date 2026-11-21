@@ -24,6 +24,7 @@ from playwright.sync_api import Page, expect
 from hopin.agent.mcp import AGENT_GROUP, MCP_CLIENT_ID, MCP_GROUP, MCP_SCOPE
 from hopin.agent.tools import CALL_KIND, JOIN_CALL, LOOK, SAY
 from hopin.config.constants import LOGIN_GROUP
+from hopin_probe.page import AGENT_TILE
 from tests.e2e.support.calls import INVITE_LINK_PATTERN
 from tests.e2e.support.people import PHONE
 
@@ -39,11 +40,7 @@ OWNER_USERNAME = "owner"
 OWNER_SUBJECT = f"subject-{OWNER_USERNAME}"
 AGENT_NAME = "Mozart"
 SECOND_AGENT_NAME = "Leonardo"
-AGENT_TILE = '#stage [id^="container-agent-"]'
-# The tile holds the kit's hearing chip and its see chip; each is told by its accessible name.
 SEE_SWITCH_ON_A_TILE = f'role=switch[name="{kit_text("de", "hearing.agentMaySeeMe")}"]'
-HEARING_SWITCH_ON_A_TILE = f'role=switch[name="{kit_text("de", "hearing.agentMayHearMe")}"]'
-AGENT_HEARING_SWITCH = f"{AGENT_TILE} >> {HEARING_SWITCH_ON_A_TILE}"
 AGENT_SEE_SWITCH = f"{AGENT_TILE} >> {SEE_SWITCH_ON_A_TILE}"
 REMOVE = ".agent-remove"
 COUNT = "#participantCount .num"

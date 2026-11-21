@@ -5,7 +5,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from hopin.words import text
-from tests.e2e.support.calls import press_through_the_prejoin
+from hopin_probe.page import press_through_the_prejoin
 
 if TYPE_CHECKING:
     from collections.abc import Callable

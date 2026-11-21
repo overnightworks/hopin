@@ -5,8 +5,9 @@ import pytest
 from design.words import text as kit_text
 from playwright.sync_api import Locator, Page, expect
 
+from hopin_probe.page import AGENT_HEARING_SWITCH, AGENT_TILE
 from tests.e2e.support.calls import join, open_call
-from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_TILE, REMOVE
+from tests.e2e.support.dialed_agent import REMOVE
 from tests.e2e.support.media import RECORD_PEER_CONNECTIONS, wait_for_peer_count
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 

@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 from playwright.sync_api import Locator, Page, expect
 
-from tests.e2e.support.calls import open_more
+from hopin_probe.page import open_more
 from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS
 
 if TYPE_CHECKING:

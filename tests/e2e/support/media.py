@@ -4,22 +4,10 @@ from typing import TYPE_CHECKING
 from playwright.sync_api import Page, expect
 
 from hopin.config.constants import ICE_SERVERS_PATH
+from hopin_probe.page import MEDIA_FLOWING_TIMEOUT_MILLISECONDS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-FAKE_MEDIA_BROWSER_ARGS = [
-    "--use-fake-device-for-media-stream",
-    "--use-fake-ui-for-media-stream",
-    "--autoplay-policy=no-user-gesture-required",
-]
-# The browsers reach no sound server and no ALSA device, so Chromium renders sound into its fake output, as on a CI
-# runner. On a machine with a sound server, browsers running in parallel meet its errors, and a page whose AudioContext
-# met one captures no microphone sound for its hop. Chromium's `--disable-audio-output` is no substitute: it also stops
-# the sound of a remote track, which the speaking ring reads.
-NO_SOUND_DEVICE_ENVIRONMENT = {"PULSE_SERVER": "unix:/dev/null", "ALSA_CONFIG_PATH": "/dev/null"}
-MEDIA_PERMISSIONS = ["camera", "microphone"]
-MEDIA_FLOWING_TIMEOUT_MILLISECONDS = 30_000
 
 ICE_SERVERS_URL_PATTERN = f"**{ICE_SERVERS_PATH}"
 

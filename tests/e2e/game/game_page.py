@@ -5,7 +5,8 @@ from playwright.sync_api import Page, expect
 
 from hopin.game.quiz import QUIZ_ROUNDS
 from hopin.words import text
-from tests.e2e.support.calls import open_call, open_more
+from hopin_probe.page import open_more
+from tests.e2e.support.calls import open_call
 from tests.e2e.support.people import DESKTOP
 from tests.e2e.support.signaling import FrameInjector
 

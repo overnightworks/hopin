@@ -5,6 +5,7 @@ from playwright.sync_api import Page, expect
 
 from hopin.game.vocabulary import GameSignal
 from hopin.words import text
+from hopin_probe.page import open_more
 from tests.e2e.game.game_page import (
     CARD,
     GAME_MASTER_NAME_GAP,
@@ -15,7 +16,6 @@ from tests.e2e.game.game_page import (
     relaying_frames,
     start_quiz,
 )
-from tests.e2e.support.calls import open_more
 from tests.e2e.support.page_assertions import TOASTS
 from tests.game.support.fake_agent_backend import Fails, Holds
 

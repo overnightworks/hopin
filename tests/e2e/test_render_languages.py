@@ -9,7 +9,8 @@ from playwright.sync_api import Page, expect
 
 from hopin.config.constants import AUTH_CALLBACK_PATH, LOGIN_PATH, NO_ACCESS_PATH
 from hopin.words import LANGUAGES, SOURCE_LANGUAGE, Key, text
-from tests.e2e.support.calls import call_link_of, press_through_the_prejoin, record_page_errors
+from hopin_probe.page import press_through_the_prejoin
+from tests.e2e.support.calls import call_link_of, record_page_errors
 from tests.e2e.support.people import FORM_FACTORS
 
 if TYPE_CHECKING:

@@ -3,8 +3,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hopin_probe.page import press_through_the_prejoin, wait_until_in_the_call
 from tests.e2e.stage.stage_page import TABLE_ID, expect_table_on_stage
-from tests.e2e.support.calls import call_link_of, press_through_the_prejoin, record_page_errors, wait_until_in_the_call
+from tests.e2e.support.calls import call_link_of, record_page_errors
 
 if TYPE_CHECKING:
     from collections.abc import Callable

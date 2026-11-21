@@ -6,7 +6,8 @@ import pytest
 from playwright.sync_api import Locator, Page, expect
 
 from hopin.words import text
-from tests.e2e.support.calls import open_call, open_more, press_start_call, record_page_errors, start_call
+from hopin_probe.page import open_more
+from tests.e2e.support.calls import open_call, press_start_call, record_page_errors, start_call
 from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN
 from tests.e2e.support.page_assertions import (
     BOX_OF_SETTLED,

@@ -9,6 +9,7 @@ from hopin.config.constants import LINE_LIMITS
 from hopin.game.quiz import QUIZ_ROUNDS
 from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GamePhase, GameSignal
 from hopin.words import text
+from hopin_probe.page import PREJOIN_START, open_more, open_prejoin, wait_until_the_prejoin_media_answered
 from tests.e2e.game.build_files import GameFile, url_of
 from tests.e2e.game.game_page import (
     CARD,
@@ -42,17 +43,13 @@ from tests.e2e.game.game_page import (
     start_quiz,
 )
 from tests.e2e.support.calls import (
-    PREJOIN_START,
     add_init_scripts,
     call_link_of,
     join,
     open_call,
     open_host,
-    open_more,
-    open_prejoin,
     press_start_call,
     record_page_errors,
-    wait_until_the_prejoin_media_answered,
 )
 from tests.e2e.support.media import ICE_SERVERS_URL_PATTERN, poll_until
 from tests.e2e.support.page_assertions import LEGAL_LINKS, VISIBLE_MORE_ENTRIES, X_ICON_PATH, expect_toast

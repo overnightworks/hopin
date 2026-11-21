@@ -15,8 +15,9 @@ from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import CLIP_PATH, FIGURE_MODULE, VOICE_PATH, FigureMood
+from hopin_probe.page import AGENT_TILE
 from tests.e2e.support.client_manifest import entry_of, urls_of_the_chunks_of
-from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT, room_of_link
+from tests.e2e.support.dialed_agent import OWNER_SUBJECT, room_of_link
 from tests.e2e.support.media import LOUD, SILENCE, SPEAK_ON_DEMAND
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin

@@ -10,7 +10,8 @@ from speech_client.realtime_wire import SpeechStarted
 from speech_client.wire import VoiceId
 
 from hopin.agent.tools import CALL_KIND
-from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_TILE, REQUEST_SECONDS
+from hopin_probe.page import AGENT_HEARING_SWITCH, AGENT_TILE
+from tests.e2e.support.dialed_agent import REQUEST_SECONDS
 from tests.e2e.support.hearing_hops import open_person, settle, until  # noqa: F401 - the fixture is used by name
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.speaker import SPEAKING_TILE, Speaker, speaking_hopin

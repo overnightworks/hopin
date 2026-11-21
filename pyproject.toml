@@ -40,6 +40,12 @@ no-binary-package = [
 # Their build backends run with these exact tools, as hatchling is pinned above.
 build-constraint-dependencies = ["setuptools==84.2.1", "wheel==0.48.0"]
 
+[tool.uv.workspace]
+members = ["packages/probe"]
+
+[tool.uv.sources]
+hopin-probe = { workspace = true }
+
 [tool.hatch.metadata]
 allow-direct-references = true
 
@@ -52,7 +58,7 @@ artifacts = ["src/hopin/web/build", "!*.map"]
 # --- Ruff ---
 
 [tool.ruff]
-src = [".", "src"]
+src = [".", "src", "packages/probe/src"]
 target-version = "py314"
 line-length = 120
 
@@ -120,11 +126,16 @@ warn_unused_ignores = true
 [tool.pydantic-mypy]
 init_typed = true
 
+# The design kit ships its words module without type information.
+[[tool.mypy.overrides]]
+module = ["design.*"]
+ignore_missing_imports = true
+
 # --- Pytest ---
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = [".", "src"]
+pythonpath = [".", "src", "packages/probe/src"]
 addopts = [
     "--import-mode=importlib",
     "--strict-markers",
@@ -148,7 +159,7 @@ markers = [
 # measures the same files. Naming the set in the CI command instead let the
 # local run pass over an uncovered line that CI then
 # turned red for.
-source = ["src"]
+source = ["src", "packages/probe/src"]
 branch = true
 # The unit, shared-stores and end-to-end runs happen on different runners; relative paths
 # let their data combine.
@@ -167,13 +178,13 @@ show_missing = true
 # --- Vulture ---
 
 [tool.vulture]
-paths = ["src/hopin"]
+paths = ["src/hopin", "packages/probe/src/hopin_probe"]
 min_confidence = 80
 
 # --- Import contracts ---
 
 [tool.importlinter]
-root_packages = ["hopin"]
+root_packages = ["hopin", "hopin_probe"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -202,6 +213,14 @@ containers = ["hopin.signaling"]
 # The handler drives the call's feature and room routing; the feature port reads and sends through routing;
 # routing drives the seats; seats keep the replay logs; replay logs hold frames.
 layers = ["handler", "features", "routing", "seats", "replay", "frames"]
+
+[[tool.importlinter.contracts]]
+id = "serving-image-knows-no-probe"
+name = "HopIn names no probe"
+type = "forbidden"
+# The probe is its own distribution with Chromium and Piper under it; the serving image carries neither it nor them.
+source_modules = ["hopin"]
+forbidden_modules = ["hopin_probe"]
 
 [[tool.importlinter.contracts]]
 id = "sign-in-knows-no-call"
@@ -285,6 +304,7 @@ dev = [
     "coverage>=7.17.4",
     "cryptography>=50.0.2",
     "fakeredis[lua]>=2.35,<3",
+    "hopin-probe",
     "httpx2>=2.13.1",
     "mypy>=1.19.1",
     "overnightworks-design[catalogs] @ git+https://github.com/overnightworks/design@v0.40.0",

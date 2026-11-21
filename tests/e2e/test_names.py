@@ -7,7 +7,8 @@ from playwright.sync_api import Locator, Page, Route, WebSocketRoute, expect
 
 from hopin.config.constants import SignalType
 from hopin.words import text
-from tests.e2e.support.calls import join_by_link, record_page_errors, say_in_chat, start_call, wait_until_in_the_call
+from hopin_probe.page import wait_until_in_the_call
+from tests.e2e.support.calls import join_by_link, record_page_errors, say_in_chat, start_call
 from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS, OTHER_TILE, poll_until
 from tests.e2e.support.people import DESKTOP, PHONE
 from tests.support.sign_in_settings import TEST_ISSUER

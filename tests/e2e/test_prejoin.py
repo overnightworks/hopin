@@ -8,19 +8,21 @@ from playwright.sync_api import Locator, Page, Request, Route, expect
 
 from hopin.config.constants import ICE_SERVERS_PATH
 from hopin.words import text
-from tests.e2e.support.calls import (
+from hopin_probe.page import (
     PREJOIN_CAMERA,
     PREJOIN_MICROPHONE,
     PREJOIN_START,
+    open_prejoin,
+    press_through_the_prejoin,
+    wait_until_the_prejoin_media_answered,
+)
+from tests.e2e.support.calls import (
     add_init_scripts,
     call_link_of,
     join,
-    open_prejoin,
     open_prejoin_by_link,
-    press_through_the_prejoin,
     record_page_errors,
     start_call,
-    wait_until_the_prejoin_media_answered,
 )
 from tests.e2e.support.media import (
     COUNT_SOCKETS,

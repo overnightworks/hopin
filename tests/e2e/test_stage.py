@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, ViewportSize, expect
 
-from tests.e2e.support.calls import call_link_of, join, press_start_call, start_call, wait_until_in_the_call
+from hopin_probe.page import wait_until_in_the_call
+from tests.e2e.support.calls import call_link_of, join, press_start_call, start_call
 from tests.e2e.support.media import (
     OTHER_TILE,
     REFUSE_THE_CAMERA,

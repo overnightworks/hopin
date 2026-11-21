@@ -11,7 +11,8 @@ from speech_client.wire import SPEECH_PATH, RefusalCode, VoiceId
 
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, LEAVE_CALL
-from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT, REQUEST_SECONDS, OwnAccountAgent, room_of_link
+from hopin_probe.page import AGENT_TILE
+from tests.e2e.support.dialed_agent import OWNER_SUBJECT, REQUEST_SECONDS, OwnAccountAgent, room_of_link
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.dialed_call import window_uri

@@ -7,6 +7,7 @@ import pytest
 from webauth.admission import AppRole
 from webauth.ports import AccountKind
 
+from hopin_probe.page import FAKE_MEDIA_BROWSER_ARGS, MEDIA_PERMISSIONS, NO_SOUND_DEVICE_ENVIRONMENT
 from tests.e2e.support.browser_coverage import BrowserCoverage
 from tests.e2e.support.camera_less_call import (
     CameraLessCall,
@@ -15,7 +16,6 @@ from tests.e2e.support.camera_less_call import (
     start_camera_less_host_call,
 )
 from tests.e2e.support.dialed_agent import Agent
-from tests.e2e.support.media import FAKE_MEDIA_BROWSER_ARGS, MEDIA_PERMISSIONS, NO_SOUND_DEVICE_ENVIRONMENT
 from tests.e2e.support.mesh_pair import ConnectedPair, pair_connector
 from tests.e2e.support.people import DESKTOP, PERSON_ADDRESS_BASE, person_address_offsets, playwright_cookie
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin

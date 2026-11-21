@@ -9,15 +9,9 @@ from playwright.sync_api import Locator, Page, expect
 from hopin.agent.tools import LEAVE_CALL
 from hopin.participation.vocabulary import AgentRefusal
 from hopin.words import text
-from tests.e2e.support.calls import join_by_link, open_more
-from tests.e2e.support.dialed_agent import (
-    AGENT_TILE,
-    COUNT,
-    HEARING_SWITCH_ON_A_TILE,
-    OWNER_SUBJECT,
-    OwnAccountAgent,
-    room_of_link,
-)
+from hopin_probe.page import AGENT_TILE, HEARING_SWITCH_ON_A_TILE, open_more
+from tests.e2e.support.calls import join_by_link
+from tests.e2e.support.dialed_agent import COUNT, OWNER_SUBJECT, OwnAccountAgent, room_of_link
 from tests.e2e.support.hearing_hops import Hops, open_person, settle, until  # noqa: F401 - the fixture is used by name
 from tests.e2e.support.people import FORM_FACTORS
 from tests.support.dialed_call import window_uri

@@ -9,7 +9,8 @@ from playwright.sync_api import Page, expect
 from speech_client.wire import VoiceId
 
 from hopin.participation.vocabulary import VOICE_PATH, VOICE_RECOVERY_SECONDS, AgentRefusal
-from tests.e2e.support.dialed_agent import AGENT_TILE, REQUEST_SECONDS
+from hopin_probe.page import AGENT_TILE
+from tests.e2e.support.dialed_agent import REQUEST_SECONDS
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.speaker import RECORD_PLAYBACK, SPEAKING_TILE, Speaker, speaking_hopin
 from tests.support.loopback_origin import Origin

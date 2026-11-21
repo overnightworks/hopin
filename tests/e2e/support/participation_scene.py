@@ -2,14 +2,8 @@ from typing import TYPE_CHECKING, Any
 
 from playwright.sync_api import expect
 
-from tests.e2e.support.calls import (
-    call_link_of,
-    join_by_link,
-    open_more,
-    press_start_call,
-    record_page_errors,
-    wait_until_in_the_call,
-)
+from hopin_probe.page import open_more, wait_until_in_the_call
+from tests.e2e.support.calls import call_link_of, join_by_link, press_start_call, record_page_errors
 from tests.e2e.support.dialed_agent import OWNER_USERNAME
 
 if TYPE_CHECKING:

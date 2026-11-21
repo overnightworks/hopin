@@ -10,6 +10,7 @@ from hopin.agent.feature import GameFeature
 from hopin.agent.speech_settings import SpeechSettings
 from hopin.participation.vocabulary import VOICE_PATH
 from hopin.participation.voice import VoiceStore
+from hopin_probe.page import open_more
 from tests.e2e.game.game_page import (
     CARD,
     GAME_MASTER_LINES,
@@ -18,7 +19,7 @@ from tests.e2e.game.game_page import (
     open_chat,
     start_quiz,
 )
-from tests.e2e.support.calls import join, open_host, open_more
+from tests.e2e.support.calls import join, open_host
 from tests.e2e.support.media import RECORD_PEER_CONNECTIONS, wait_for_peer_count
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin

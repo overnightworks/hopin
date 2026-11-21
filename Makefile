@@ -5,8 +5,8 @@ install:
 
 lint:
 	uv run ruff check .
-	uv run ruff format --check src tests
-	uv run mypy src scripts
+	uv run ruff format --check src tests packages
+	uv run mypy src scripts packages/probe/src
 	$(MAKE) wire-check
 	uv run design-catalogs --check
 
@@ -21,7 +21,7 @@ catalogs:
 
 format:
 	uv run ruff check --fix .
-	uv run ruff format src tests
+	uv run ruff format src tests packages
 
 test:
 	uv run pytest -m "not e2e and not shared_stores"
@@ -33,7 +33,7 @@ shared-stores:
 	uv run pytest -m shared_stores --no-cov
 
 dead:
-	uv run vulture src/hopin
+	uv run vulture src/hopin packages/probe/src/hopin_probe
 
 frontend:
 	cd frontend && pnpm install --frozen-lockfile && pnpm build

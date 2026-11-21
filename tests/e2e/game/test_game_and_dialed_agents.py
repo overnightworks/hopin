@@ -3,9 +3,10 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
+from hopin_probe.page import AGENT_TILE
 from tests.e2e.game.game_page import start_quiz
 from tests.e2e.support.calls import join, open_call
-from tests.e2e.support.dialed_agent import AGENT_TILE, COUNT, assert_tiles_clear_of_the_controls
+from tests.e2e.support.dialed_agent import COUNT, assert_tiles_clear_of_the_controls
 from tests.e2e.support.people import FORM_FACTORS
 from tests.game.support.fake_agent_backend import Succeeds
 

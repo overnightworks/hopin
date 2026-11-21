@@ -4,8 +4,8 @@ import pytest
 from design.words import text as kit_text
 from playwright.sync_api import expect
 
-from tests.e2e.support.calls import open_more
-from tests.e2e.support.dialed_agent import AGENT_TILE, REMOVE
+from hopin_probe.page import AGENT_TILE, open_more
+from tests.e2e.support.dialed_agent import REMOVE
 from tests.e2e.support.people import FORM_FACTORS
 
 if TYPE_CHECKING:

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 from design.words import text as kit_text
 from playwright.sync_api import Locator, Page, expect
 
-from hopin.words import text
+from hopin_probe.page import open_more, open_prejoin, press_through_the_prejoin
 from tests.e2e.support.media import (
     LOCAL_VIDEO_PLAYING,
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
@@ -17,28 +17,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
 INVITE_LINK_PATTERN = re.compile(r"/c/\w+")
-
-PREJOIN_MICROPHONE = "#prejoinMicBtn"
-PREJOIN_CAMERA = "#prejoinCamBtn"
-PREJOIN_START = "#prejoinStartBtn"
-
-
-def open_prejoin(host: Page, base_url: str) -> None:
-    host.goto(f"{base_url}/")
-    host.click("#homeStartBtn")
-
-
-def wait_until_the_prejoin_media_answered(host: Page) -> None:
-    expect(host.locator(PREJOIN_START)).to_be_enabled(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
-
-
-def press_through_the_prejoin(person: Page, *, with_camera: bool = True) -> None:
-    wait_until_the_prejoin_media_answered(person)
-    camera = person.locator(PREJOIN_CAMERA)
-    if not with_camera and camera.get_attribute("aria-pressed") == "false":
-        camera.click()
-        expect(camera).to_have_attribute("aria-pressed", "true")
-    person.click(PREJOIN_START)
 
 
 def press_start_call(host: Page, base_url: str, *, with_camera: bool = True) -> None:
@@ -80,13 +58,6 @@ def join_by_link(person: Page, invite_link: str, *, with_camera: bool = True) ->
     press_through_the_prejoin(person, with_camera=with_camera)
 
 
-def wait_until_in_the_call(person: Page) -> None:
-    """The server has admitted `person` to the call's room, so a line said from now on reaches them."""
-    expect(person.locator("#status")).to_have_text(
-        text("de", "call.statusInCall"), timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS
-    )
-
-
 def join(
     open_person: Callable[..., Page],
     invite_link: str,
@@ -118,14 +89,6 @@ def open_call(
     wait_for_peer_count(host, 1)
     wait_for_peer_count(guest, 1)
     return host, guest, invite_link
-
-
-def open_more(person: Page) -> Locator:
-    menu = person.locator("#moreMenu")
-    if not menu.is_visible():
-        person.click("#moreBtn")
-    expect(menu).to_be_visible()
-    return menu
 
 
 def more_legal_links(person: Page) -> Locator:
