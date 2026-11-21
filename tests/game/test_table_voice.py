@@ -202,7 +202,7 @@ class TestAVoiceThatTheTextDoesNotWaitFor:
         held.release.set()
         await voice_sent([host, guest], 2 * QUIZ_ROUNDS + 1)
 
-        assert shown(guest)[-3:] == [line(FINAL_LINE), IDLE, {"type": VOICE_TYPE}]
+        assert shown(guest)[-3:] == [line(FINAL_LINE, final=True), IDLE, {"type": VOICE_TYPE}]
         assert await sound_of(voices.get(voice_ids(guest)[-1])) == DEFAULT_WAV
 
     @pytest.mark.parametrize(
@@ -387,4 +387,4 @@ class TestTheFrameThatEndsEveryVoice:
         await sent_to_all([host, guest], IDLE)
         await let_every_task_run()
 
-        assert shown(guest)[-3:] == [line(FINAL_LINE), IDLE, {"type": VOICE_TYPE}]
+        assert shown(guest)[-3:] == [line(FINAL_LINE, final=True), IDLE, {"type": VOICE_TYPE}]

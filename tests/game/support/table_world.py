@@ -49,7 +49,7 @@ def answers_in_reveal(text):
     """The answers a reveal request lists: its first line is the fixed request, its second the JSON list."""
     request, answers = text.split("\n")
     assert request == REVEAL_REQUEST
-    return json.loads(answers)
+    return [{key: value for key, value in answer.items() if key != "nr"} for answer in json.loads(answers)]
 
 
 def script_two_questions(game_master):
@@ -83,15 +83,22 @@ def question(text=DEFAULT_QUESTION, round_number=1):
     return {"type": GameSignal.GAME_LINE.value, "text": text, "round": round_number}
 
 
-def line(text):
-    return {"type": GameSignal.GAME_LINE.value, "text": text}
+def line(text, scores=None, *, final=False):
+    frame = {"type": GameSignal.GAME_LINE.value, "text": text}
+    frame = frame if scores is None else {**frame, "scores": scores}
+    return {**frame, "final": True} if final else frame
 
 
-def revealed_into_question_two(starter):
+def scores_of(*correct_by_name):
+    """The scores a reveal line carries, from (name, correct) pairs in the order the players first answered."""
+    return [{"name": name, "correct": correct} for name, correct in correct_by_name]
+
+
+def revealed_into_question_two(starter, scores=None):
     """What every seat sees after the reveal, whoever tapped it: the line, then question 2 with answering."""
     return [
         thinking(starter),
-        line("Lissabon."),
+        line("Lissabon.", scores),
         thinking(starter, 2),
         question(QUESTION_TWO, 2),
         answering(starter, 2),

@@ -18,7 +18,7 @@ from hopin.game.quiz import QUIZ_TOPICS, question_request
 from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, GamePhase, GameRefusal, GameSignal
 from hopin.participation.voice import VoiceStore
 from tests.game.support.call_world import IDLE, asked, phase, question, refused, serving_call
-from tests.game.support.fake_agent_backend import FakeAgentBackend, Holds, Rejects, Succeeds
+from tests.game.support.fake_agent_backend import FakeAgentBackend, Holds, Rejects, Succeeds, correct
 from tests.game.support.table_world import answers_in_reveal
 from tests.game.support.world import wait_in_a_worker
 from tests.support.fake_issuer import FakeIssuer
@@ -168,7 +168,9 @@ def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_
     call.seat(third_member, created["room_id"])
     host.frames(2)
     guest.frames(1)
-    call.backend.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."), Succeeds("Zweite Frage?"))
+    call.backend.answer_next(
+        Succeeds("Erste Frage?"), Succeeds("Lissabon.", verdicts=correct(1, 2)), Succeeds("Zweite Frage?")
+    )
 
     host.start()
     guest.frames(3)

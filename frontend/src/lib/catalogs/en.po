@@ -567,6 +567,18 @@ msgctxt "game.questionProgress"
 msgid "Frage {round} von {rounds}"
 msgstr "Question {round} of {rounds}"
 
+msgctxt "game.scoreLine"
+msgid "Stand: {scores}"
+msgstr "Score: {scores}"
+
+msgctxt "game.finalScoreLine"
+msgid "Endstand: {scores}"
+msgstr "Final score: {scores}"
+
+msgctxt "game.scoreEntry"
+msgid "{name} {correct}"
+msgstr "{name} {correct}"
+
 msgctxt "game.answerCountStatus"
 msgid "{answered} von {players} haben geantwortet"
 msgstr "{answered} of {players} have answered"

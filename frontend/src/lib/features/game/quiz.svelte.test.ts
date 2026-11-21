@@ -33,6 +33,48 @@ function openCard(quiz: Quiz) {
     return card;
 }
 
+describe("the counted score", () => {
+    const revealWithScores = (quiz: Quiz) => {
+        quiz.receiveLine({
+            type: GAME_SIGNAL.GAME_LINE,
+            text: "It was Paris.",
+            scores: [
+                { name: "Anna", correct: 2 },
+                { name: "Ben", correct: 0 },
+            ],
+        });
+    };
+
+    it("shows the score of the last reveal on the next round's card", () => {
+        const { quiz } = seatedQuiz();
+        openRound(quiz, 1);
+        expect(openCard(quiz).score).toBe("");
+
+        revealWithScores(quiz);
+        openRound(quiz, 2);
+
+        const entries = [
+            words["game.scoreEntry"]({ name: "Anna", correct: "2" }),
+            words["game.scoreEntry"]({ name: "Ben", correct: "0" }),
+        ];
+        expect(openCard(quiz).score).toBe(words["game.scoreLine"]({ scores: entries.join(", ") }));
+    });
+
+    it("keeps the score through a line without one and drops it when the quiz ends", () => {
+        const { quiz } = seatedQuiz();
+        openRound(quiz, 1);
+        revealWithScores(quiz);
+        quiz.receiveLine({ type: GAME_SIGNAL.GAME_LINE, text: "Question 2?", round: 2 });
+        quiz.receivePhase(answering(2));
+        expect(openCard(quiz).score).not.toBe("");
+
+        quiz.receivePhase({ type: GAME_SIGNAL.GAME_PHASE, phase: GAME_PHASE.IDLE });
+        openRound(quiz, 1);
+
+        expect(openCard(quiz).score).toBe("");
+    });
+});
+
 describe("the start and end control", () => {
     it("starts a quiz while none runs and ends it while one does", () => {
         const { quiz, sent } = seatedQuiz();

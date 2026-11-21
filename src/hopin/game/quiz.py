@@ -1,8 +1,8 @@
 """A quiz's rules: its rounds, its transcript and who may reveal or end. Pure; the table runs it."""
 
 import json
-from dataclasses import dataclass, field
-from enum import Enum, auto
+from dataclasses import dataclass, field, replace
+from enum import Enum, StrEnum, auto
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
@@ -27,9 +27,15 @@ QUIZ_TOPICS: Final = (
 )
 REVEAL_REQUEST: Final = (
     "Löse die Frage auf. Die nächste Zeile listet die Antworten der Mitspielenden als JSON, "
-    'je Antwort mit "name" und "antwort"; eine leere Liste heißt, dass niemand geantwortet hat.'
+    'je Antwort mit "nr", "name" und "antwort"; eine leere Liste heißt, dass niemand geantwortet hat. '
+    "Gib zuerst dein Urteil über jede Antwort mit dem Werkzeug record_verdicts ab, je Antwort ein Urteil mit ihrer "
+    '"nr"; dann schreibst du die Auflösung.'
 )
-FINAL_SCORE_REQUEST: Final = "Das war die letzte Frage. Nenne den Endstand."
+FINAL_SCORE_REQUEST: Final = (
+    "Das war die letzte Frage. Die nächste Zeile nennt den gezählten Stand als JSON, je Person mit "
+    '"name" und "richtig" (die Zahl der richtig beantworteten Fragen); eine leere Liste heißt, dass niemand '
+    "geantwortet hat. Nenne den Endstand."
+)
 
 
 class Speaker(Enum):
@@ -51,6 +57,19 @@ class QuizStep(Enum):
     OVER = auto()
 
 
+class Judgement(StrEnum):
+    CORRECT = "correct"
+    WRONG = "wrong"
+
+
+@dataclass(frozen=True)
+class Verdict:
+    """The game master's judgement of one answer, named by its `nr` in the reveal request (counted from one)."""
+
+    nr: int
+    judgement: Judgement
+
+
 @dataclass(frozen=True)
 class PlayerAnswer:
     player: PeerId
@@ -58,8 +77,23 @@ class PlayerAnswer:
     text: str = field(repr=False)
 
 
+@dataclass(frozen=True)
+class Score:
+    """How many questions of this quiz a player has answered correctly, by the verdicts."""
+
+    player: PeerId
+    name: str = field(repr=False)
+    correct: int
+
+
 def question_request(topic: str) -> str:
     return f"Stelle die nächste Quizfrage zum Thema {topic}."
+
+
+def final_score_request(scores: tuple[Score, ...]) -> str:
+    """The fixed request and, on its own line, the counted score as JSON, so the game master states and never counts."""
+    counted = [{"name": score.name, "richtig": score.correct} for score in scores]
+    return f"{FINAL_SCORE_REQUEST}\n{json.dumps(counted, ensure_ascii=False)}"
 
 
 @dataclass(frozen=True)
@@ -67,7 +101,8 @@ class Quiz:
     """One quiz of a room: the transcript ends with the request of the run the step waits for.
 
     A round's players are the seats its question line was delivered to; each has at most one answer.
-    Round n asks about the n-th of the quiz's topics, which differ from each other.
+    Round n asks about the n-th of the quiz's topics, which differ from each other. The scores are counted from the
+    verdicts of the reveals so far.
     """
 
     starter: PeerId
@@ -77,6 +112,7 @@ class Quiz:
     transcript: tuple[Turn, ...] = ()
     players: frozenset[PeerId] = frozenset()
     answers: tuple[PlayerAnswer, ...] = ()
+    scores: tuple[Score, ...] = ()
 
     @classmethod
     def opening(cls, starter: PeerId, topics: tuple[str, ...]) -> Quiz:
@@ -85,6 +121,14 @@ class Quiz:
     @property
     def is_asking(self) -> bool:
         return self.step is QuizStep.ASKING
+
+    @property
+    def is_revealing(self) -> bool:
+        return self.step is QuizStep.REVEALING
+
+    @property
+    def is_scoring(self) -> bool:
+        return self.step is QuizStep.SCORING
 
     @property
     def awaits_game_master(self) -> bool:
@@ -103,7 +147,13 @@ class Quiz:
         return peer_id == self.starter or hosts_call
 
     def ended(self) -> Quiz:
-        return Quiz(self.starter, self.topics, step=QuizStep.OVER, round=self.round, transcript=())
+        return replace(  # NOSONAR(S5886) replace returns a Quiz here
+            self,
+            step=QuizStep.OVER,
+            transcript=(),
+            players=frozenset(),
+            answers=(),
+        )
 
     def may_reveal(self, peer_id: PeerId) -> bool:
         return peer_id == self.starter and self.step is QuizStep.ANSWERING
@@ -114,15 +164,7 @@ class Quiz:
     def with_answer(self, player: PeerId, name: str, text: str) -> Quiz:
         """The quiz once the player's answer is in; it replaces the player's earlier one."""
         answers = (*(answer for answer in self.answers if answer.player != player), PlayerAnswer(player, name, text))
-        return Quiz(
-            self.starter,
-            self.topics,
-            step=self.step,
-            round=self.round,
-            transcript=self.transcript,
-            players=self.players,
-            answers=answers,
-        )
+        return replace(self, answers=answers)  # NOSONAR(S5886) replace returns a Quiz here
 
     def counts_leave_of(self, peer_id: PeerId) -> bool:
         """Whether a player's leave changes what the seats are shown: only once the open question has an answer."""
@@ -130,15 +172,7 @@ class Quiz:
 
     def without_player(self, peer_id: PeerId) -> Quiz:
         """The quiz once the player has left for good; the player's given answer stays for the reveal request."""
-        return Quiz(
-            self.starter,
-            self.topics,
-            step=self.step,
-            round=self.round,
-            transcript=self.transcript,
-            players=self.players - {peer_id},
-            answers=self.answers,
-        )
+        return replace(self, players=self.players - {peer_id})  # NOSONAR(S5886) replace returns a Quiz here
 
     def counted_players(self, present: frozenset[PeerId]) -> frozenset[PeerId]:
         """The present players whose answer the count holds."""
@@ -153,45 +187,71 @@ class Quiz:
 
     def revealing(self) -> Quiz:
         transcript = (*self.transcript, Turn(Speaker.HOPIN, self._reveal_request()))
-        return Quiz(
-            self.starter,
-            self.topics,
+        return replace(  # NOSONAR(S5886) replace returns a Quiz here
+            self,
             step=QuizStep.REVEALING,
-            round=self.round,
             transcript=transcript,
-            players=self.players,
-            answers=self.answers,
         )
 
     def _reveal_request(self) -> str:
         """The fixed request and, on its own line, the given answers as JSON, so no name or answer can pose as more."""
-        given = [{"name": answer.name, "antwort": answer.text} for answer in self.answers]
+        given = [
+            {"nr": number, "name": answer.name, "antwort": answer.text}
+            for number, answer in enumerate(self.answers, start=1)
+        ]
         return f"{REVEAL_REQUEST}\n{json.dumps(given, ensure_ascii=False)}"
 
-    def heard(self, line: str, players: frozenset[PeerId]) -> Quiz:
+    def judges(self, verdicts: tuple[Verdict, ...]) -> bool:
+        """Whether the verdicts name each given answer exactly once and nothing else."""
+        return sorted(verdict.nr for verdict in verdicts) == list(range(1, len(self.answers) + 1))
+
+    def heard(self, line: str, players: frozenset[PeerId], verdicts: tuple[Verdict, ...] = ()) -> Quiz:
         """The quiz once the game master's line answers the step's request, with the request that follows.
 
-        The line of a question reaches the round's players.
+        The line of a question reaches the round's players. The verdicts of a reveal, which `judges` has accepted, add
+        to the scores.
         """
         transcript = (*self.transcript, Turn(Speaker.GAME_MASTER, line))
         match self.step:
             case QuizStep.ASKING:
-                return Quiz(
-                    self.starter,
-                    self.topics,
+                return replace(  # NOSONAR(S5886) replace returns a Quiz here
+                    self,
                     step=QuizStep.ANSWERING,
-                    round=self.round,
                     transcript=transcript,
                     players=players,
+                    answers=(),
                 )
             case QuizStep.REVEALING if self.round < QUIZ_ROUNDS:
-                return self._asking_next_round(transcript)
+                scored = self._scored(verdicts)
+                transcript = (*transcript, Turn(Speaker.HOPIN, question_request(self.topics[self.round])))
+                return replace(  # NOSONAR(S5886) replace returns a Quiz here
+                    scored,
+                    step=QuizStep.ASKING,
+                    round=self.round + 1,
+                    transcript=transcript,
+                    players=frozenset(),
+                    answers=(),
+                )
             case QuizStep.REVEALING:
-                transcript = (*transcript, Turn(Speaker.HOPIN, FINAL_SCORE_REQUEST))
-                return Quiz(self.starter, self.topics, step=QuizStep.SCORING, round=self.round, transcript=transcript)
+                scored = self._scored(verdicts)
+                request = Turn(Speaker.HOPIN, final_score_request(scored.scores))
+                return replace(  # NOSONAR(S5886) replace returns a Quiz here
+                    scored, step=QuizStep.SCORING, transcript=(*transcript, request), players=frozenset(), answers=()
+                )
             case _:
-                return Quiz(self.starter, self.topics, step=QuizStep.OVER, round=self.round, transcript=transcript)
+                return replace(  # NOSONAR(S5886) replace returns a Quiz here
+                    self,
+                    step=QuizStep.OVER,
+                    transcript=transcript,
+                    players=frozenset(),
+                    answers=(),
+                )
 
-    def _asking_next_round(self, transcript: tuple[Turn, ...]) -> Quiz:
-        transcript = (*transcript, Turn(Speaker.HOPIN, question_request(self.topics[self.round])))
-        return Quiz(self.starter, self.topics, step=QuizStep.ASKING, round=self.round + 1, transcript=transcript)
+    def _scored(self, verdicts: tuple[Verdict, ...]) -> Quiz:
+        """The quiz with every given answer's player on the scores, a correct verdict adding one."""
+        points = {score.player: score for score in self.scores}
+        for number, answer in enumerate(self.answers, start=1):
+            current = points.get(answer.player, Score(answer.player, answer.name, 0))
+            correct = any(verdict.nr == number and verdict.judgement is Judgement.CORRECT for verdict in verdicts)
+            points[answer.player] = replace(current, correct=current.correct + int(correct))
+        return replace(self, scores=tuple(points.values()))  # NOSONAR(S5886) replace returns a Quiz here

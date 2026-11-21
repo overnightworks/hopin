@@ -1,0 +1,27 @@
+[
+  {
+    "question": "Welcher Fluss fließt durch Lissabon?",
+    "answers": [
+      {"name": "Anna", "antwort": "Der Tejo"},
+      {"name": "Ben", "antwort": "Der Rhein"},
+      {"name": "Cem", "antwort": "Tajo"},
+      {"name": "Dora", "antwort": "Keine Ahnung"}
+    ]
+  },
+  {
+    "question": "Wie viele Beine hat eine Spinne?",
+    "answers": [
+      {"name": "Anna", "antwort": "Acht"},
+      {"name": "Ben", "antwort": "6"},
+      {"name": "Cem", "antwort": "8"}
+    ]
+  },
+  {
+    "question": "Wer hat die Relativitätstheorie entwickelt?",
+    "answers": [
+      {"name": "Anna", "antwort": "Albert Einstein"},
+      {"name": "Ben", "antwort": "Isaac Newton"},
+      {"name": "Cem", "antwort": "Einstein"}
+    ]
+  }
+]

@@ -152,6 +152,9 @@ const translated = {
     "game.answerLabel": "Your answer",
     "game.sendButton": "Send",
     "game.questionProgress": (gaps: { readonly round: string; readonly rounds: string }) => "Question " + gaps.round + " of " + gaps.rounds,
+    "game.scoreLine": (gaps: { readonly scores: string }) => "Score: " + gaps.scores,
+    "game.finalScoreLine": (gaps: { readonly scores: string }) => "Final score: " + gaps.scores,
+    "game.scoreEntry": (gaps: { readonly correct: string; readonly name: string }) => gaps.name + " " + gaps.correct,
     "game.answerCountStatus": (gaps: { readonly answered: string; readonly players: string }) => gaps.answered + " of " + gaps.players + " have answered",
     "game.answerSentCountStatus": (gaps: { readonly answered: string; readonly players: string }) => "Answer sent · " + gaps.answered + " of " + gaps.players + " have answered",
     "game.busyRetryToast": (count: number, gaps: { readonly name: string }) => ({

@@ -29,6 +29,7 @@ from tests.game.support.table_world import (
     refused,
     revealed_answers,
     revealed_into_question_two,
+    scores_of,
     script_two_questions,
     sent,
     sent_count_to_all,
@@ -303,7 +304,7 @@ class TestAPlayersLeave:
             assert game_frames(browser)[-7:] == [
                 answer_count(2, 3, own=True),
                 answer_count(2, 2, own=True),
-                *revealed_into_question_two(host),
+                *revealed_into_question_two(host, scores_of(("host", 1), ("guest", 1))),
             ]
         assert {given["name"] for given in revealed_answers(game_master)} == {"host", "guest"}
 

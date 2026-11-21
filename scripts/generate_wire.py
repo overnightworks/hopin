@@ -199,12 +199,18 @@ def _properties(
 
 
 def _nested_records(frame_cls: type) -> list[type]:
-    """The records a frame's `list[Record]` fields hold, in field order."""
-    return [
-        get_args(field.type)[0]
-        for field in dataclasses.fields(frame_cls)
-        if get_origin(field.type) is list and dataclasses.is_dataclass(get_args(field.type)[0])
-    ]
+    """The records a frame's `list[Record]` fields hold, in field order; a field may also be that list or None."""
+    records = []
+    for field in dataclasses.fields(frame_cls):
+        present = [
+            part
+            for part in (get_args(field.type) if get_origin(field.type) in (types.UnionType, Union) else (field.type,))
+            if part is not types.NoneType
+        ]
+        annotation = present[0]
+        if get_origin(annotation) is list and dataclasses.is_dataclass(get_args(annotation)[0]):
+            records.append(get_args(annotation)[0])
+    return records
 
 
 def render_record_type(record_cls: type, enums: Mapping[str, type[StrEnum | IntEnum]] = CORE_ENUMS) -> str:
