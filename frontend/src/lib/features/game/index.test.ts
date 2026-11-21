@@ -223,6 +223,32 @@ describe("the game master's lines", () => {
         ]);
     });
 
+    it("GM-24: adds the counted final score as a line of its own after the final line", async () => {
+        const game = await installedGame();
+
+        game.emit(GAME_SIGNAL.GAME_LINE, {
+            text: "Well played.",
+            final: true,
+            scores: [
+                { name: "Anna", correct: 3 },
+                { name: "Ben", correct: 2 },
+            ],
+        });
+
+        expect(game.lines).toEqual([
+            { component: GameMasterLine, props: { text: "Well played." } },
+            { component: GameMasterLine, props: { text: words["game.finalScoreLine"]({ scores: "Anna 3, Ben 2" }) } },
+        ]);
+    });
+
+    it("GM-24: adds no score line to a final line that carries no score", async () => {
+        const game = await installedGame();
+
+        game.emit(GAME_SIGNAL.GAME_LINE, { text: "Thanks.", final: true });
+
+        expect(game.lines).toEqual([{ component: GameMasterLine, props: { text: "Thanks." } }]);
+    });
+
     it("pins the thinking bubble once while the game master thinks and takes it back after", async () => {
         const game = await installedGame();
         const thinking = { phase: GAME_PHASE.THINKING, round: 1, rounds: 3, starter: ME };

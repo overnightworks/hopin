@@ -18,6 +18,7 @@ GAME_MASTER_LINES = "#chatMessages .game-master:not(.typing)"
 TYPING = "#chatMessages .game-master.typing"
 CARD = "#chatPanel .qcard"
 STATUS = ".qcard-status"
+SCORE = ".qcard-score"
 SENT = re.compile(r"\bsent\b")
 GAME_MASTER_NAME = text("de", "game.masterName")
 GAME_MASTER_NAME_GAP = {"name": GAME_MASTER_NAME}
@@ -43,6 +44,11 @@ def answer_count_status(answered: int, players: int) -> str:
 
 def answer_sent_status(answered: int, players: int) -> str:
     return text("de", "game.answerSentCountStatus", answered=str(answered), players=str(players))
+
+
+def score_line(*correct_by_name: tuple[str, int]) -> str:
+    entries = [text("de", "game.scoreEntry", name=name, correct=str(correct)) for name, correct in correct_by_name]
+    return text("de", "game.scoreLine", scores=", ".join(entries))
 
 
 def start_quiz(person: Page) -> None:

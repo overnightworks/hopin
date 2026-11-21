@@ -1,16 +1,19 @@
 import pytest
 
-from hopin.game.quiz import FINAL_SCORE_REQUEST, QUIZ_ROUNDS, Speaker, Turn
+from hopin.game.quiz import QUIZ_ROUNDS, Speaker, Turn, final_score_request
 from hopin.game.table import Line
 from tests.game.support.table_world import (
     IDLE,
     REVEAL,
     START,
+    answer,
     answering,
     call_of,
     game_frames,
     line,
     question,
+    scores_of,
+    sent_count_to_all,
     sent_to_all,
     thinking,
 )
@@ -57,7 +60,11 @@ def frames_of_a_whole_quiz(starter):
         ]
         for number in range(1, QUIZ_ROUNDS + 1)
     ]
-    return [frame for frames in rounds for frame in frames] + [thinking(starter, QUIZ_ROUNDS), line(FINAL_LINE), IDLE]
+    return [frame for frames in rounds for frame in frames] + [
+        thinking(starter, QUIZ_ROUNDS),
+        line(FINAL_LINE, final=True),
+        IDLE,
+    ]
 
 
 class TestFiveRounds:
@@ -72,7 +79,7 @@ class TestFiveRounds:
 
         assert len(game_master.calls) == RUN_COUNT
         assert {run.starter for run in game_master.calls} == {call[1].socket}
-        assert game_master.calls[-1].transcript[-1] == Turn(Speaker.HOPIN, FINAL_SCORE_REQUEST)
+        assert game_master.calls[-1].transcript[-1] == Turn(Speaker.HOPIN, final_score_request(()))
 
     async def test_every_seat_sees_the_rounds_in_order_the_final_line_and_idle_once_at_the_end(self, link, game_master):
         call = await call_of(link, "host", "guest")
@@ -82,3 +89,23 @@ class TestFiveRounds:
 
         for browser in call:
             assert game_frames(browser) == frames_of_a_whole_quiz(call[1])
+
+    async def test_the_final_line_carries_the_score_counted_from_the_verdicts_for_every_seat(self, link, game_master):
+        """GM-24: The final line carries the score counted from the verdicts for every seat."""
+        host, guest = call = await call_of(link, "host", "guest")
+        scripted_quiz(game_master)
+
+        await guest.say(START)
+        for number in range(1, QUIZ_ROUNDS + 1):
+            await sent_to_all(call, answering(guest, number))
+            await host.say(answer("Tejo"))
+            await sent_count_to_all(call, 1, 2, answered_by=[host])
+            await guest.say(REVEAL)
+        await sent_to_all(call, IDLE)
+
+        for browser in call:
+            assert game_frames(browser)[-3:] == [
+                thinking(guest, QUIZ_ROUNDS),
+                line(FINAL_LINE, scores_of(("host", QUIZ_ROUNDS)), final=True),
+                IDLE,
+            ]

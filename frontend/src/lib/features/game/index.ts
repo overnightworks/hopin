@@ -13,7 +13,7 @@ import {
 import GameMasterLine from "./GameMasterLine.svelte";
 import GameMasterThinking from "./GameMasterThinking.svelte";
 import QuestionCard from "./QuestionCard.svelte";
-import { Quiz, type QuestionCardProps } from "./quiz.svelte.ts";
+import { Quiz, finalScoreText, type QuestionCardProps } from "./quiz.svelte.ts";
 import { GAME_REFUSAL, GAME_SIGNAL, type GameFrameByType } from "./wire.ts";
 import "./game.css";
 
@@ -117,6 +117,8 @@ function listen(core: FeatureCore<GameFrameByType>, quiz: Quiz, createPlayer: ()
     });
     core.on(GAME_SIGNAL.GAME_LINE, (frame) => {
         core.receiveChatLine(featureView(GameMasterLine, { text: frame.text }));
+        if (frame.final === true && frame.scores !== undefined)
+            core.receiveChatLine(featureView(GameMasterLine, { text: finalScoreText(frame.scores) }));
         quiz.receiveLine(frame);
     });
     core.on(GAME_SIGNAL.GAME_VOICE, (frame) => {

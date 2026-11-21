@@ -27,6 +27,7 @@ from hopin.game.frames import (
     LineFrame,
     QuizPhaseFrame,
     RefusedFrame,
+    ScoreEntry,
     SilentVoiceFrame,
     VoiceFrame,
 )
@@ -53,7 +54,7 @@ if TYPE_CHECKING:
 
     from starlette.requests import HTTPConnection
 
-    from hopin.game.quiz import Turn
+    from hopin.game.quiz import Turn, Verdict
     from hopin.game.voice import StoredVoice, Voice, VoiceShelf
     from hopin.signaling.frames import ForeignFrame, JsonObject, PeerId
     from hopin.signaling.scheduler import Deadlines
@@ -75,7 +76,10 @@ _AN_END: Final = Supersedes(frozenset({GameSignal.GAME_LINE, GameSignal.GAME_VOI
 
 @dataclass(frozen=True)
 class Line:
+    """The game master's line and, for a reveal, its verdict on each answer."""
+
     text: str
+    verdicts: tuple[Verdict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -343,7 +347,7 @@ class Game(TransitionFeature):
                     starter = live_seats.connection_of(work.seat)
                     self._start_ask(work.key, live, starter, quiz)
                 await room.apply(partial(_tell_thinking, work.key, live))
-                outcome = await self._outcome(work.key, live)
+                outcome = _judged(quiz, await self._outcome(work.key, live))
                 self._start_voice(work.key, live, starter, outcome)
                 delivery = await room.apply(partial(self._settle, work.key, live, outcome))
                 reason = _refusal_reason(delivery.ended, outcome)
@@ -389,19 +393,7 @@ class Game(TransitionFeature):
             return _Delivery(ended=run is not None and run.ended)
         transition.log_broken_writes_as(_RUN_WRITE_BROKE)
         recipients = view.members
-        quiz = None
-        if isinstance(outcome, Line):
-            line = LineFrame(
-                outcome.text,
-                voiced=True if self._voice is not None else None,
-                round=run.quiz.round if run.quiz.is_asking else None,
-            )
-            _send_each(transition, recipients, line)
-            quiz = run.quiz.heard(outcome.text, frozenset(recipients))
-        else:
-            transition.send(run.quiz.starter, _refusal_frame(outcome).to_json())
-            if not run.quiz.is_opening:
-                _send_each(transition, (seat for seat in recipients if seat != run.quiz.starter), EndedFrame())
+        quiz = self._deliver(run, outcome, recipients, transition)
         # Each phase's recipients are read in the same step that sets it, so every seat seated now is told here, a
         # seat that joins later is greeted by `seat_joined`, and idle greets no one.
         chained = None
@@ -416,6 +408,27 @@ class Game(TransitionFeature):
             transition.put(TABLE, replace(table, quiz=quiz, phase=phase))
             _send_each(transition, recipients, phase.frame)
         return _Delivery(recipients=recipients, chained=chained)
+
+    def _deliver(
+        self, run: _Run, outcome: GameOutcome, recipients: tuple[PeerId, ...], transition: Transition
+    ) -> Quiz | None:
+        """Send the outcome to the seats: the line for every seat, or the refusal for the starter and, past the
+        opening, the end for the others. The quiz the line moves on, or none for a refusal."""
+        if not isinstance(outcome, Line):
+            transition.send(run.quiz.starter, _refusal_frame(outcome).to_json())
+            if not run.quiz.is_opening:
+                _send_each(transition, (seat for seat in recipients if seat != run.quiz.starter), EndedFrame())
+            return None
+        quiz = run.quiz.heard(outcome.text, frozenset(recipients), outcome.verdicts)
+        line = LineFrame(
+            outcome.text,
+            voiced=True if self._voice is not None else None,
+            round=run.quiz.round if run.quiz.is_asking else None,
+            scores=_score_entries(quiz) if run.quiz.is_revealing or run.quiz.is_scoring else None,
+            final=True if run.quiz.is_scoring else None,
+        )
+        _send_each(transition, recipients, line)
+        return quiz
 
     async def _send_voice(self, room: WorkRoom, key: str, live: _LiveRun, recipients: tuple[PeerId, ...]) -> None:
         """Wait for the line's voice, then send its one frame, made or empty, to the line's recipients still seated
@@ -516,6 +529,19 @@ def _forget(key: str, view: RoomView, transition: Transition) -> None:
     table = _table_of(view)
     if table.run(key) is not None:
         transition.put(TABLE, replace(table, runs=tuple(run for run in table.runs if run.key != key)))
+
+
+def _score_entries(quiz: Quiz) -> list[ScoreEntry] | None:
+    """The counted score for a reveal's line; none while nobody has answered."""
+    return [ScoreEntry(score.name, score.correct) for score in quiz.scores] or None
+
+
+def _judged(quiz: Quiz | None, outcome: GameOutcome) -> GameOutcome:
+    """The outcome, or an unavailable game master when a reveal's verdicts do not name each given answer once."""
+    if quiz is None or not quiz.is_revealing or not isinstance(outcome, Line) or quiz.judges(outcome.verdicts):
+        return outcome
+    logger.error("game_verdicts.incomplete")
+    return Refused(GameRefusal.UNAVAILABLE)
 
 
 def _refusal_reason(ended: bool, outcome: GameOutcome) -> str | None:

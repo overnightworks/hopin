@@ -20,6 +20,7 @@ from tests.e2e.game.game_page import (
     QUIZ_ENDED,
     QUIZ_RUNNING_LABEL,
     REVEAL,
+    SCORE,
     SENT,
     START_QUIZ,
     START_QUIZ_LABEL,
@@ -37,6 +38,7 @@ from tests.e2e.game.game_page import (
     open_chat,
     question_progress,
     relaying_frames,
+    score_line,
     start_quiz,
 )
 from tests.e2e.support.calls import (
@@ -348,6 +350,7 @@ def test_everyone_answers_privately_and_the_reveal_follows_the_last_answer_on_it
         expect(person.locator(GAME_MASTER_LINES)).to_have_count(3)
         expect(person.locator(GAME_MASTER_LINES).nth(1)).to_contain_text(reveal_line)
         expect(person.locator(CARD).locator(".qcard-tag")).to_have_text(question_progress(2))
+        expect(person.locator(CARD).locator(SCORE)).to_have_text(score_line((guest_name, 1), (host_name, 1)))
         expect(person.locator("#chatMessages")).not_to_contain_text("Mondego")
         close_chat(person)
         expect(open_more(person).locator(MORE_PROGRESS)).to_have_text(question_progress(2))

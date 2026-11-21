@@ -155,6 +155,12 @@
     opacity: 0.6;
     cursor: default;
 }
+.qcard-score {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 650;
+    color: var(--on-stage);
+}
 .qcard-status {
     margin: 0;
     min-height: 1em;

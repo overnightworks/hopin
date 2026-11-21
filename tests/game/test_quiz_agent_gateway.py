@@ -13,7 +13,7 @@ from agents.backend.fake_gateway import FakeGateway, Reply, completion
 from agents.backend.gateway import GatewayBackend, GatewayDetail
 from logline import Outcome
 
-from hopin.agent.backend import QUIZ_AGENT_FILE
+from hopin.agent.backend import QUIZ_AGENT_FILE, VERDICT_TOOL
 from hopin.game.quiz import QUIZ_TOPICS, question_request
 from hopin.game.vocabulary import GamePhase, GameRefusal
 from tests.game.support.call_world import IDLE, asked, phase, refused, serving_call
@@ -53,7 +53,7 @@ def quiz_on_gateway(sign_in_settings, key_file):
 
         def open_quiz(*replies):
             gateway = FakeGateway(*(replies or (completion(SCENARIO.question),)))
-            backend = GatewayBackend(agent_settings(key_file).agent, transport=gateway)
+            backend = GatewayBackend(agent_settings(key_file).agent, tools=[VERDICT_TOOL], transport=gateway)
             return serving.enter_context(serving_call(sign_in, FakeIssuer(sign_in), backend)), gateway
 
         yield open_quiz
@@ -83,7 +83,7 @@ def test_a_member_of_the_api_group_starts_a_quiz_and_every_seat_reads_the_gatewa
     assert len(gateway.requests) == 1
 
 
-def test_the_quiz_offers_the_gateway_no_tools(quiz_on_gateway):
+def test_the_quiz_offers_the_gateway_only_the_verdict_tool(quiz_on_gateway):
     call, gateway = quiz_on_gateway()
     host, _ = call.seat(call.member(groups=(API_GROUP,)))
 
@@ -91,7 +91,7 @@ def test_the_quiz_offers_the_gateway_no_tools(quiz_on_gateway):
     host.frames(3)
 
     _, body = first_post_of(gateway)
-    assert "tools" not in body
+    assert [tool["function"]["name"] for tool in body["tools"]] == [VERDICT_TOOL.declaration.name]
 
 
 def test_a_post_carries_the_agent_files_model_the_quiz_prompt_and_this_quizs_turn_and_nothing_else(quiz_on_gateway):
@@ -103,10 +103,10 @@ def test_a_post_carries_the_agent_files_model_the_quiz_prompt_and_this_quizs_tur
     host.frames(3)
 
     _, body = first_post_of(gateway)
-    agent = load_agent(QUIZ_AGENT_FILE, [])
+    agent = load_agent(QUIZ_AGENT_FILE, [VERDICT_TOOL.declaration])
     [system, turn] = body["messages"]
     # The library adds its usage option to every round; the quiz adds nothing of its own beyond these fields.
-    assert sorted(body.keys() - {"stream_options"}) == ["messages", "model", "stream", "user"]
+    assert sorted(body.keys() - {"stream_options"}) == ["messages", "model", "stream", "tools", "user"]
     assert body["model"] == agent.model
     language_line = system["content"].removeprefix(agent.prompt).strip()
     assert (system["role"], system["content"].startswith(agent.prompt)) == ("system", True)

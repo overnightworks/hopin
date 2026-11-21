@@ -43,6 +43,8 @@ GAME = Removal(
         "src/hopin/agent/feature.py",
         "src/hopin/agent/settings.py",
         "src/hopin/agent/speech.py",
+        "scripts/verdict_repeatability.py",
+        "scripts/verdict_recording.json",
     ),
     marker="# game",
     marked_files=(

@@ -1,8 +1,10 @@
 import asyncio
+import json
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
+from hopin.game.quiz import REVEAL_REQUEST, Judgement, Verdict
 from hopin.game.table import Line
 
 if TYPE_CHECKING:
@@ -68,7 +70,7 @@ class FakeGameMaster:
             outcome = self._outcomes.popleft() if self._outcomes else Line(DEFAULT_QUESTION)
             if isinstance(outcome, BaseException):
                 raise outcome
-            return outcome
+            return _judged_when_revealing(outcome, transcript)
         except asyncio.CancelledError:
             call.cancelled = True
             if held is not None and held.hold_cleanup:
@@ -77,3 +79,12 @@ class FakeGameMaster:
             raise
         finally:
             call.finished = True
+
+
+def _judged_when_revealing(outcome, transcript):
+    """A line scripted without verdicts for a reveal judges every given answer correct, as a plain script means."""
+    request = transcript[-1].text
+    if not isinstance(outcome, Line) or outcome.verdicts or not request.startswith(REVEAL_REQUEST):
+        return outcome
+    answers = json.loads(request.split("\n")[1])
+    return replace(outcome, verdicts=tuple(Verdict(answer["nr"], Judgement.CORRECT) for answer in answers))
