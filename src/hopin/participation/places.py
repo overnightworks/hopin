@@ -12,8 +12,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from hopin.config.rate import Rate, admitted
 from hopin.participation.chat_window import ChatWindow
-from hopin.participation.look_rate import LOOK_RATE, Rate, admitted
+from hopin.participation.look_rate import LOOK_RATE
 from hopin.participation.participants import Person
 
 if TYPE_CHECKING:

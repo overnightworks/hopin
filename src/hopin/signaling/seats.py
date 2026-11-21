@@ -64,6 +64,7 @@ class Peer:
     replaying: bool = False
     writers_started: int = 0
     park: Park | None = None
+    outcome_times: tuple[float, ...] = ()
 
 
 @dataclass

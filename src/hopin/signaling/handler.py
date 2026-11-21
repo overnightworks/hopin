@@ -16,6 +16,7 @@ from hopin.config.constants import (
 from hopin.errors import HopInError, InvalidMessageError, TooManyCallsError
 from hopin.signaling.features import build_features
 from hopin.signaling.frames import (
+    ConnectionOutcomeFrame,
     DispatchedFrame,
     EndRoomFrame,
     ForeignFrame,
@@ -253,6 +254,8 @@ class SignalingHandler:
                 await self._routing.set_locked(peer_id, locked=False)
             case MediaStateFrame():
                 await self._routing.handle_media_state(peer_id, frame)
+            case ConnectionOutcomeFrame():
+                await self._routing.handle_connection_outcome(peer_id, frame)
             case EndRoomFrame():
                 await self._routing.handle_end_room(peer_id)
             case ForeignFrame():

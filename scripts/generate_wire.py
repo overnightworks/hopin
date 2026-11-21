@@ -27,6 +27,7 @@ from hopin.config.constants import (  # noqa: E402
     REPLAY_LOG_LIMIT,
     SESSION_ENDED_CLOSE_CODE,
     WEBSOCKET_PATH,
+    ConnectionOutcome,
     ErrorReason,
     RoomClosedReason,
     SignalType,
@@ -127,7 +128,12 @@ FRAME_FIELD_TYPES: dict[object, str] = {
 ROOM_CLOSED_FIELD_TYPES: dict[object, str] = {RoomClosedReason: "ROOM_CLOSED_REASON"}
 ERROR_FIELD_TYPES: dict[object, str] = {ErrorReason: "ERROR_REASON"}
 RELAY_FIELD_TYPES: dict[object, str] = {JsonValue: "unknown"}
-CORE_ENUMS = {"SIGNAL_TYPE": SignalType, "ERROR_REASON": ErrorReason, "ROOM_CLOSED_REASON": RoomClosedReason}
+CORE_ENUMS = {
+    "SIGNAL_TYPE": SignalType,
+    "ERROR_REASON": ErrorReason,
+    "ROOM_CLOSED_REASON": RoomClosedReason,
+    "CONNECTION_OUTCOME": ConnectionOutcome,
+}
 
 
 def _exported_name(enums: Mapping[str, type[StrEnum | IntEnum]], vocabulary: type) -> str:

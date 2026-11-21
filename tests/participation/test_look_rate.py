@@ -1,6 +1,7 @@
 import pytest
 
-from hopin.participation.look_rate import LOOK_RATE, admitted
+from hopin.config.rate import admitted
+from hopin.participation.look_rate import LOOK_RATE
 from hopin.participation.vocabulary import LOOK_WINDOW_SECONDS, LOOKS_PER_WINDOW
 
 

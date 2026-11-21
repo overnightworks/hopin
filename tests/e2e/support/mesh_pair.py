@@ -216,12 +216,12 @@ def _reconnecting_status(delay_ms: int) -> str:
     return text("de", "call.statusReconnecting", count=delay_ms // 1000)
 
 
-def _wait_for(person: Page, condition: str, arg: Any = None) -> None:
+def wait_for(person: Page, condition: str, arg: Any = None) -> None:
     person.wait_for_function(condition, arg=arg, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
 def wait_for_status(person: Page, text: str) -> None:
-    _wait_for(person, STATUS_IS, text)
+    wait_for(person, STATUS_IS, text)
 
 
 def pump_until(
@@ -251,7 +251,7 @@ def _expect_to_reconnect_on_a_new_ufrag(*people: Page) -> Iterator[None]:
     yield
     for person, ufrag_before in zip(people, ufrags_before, strict=True):
         _wait_for_new_ufrag_in_stats(person, ufrag_before)
-        _wait_for(person, FIRST_CONNECTION_IS_CONNECTED)
+        wait_for(person, FIRST_CONNECTION_IS_CONNECTED)
 
 
 def pair_connector(open_person: Callable[..., Page], base_url: str) -> Iterator[Callable[..., ConnectedPair]]:
@@ -275,7 +275,7 @@ def pair_connector(open_person: Callable[..., Page], base_url: str) -> Iterator[
         invite_link = start_call(host, base_url, with_camera=without_camera is not Side.HOST)
         join_by_link(guest, invite_link)
         for person in (host, guest):
-            _wait_for(person, FIRST_CONNECTION_IS_CONNECTED)
+            wait_for(person, FIRST_CONNECTION_IS_CONNECTED)
             person.clock.pause_at(datetime.now(tz=UTC) + CLOCK_PAUSE_LEAD)
         return ConnectedPair(host, guest, host_tap, guest_tap, invite_link, page_errors)
 

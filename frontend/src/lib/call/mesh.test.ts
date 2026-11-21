@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ICE_SERVERS_PATH, SIGNAL_TYPE } from "#lib/wire.ts";
+import { CONNECTION_OUTCOME, ICE_SERVERS_PATH, SIGNAL_TYPE } from "#lib/wire.ts";
 import { FakeConnection, FakeDescription, FakeSender, type Frame } from "./mesh.fixture.ts";
 import type { StagePort } from "./stage-port.ts";
 
@@ -290,6 +290,18 @@ describe("meeting the people already there", () => {
         await vi.advanceTimersByTimeAsync(3000);
         expect(mesh.stage.setConnectionQuality).toHaveBeenCalledWith("p1", "good");
         expect(mesh.stage.setRemoteSpeaking).toHaveBeenCalledWith("p1", true);
+    });
+
+    it("reports to the server how a peer connection came up", async () => {
+        const mesh = await freshMesh();
+        const [connection] = await meetPeer(mesh, "p1");
+
+        connection?.dispatch("connectionstatechange");
+        await settle();
+
+        expect(sentOfType(SIGNAL_TYPE.CONNECTION_OUTCOME)).toEqual([
+            { type: SIGNAL_TYPE.CONNECTION_OUTCOME, outcome: CONNECTION_OUTCOME.DIRECT },
+        ]);
     });
 
     it("restarts ICE with an offer flagged iceRestart once the connection fails", async () => {
