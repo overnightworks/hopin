@@ -5,7 +5,7 @@
 #
 # Three hosts resolve to loopback and share the site drive.localhost: hopin.drive.localhost (this checkout's
 # harness, signed-in people seeded), skat.drive.localhost (the checkout's real `skat serve` behind a TLS terminator,
-# on its own throwaway Postgres) and auth.drive.localhost (the drive's own issuer). No real realm or live stack is
+# on its own throwaway Postgres and Redis) and auth.drive.localhost (the drive's own issuer). No real realm or live stack is
 # touched. The URLs, the people's cookies (`hopin-people.json`) and the pids are written to the scratch directory;
 # every secret is generated there and never printed. With --smoke the stack checks that the three hosts answer over
 # HTTPS and that a HopIn page loads, then stops.
@@ -40,6 +40,7 @@ chmod 700 "${scratch}"
 pids_file="${scratch}/pids"
 : >"${pids_file}"
 container="hopin-joint-postgres-$$"
+redis_container="hopin-joint-redis-$$"
 
 teardown() {
     trap - EXIT TERM
@@ -47,7 +48,7 @@ teardown() {
     while read -r pid; do
         kill "${pid}" 2>/dev/null || true
     done <"${pids_file}"
-    docker rm --force "${container}" >/dev/null 2>&1 || true
+    docker rm --force "${container}" "${redis_container}" >/dev/null 2>&1 || true
     local waited=0
     while [ "${waited}" -lt "${GRACE_SECONDS}" ] && [ -s "${pids_file}" ]; do
         local alive=0
@@ -113,10 +114,12 @@ python3 -c 'import secrets; print(secrets.token_urlsafe(32))' >"${scratch}/skat-
 python3 -c 'import secrets; print(secrets.token_urlsafe(48))' >"${scratch}/skat-session-secret"
 python3 -c 'import secrets; print(secrets.token_urlsafe(24))' >"${scratch}/skat-database-password"
 
-# Skat's own tooling, installed and built inside its checkout only.
+# Both pages are built inside their own checkouts only: HopIn's harness refuses to start without its build.
+(cd "${hopin}" && make frontend) >"${scratch}/hopin-install.log" 2>&1
 (cd "${skat}" && uv sync --all-extras && make frontend) >"${scratch}/skat-install.log" 2>&1
 
-image=$(sed -n "s/^IMAGE='\(.*\)'$/\1/p" "${skat}/scripts/test_postgres.sh")
+redis_image=$(sed -n "s/^REDIS_IMAGE='\(.*\)'$/\1/p" "${skat}/scripts/test_stores.sh")
+image=$(sed -n "s/^POSTGRES_IMAGE='\(.*\)'$/\1/p" "${skat}/scripts/test_stores.sh")
 docker run --quiet --detach --name "${container}" \
     --env POSTGRES_HOST_AUTH_METHOD=trust \
     --publish 127.0.0.1::5432 \
@@ -124,6 +127,10 @@ docker run --quiet --detach --name "${container}" \
     "${image}" >/dev/null
 wait_for "Postgres" docker exec "${container}" pg_isready --username postgres
 postgres_port=$(docker port "${container}" 5432/tcp | head -n 1 | sed 's/.*://')
+docker run --quiet --detach --name "${redis_container}" --publish 127.0.0.1::6379 \
+    "${redis_image}" redis-server --save '' --appendonly no >/dev/null
+wait_for "Redis" docker exec "${redis_container}" redis-cli ping
+redis_port=$(docker port "${redis_container}" 6379/tcp | head -n 1 | sed 's/.*://')
 
 rm -f "${scratch}/hopin-people.json"
 stage_apps=$(SKAT_ORIGIN="${skat_origin}" python3 -c 'import json, os; print(json.dumps([{"name": "skat", "title": "Skat", "origin": os.environ["SKAT_ORIGIN"], "frame_path": "/t/{context}"}]))')
@@ -138,6 +145,7 @@ start issuer env PYTHONPATH="${hopin}" "${hopin_python}" -m tests.e2e.support.dr
 skat_environment=(
     SKAT_DATABASE_URL="postgresql://postgres@127.0.0.1:${postgres_port}/postgres"
     SKAT_DATABASE_PASSWORD_FILE="${scratch}/skat-database-password"
+    SKAT_REDIS_URL="redis://127.0.0.1:${redis_port}/0"
     SKAT_OIDC_ISSUER="${issuer_url}"
     SKAT_OIDC_CLIENT_SECRET_FILE="${scratch}/skat-client-secret"
     SKAT_PUBLIC_ORIGIN="${skat_origin}"
