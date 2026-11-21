@@ -47,8 +47,9 @@ def _require_postgres_url_without_password(url: str) -> str:
         raise ValueError("must name a host, a user and a database")
     if parsed.password is not None:
         raise ValueError("must not carry a password")
-    # libpq reads query parameters over the authority, so any of them can redirect the password.
-    if parsed.query:
+    # libpq reads query parameters over the authority, so any of them can redirect the password; SQLAlchemy reads a `?`
+    # after a `#` as one, which urlsplit calls part of the fragment.
+    if "?" in url or "#" in url:
         raise ValueError("must not carry query parameters")
     return url
 

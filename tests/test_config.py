@@ -134,6 +134,7 @@ class TestServerSettings:
             ("database_url", "postgresql://hopin:sentinel-password@postgres.test.invalid/hopin"),
             ("database_url", "postgresql://hopin:@postgres.test.invalid/hopin"),
             ("database_url", "postgresql://hopin@postgres.test.invalid/hopin?host=other.test.invalid"),
+            ("database_url", "postgresql://hopin@postgres.test.invalid/hopin#?host=other.test.invalid"),
         ],
     )
     def test_malformed_setting_is_refused_by_name_and_never_by_value(self, sign_in_settings, setting, value):
