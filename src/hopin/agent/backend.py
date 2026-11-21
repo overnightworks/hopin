@@ -82,7 +82,9 @@ class MalformedVerdictsError(Exception):
     """The game master's verdicts are not the tool's input; the message holds no provider output."""
 
 
-async def _acknowledge_verdicts(_principal: Principal, _arguments: JsonObject) -> ToolOutcome:
+async def _acknowledge_verdicts(  # NOSONAR(S7503) HandTool awaits its handler
+    _principal: Principal, _arguments: JsonObject
+) -> ToolOutcome:
     return ToolOutcome(content="Urteile erhalten.", is_error=False)
 
 
