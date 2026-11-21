@@ -3,6 +3,7 @@
 import { applyUploadCaps, videoTransceivers } from "#lib/call/bandwidth.ts";
 import { files } from "#lib/call/files.ts";
 import { LINE_CHANNEL_ID, LINE_CHANNEL_LABEL, lines } from "#lib/call/lines.ts";
+import { reportConnectionOutcomes } from "#lib/call/outcome.ts";
 import { monitorConnectionQuality } from "#lib/call/quality.ts";
 import { watchIceConnection } from "#lib/call/recovery.ts";
 import { on, send } from "#lib/call/signaling.ts";
@@ -119,6 +120,9 @@ async function createPeerConnection(participantId: string, initiator: boolean) {
         watchIceConnection(connection, () => sendOffer(participantId, connection, { iceRestart: true }));
     }
 
+    reportConnectionOutcomes(connection, (outcome) => {
+        send({ type: SIGNAL_TYPE.CONNECTION_OUTCOME, outcome });
+    });
     monitorConnectionQuality(participantId, connection);
     // The DOM types an audio level as optional; the monitor reads the audio receivers' sources only.
     monitorSpeaking(participantId, connection as MonitoredConnection);

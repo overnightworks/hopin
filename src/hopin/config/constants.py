@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
+from hopin.config.rate import Rate
+
 DEFAULT_HOST = "0.0.0.0"  # noqa: S104 - the container must listen on every interface and HOPIN_HOST overrides it
 DEFAULT_PORT = 8080
 
@@ -150,11 +152,28 @@ class SignalType(StrEnum):
     ROOM_LOCKED = "room_locked"
     ROOM_UNLOCKED = "room_unlocked"
     MEDIA_STATE = "media_state"
+    CONNECTION_OUTCOME = "connection_outcome"
     HOST_AWAY = "host_away"
     HOST_BACK = "host_back"
     END_ROOM = "end_room"
     RESUME = "resume"
     RESUMED = "resumed"
+
+
+class ConnectionOutcome(StrEnum):
+    """How a seat's peer connection to one other seat went, as the browser can observe it: the connection came up
+    straight (`direct`) or through a TURN relay (`relayed`), it was lost for good (`failed`), or it came back after a
+    drop (`resumed`)."""
+
+    DIRECT = "direct"
+    RELAYED = "relayed"
+    FAILED = "failed"
+    RESUMED = "resumed"
+
+
+# A seat's reports that the server writes down in a window; a longer burst is dropped.
+# Room for each other seat's connection to go direct, fail and resume once in a full room.
+CONNECTION_OUTCOME_RATE = Rate(most=(MAX_PARTICIPANTS_PER_ROOM - 1) * 3, window_seconds=60)
 
 
 class ErrorReason(StrEnum):

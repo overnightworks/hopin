@@ -39,9 +39,9 @@ from tests.e2e.support.mesh_pair import (
     _heard_since,
     _restart_offers,
     _sdp_ufrag,
-    _wait_for,
     _wait_for_new_ufrag_in_stats,
     pump_until,
+    wait_for,
 )
 
 if TYPE_CHECKING:
@@ -128,7 +128,7 @@ def test_lost_restart_offer_is_retried_from_have_local_offer_and_the_retry_sched
 
     with _expect_to_reconnect_on_a_new_ufrag(guest, connected_pair.host):
         connected_pair.force_failed_on(guest)
-        _wait_for(guest, AWAITING_ANSWER)
+        wait_for(guest, AWAITING_ANSWER)
         guest.clock.run_for(first_delay)
         assert _restart_offers(guest) == 2
 
@@ -156,23 +156,23 @@ def test_quality_indicator_keeps_polling_through_a_failure_and_after_the_recover
     guest = connected_pair.guest
     connected_pair.guest_tap.offers_to_drop = UNLIMITED_DROPS
     guest.clock.run_for(QUALITY_POLL_INTERVAL_MS)
-    _wait_for(guest, QUALITY_BARS_PAINTED)
+    wait_for(guest, QUALITY_BARS_PAINTED)
 
     connected_pair.force_failed_on(guest)
     guest.clock.run_for(QUALITY_POLL_INTERVAL_MS)
     connected_pair.guest_tap.offers_to_drop = 0
     guest.clock.run_for(RESTART_DELAY_BY_ATTEMPT[1])
-    _wait_for(guest, FIRST_CONNECTION_IS_CONNECTED)
+    wait_for(guest, FIRST_CONNECTION_IS_CONNECTED)
     guest.evaluate(BLANK_QUALITY_BARS)
     guest.clock.run_for(QUALITY_POLL_INTERVAL_MS)
 
-    _wait_for(guest, QUALITY_BARS_PAINTED)
+    wait_for(guest, QUALITY_BARS_PAINTED)
 
 
 def _wait_for_video_caps(people: list[Page], peer_count: int, expected_cap: int) -> None:
     for person in people:
         wait_for_peer_count(person, peer_count)
-        _wait_for(person, EVERY_VIDEO_CAP_IS, [peer_count, expected_cap])
+        wait_for(person, EVERY_VIDEO_CAP_IS, [peer_count, expected_cap])
 
 
 def _wait_for_video_targets_at_most(person: Page, peer_count: int, ceiling: int) -> None:
@@ -213,14 +213,14 @@ def test_leaving_while_a_newcomers_offer_is_being_answered_raises_no_page_error(
     host.evaluate(HOLD_ANSWER_CREATION)
     newcomer = open_person()
     join_by_link(newcomer, connected_pair.invite_link)
-    _wait_for(host, ANSWER_CREATION_STARTED, started_before)
+    wait_for(host, ANSWER_CREATION_STARTED, started_before)
 
     host.click("#leaveBtn")
     host.click("#leaveYes")
     host.locator("[data-screen=end]").wait_for(timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     host.evaluate(RELEASE_ANSWER_CREATION)
 
-    _wait_for(host, ANSWER_CREATION_SETTLED, settled_before)
+    wait_for(host, ANSWER_CREATION_SETTLED, settled_before)
     host.evaluate(AFTER_PENDING_REJECTIONS_ARE_REPORTED)
 
 
@@ -322,7 +322,7 @@ def test_two_restart_offers_back_to_back_are_answered_in_arrival_order_and_the_p
     assert second_offer_ufrag != guest_before
     assert host.evaluate(REMOTE_UFRAG) == second_offer_ufrag
     guest.clock.run_for(RESTART_DELAY_BY_ATTEMPT[1])
-    _wait_for(guest, FIRST_CONNECTION_IS_CONNECTED)
+    wait_for(guest, FIRST_CONNECTION_IS_CONNECTED)
     _wait_for_new_ufrag_in_stats(guest, guest_before)
     _wait_for_new_ufrag_in_stats(host, host_before)
 
@@ -335,7 +335,7 @@ def test_leaving_behind_a_queued_restart_offer_leaves_no_tile_and_no_connection_
     started_before, settled_before = host.evaluate(ANSWER_CREATIONS_COUNTED)
     host.evaluate(HOLD_ANSWER_CREATION)
     connected_pair.force_failed_on(guest)
-    _wait_for(host, ANSWER_CREATION_STARTED, started_before)
+    wait_for(host, ANSWER_CREATION_STARTED, started_before)
     guest.clock.run_for(RESTART_DELAY_BY_ATTEMPT[0])
     pump_until(host, lambda: len(_frames_of(host_tap, "downstream", SignalType.OFFER)) == offers_before + 2)
 
@@ -343,7 +343,7 @@ def test_leaving_behind_a_queued_restart_offer_leaves_no_tile_and_no_connection_
     wait_for_peer_count(host, 0)
     host.evaluate(RELEASE_ANSWER_CREATION)
 
-    _wait_for(host, ANSWER_CREATION_SETTLED, settled_before)
+    wait_for(host, ANSWER_CREATION_SETTLED, settled_before)
     host.evaluate(AFTER_PENDING_REJECTIONS_ARE_REPORTED)
     expect(host.locator(OTHER_TILE)).to_have_count(0)
     assert host.evaluate(OPEN_PEER_COUNT_REACHED, 0)

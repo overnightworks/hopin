@@ -4,11 +4,13 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from hopin.config.constants import HOST_GRACE_SECONDS, RoomClosedReason
+from hopin.config.constants import CONNECTION_OUTCOME_RATE, HOST_GRACE_SECONDS, RoomClosedReason
+from hopin.config.rate import admitted
 from hopin.errors import InvalidMessageError, RoomNotFoundError
 from hopin.rooms.reference import room_reference
 from hopin.signaling.frames import (
     RELAY_BROADCAST_FRAMES,
+    ConnectionOutcomeFrame,
     ExistingParticipantsFrame,
     HostAwayFrame,
     HostBackFrame,
@@ -163,6 +165,19 @@ class RoomRouting:
         await self._seats.send_all(
             others, MediaStateBroadcastFrame(from_=peer_id, audio=frame.audio, video=frame.video).to_json()
         )
+
+    async def handle_connection_outcome(self, peer_id: PeerId, frame: ConnectionOutcomeFrame) -> None:
+        """Write down how one of a seat's peer connections went: the room and the closed outcome only. A seat in no
+        room, and a report beyond the seat's rate, are dropped."""
+        room_id = self._peer_rooms.get(peer_id)
+        if room_id is None:
+            return
+        peer = self._seats.seat(peer_id)
+        window = admitted(peer.outcome_times, self._deadlines.now(), CONNECTION_OUTCOME_RATE)
+        if window is None:
+            return
+        peer.outcome_times = window
+        await logger.ainfo("connection.reported", room_ref=room_reference(room_id), outcome=frame.outcome.value)
 
     async def handle_relay(self, peer_id: PeerId, frame: RelayFrame) -> None:
         target_id = frame.target

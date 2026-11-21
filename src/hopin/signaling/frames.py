@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, ClassVar, NewType, TypeGuard, cast
 
 from hopin.config.constants import (
     MAX_SIGNALING_FRAME_LENGTH,
+    ConnectionOutcome,
     ErrorReason,
     ResumeRefusalCause,
     RoomClosedReason,
@@ -252,6 +253,13 @@ class MediaStateFrame:
 
 
 @dataclass(frozen=True)
+class ConnectionOutcomeFrame:
+    """A seat's report of how one of its peer connections went; it names no peer and carries nothing else."""
+
+    outcome: ConnectionOutcome
+
+
+@dataclass(frozen=True)
 class ResumeClaim:
     participant_id: PeerId
     token: str
@@ -271,7 +279,16 @@ class ResumeFrame:
         return self.claim
 
 
-type DispatchedFrame = JoinFrame | RelayFrame | LockFrame | UnlockFrame | EndRoomFrame | MediaStateFrame | ForeignFrame
+type DispatchedFrame = (
+    JoinFrame
+    | RelayFrame
+    | LockFrame
+    | UnlockFrame
+    | EndRoomFrame
+    | MediaStateFrame
+    | ConnectionOutcomeFrame
+    | ForeignFrame
+)
 type ClientFrame = DispatchedFrame | ResumeFrame
 
 
@@ -304,6 +321,13 @@ def _decode_media_state(data: JsonObject, _kind: SignalType) -> MediaStateFrame:
     return MediaStateFrame(audio, video)
 
 
+def _decode_connection_outcome(data: JsonObject, _kind: SignalType) -> ConnectionOutcomeFrame:
+    outcome = data.get("outcome")
+    if not isinstance(outcome, str) or outcome not in ConnectionOutcome:
+        raise InvalidMessageError("connection_outcome needs one of the closed outcomes")
+    return ConnectionOutcomeFrame(ConnectionOutcome(outcome))
+
+
 def _decode_resume(data: JsonObject, _kind: SignalType) -> ResumeFrame:
     participant_id = data.get("participant_id")
     token = data.get("token")
@@ -324,6 +348,7 @@ _DECODERS: dict[str, Callable[[JsonObject, SignalType], ClientFrame]] = {
     SignalType.LOCK_ROOM.value: lambda _data, _kind: LockFrame(),
     SignalType.UNLOCK_ROOM.value: lambda _data, _kind: UnlockFrame(),
     SignalType.MEDIA_STATE.value: _decode_media_state,
+    SignalType.CONNECTION_OUTCOME.value: _decode_connection_outcome,
     SignalType.END_ROOM.value: lambda _data, _kind: EndRoomFrame(),
     SignalType.RESUME.value: _decode_resume,
 }

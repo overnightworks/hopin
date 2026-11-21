@@ -16,6 +16,7 @@ export enum SIGNAL_TYPE {
     ROOM_LOCKED = "room_locked",
     ROOM_UNLOCKED = "room_unlocked",
     MEDIA_STATE = "media_state",
+    CONNECTION_OUTCOME = "connection_outcome",
     HOST_AWAY = "host_away",
     HOST_BACK = "host_back",
     END_ROOM = "end_room",
@@ -36,6 +37,13 @@ export enum ERROR_REASON {
 export enum ROOM_CLOSED_REASON {
     HOST_GONE = "host_gone",
     ENDED = "ended",
+}
+
+export enum CONNECTION_OUTCOME {
+    DIRECT = "direct",
+    RELAYED = "relayed",
+    FAILED = "failed",
+    RESUMED = "resumed",
 }
 
 export type RoomClosedFrame = {

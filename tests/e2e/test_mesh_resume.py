@@ -27,8 +27,8 @@ from tests.e2e.support.mesh_pair import (
     _inbound_video_bytes,
     _reconnecting_status,
     _restart_offers,
-    _wait_for,
     pump_until,
+    wait_for,
     wait_for_status,
 )
 from tests.e2e.support.signaling import (
@@ -181,7 +181,7 @@ def test_two_restart_offers_made_while_the_socket_is_down_reach_the_host_as_one(
     connected_pair.cut(guest)
 
     connected_pair.force_failed_on(guest)
-    _wait_for(guest, LOCAL_DESCRIPTIONS_SET, descriptions_before + 1)
+    wait_for(guest, LOCAL_DESCRIPTIONS_SET, descriptions_before + 1)
     _retry_the_restart_while_the_first_reconnect_is_refused(
         guest, lambda: bool(guest.evaluate(LOCAL_DESCRIPTIONS_SET, descriptions_before + 2))
     )
@@ -227,7 +227,7 @@ def test_rejected_answer_application_is_reported_and_the_next_answer_is_still_ap
         connected_pair.force_failed_on(guest)
         pump_until(guest, lambda: bool(connected_pair.page_errors))
         guest.clock.run_for(RESTART_DELAY_BY_ATTEMPT[0])
-        _wait_for(guest, ANSWER_APPLIED)
+        wait_for(guest, ANSWER_APPLIED)
         assert [INJECTED_REJECTION in error for error in connected_pair.page_errors] == [True]
         connected_pair.page_errors.pop()
 
@@ -271,7 +271,7 @@ def test_refused_resume_falls_back_to_a_fresh_join_with_new_peer_connections(
 
     connected_pair.cut(guest)
     connected_pair.reconnect(guest)
-    _wait_for(guest, A_NEW_CONNECTION_IS_CONNECTED)
+    wait_for(guest, A_NEW_CONNECTION_IS_CONNECTED)
 
     assert guest.evaluate(FIRST_CONNECTION_IS_CLOSED)
     sent = connected_pair.guest_tap.types(connected_pair.guest_tap.upstream)
@@ -296,7 +296,7 @@ def test_lines_pending_at_a_refused_resume_turn_undelivered_and_the_rejoined_pag
 
     connected_pair.cut(guest)
     connected_pair.reconnect(guest)
-    _wait_for(guest, A_NEW_CONNECTION_IS_CONNECTED)
+    wait_for(guest, A_NEW_CONNECTION_IS_CONNECTED)
 
     expect(guest.locator(f"{SENT_LINE}.pending")).to_have_count(0)
     expect(guest.locator(f"{SENT_LINE} .chat-delivery")).to_have_count(1)
@@ -314,7 +314,7 @@ def test_reconnects_that_are_all_refused_end_in_connection_lost_after_the_whole_
     for attempt, delay in enumerate(RECONNECT_DELAYS_MS, start=1):
         sockets_before = guest.evaluate(SOCKETS_OPENED)
         guest.clock.run_for(delay)
-        _wait_for(guest, NEW_SOCKET_IS_CLOSED, sockets_before)
+        wait_for(guest, NEW_SOCKET_IS_CLOSED, sockets_before)
         if attempt < len(RECONNECT_DELAYS_MS):
             wait_for_status(guest, _reconnecting_status(RECONNECT_DELAYS_MS[attempt]))
     wait_for_status(guest, text("de", "call.statusConnectionLost"))
