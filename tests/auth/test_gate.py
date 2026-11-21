@@ -122,6 +122,7 @@ class Application:
         self.issuer = FakeIssuer(sign_in)
         self.app = create_app(
             sign_in.settings,
+            TEST_REALM,
             page_build=fixture_page_build(languages),
             shared_stores=in_thread_stores(),
             stores=self.stores,
@@ -524,7 +525,7 @@ class TestSessionLifetime:
         sign_in = sign_in_settings()
         stores = single_process_stores()
         now = [1_800_000_000.0]
-        configs = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits)
+        configs = build_sign_in_configs(sign_in.settings, TEST_REALM, (), in_thread_stores().rate_limits)
         config: WebAuthConfig = replace(configs.web_auth, wall_clock=lambda: now[0])
         member = seed_member(stores, config)
         app = FastAPI()

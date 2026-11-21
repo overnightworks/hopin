@@ -8,7 +8,7 @@ from hopin.rooms.models import Account
 from hopin.signaling.identity import SessionIdentityResolver
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signed_in import cookie_header, seed_member
 from tests.support.stores import single_process_stores
 
@@ -32,6 +32,7 @@ class TestSessionIdentityResolver:
         stores = single_process_stores()
         app = create_app(
             sign_in_settings().settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             stores=stores,

@@ -59,7 +59,7 @@ def build_sign_in_settings(directory: Path, **overrides: str | int | Path | None
             **{f"HOPIN_{name.upper()}": str(value) for name, value in present.items()},
             **{f"REALM_{name.upper()}": value for name, value in TEST_REALM.model_dump().items()},
         },
-        settings=ServerSettings(**present, realm=TEST_REALM),
+        settings=ServerSettings(**present),
         client_secret=client_secret,
         session_secret=session_secret,
     )

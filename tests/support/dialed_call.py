@@ -500,11 +500,12 @@ def serving_dialed_call(
             speaking=speaking,
             voices=voices,
             redis=shared_stores.async_redis,
-            realm=sign_in.settings.realm,
+            realm=TEST_REALM,
         )
     )
     app = create_app(
         sign_in.settings,
+        TEST_REALM,
         page_build=fixture_page_build(),
         shared_stores=shared_stores,
         issuer_transports=issuer.transports,

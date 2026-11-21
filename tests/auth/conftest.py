@@ -22,6 +22,7 @@ from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_harness import WHO_AM_I_PATH, SignInHarness
+from tests.support.sign_in_settings import TEST_REALM
 from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
@@ -48,7 +49,7 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         sign_in.settings.oidc_client_secret_file.write_text(
             sign_in.client_secret + ("\r\n" if windows_line_ending else "\n")
         )
-        configs = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits)
+        configs = build_sign_in_configs(sign_in.settings, TEST_REALM, (), in_thread_stores().rate_limits)
         issuer = FakeIssuer(sign_in)
         transports = issuer.transports
         if key_set_of is not None:

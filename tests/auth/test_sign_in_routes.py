@@ -56,7 +56,7 @@ class TestStart:
             f"{harness.sign_in.settings.oidc_issuer}/protocol/openid-connect/auth"
         )
         assert {name: query[name] for name in ("client_id", "redirect_uri", "response_type", "scope")} == {
-            "client_id": [harness.sign_in.settings.realm.client_id],
+            "client_id": [TEST_REALM.client_id],
             "redirect_uri": [TEST_PUBLIC_ORIGIN + AUTH_CALLBACK_PATH],
             "response_type": ["code"],
             "scope": ["openid profile groups"],
@@ -215,7 +215,7 @@ class TestLogout:
         assert response.headers["cache-control"] == "no-store"
         assert page.action == f"{TEST_ISSUER}/protocol/openid-connect/logout"
         assert page.fields == {
-            "client_id": harness.sign_in.settings.realm.client_id,
+            "client_id": TEST_REALM.client_id,
             "post_logout_redirect_uri": TEST_PUBLIC_ORIGIN + LOGIN_PATH,
             "id_token_hint": id_token,
         }

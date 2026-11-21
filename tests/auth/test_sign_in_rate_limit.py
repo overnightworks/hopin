@@ -111,6 +111,7 @@ def make_deployment(sign_in_settings: Callable[..., SignInSettings], monkeypatch
         return Deployment(
             create_app(
                 sign_in.settings,
+                TEST_REALM,
                 page_build=fixture_page_build(),
                 shared_stores=in_thread_stores(),
                 issuer_transports=issuer.transports,
@@ -272,7 +273,7 @@ class TestTrustedProxiesSetting:
 
         rate_limits = in_thread_stores().rate_limits
         with pytest.raises(SignInConfigurationError, match="HOPIN_TRUSTED_PROXIES") as refusal:
-            build_sign_in_configs(settings, (), rate_limits)
+            build_sign_in_configs(settings, TEST_REALM, (), rate_limits)
 
         assert value not in str(refusal.value)
         assert "HOPIN_SESSION_SECRET_FILE" not in str(refusal.value)
@@ -281,4 +282,6 @@ class TestTrustedProxiesSetting:
         settings = sign_in_settings().settings
 
         assert settings.trusted_proxies == ""
-        assert not build_sign_in_configs(settings, (), in_thread_stores().rate_limits).trusted_proxies.networks
+        assert not build_sign_in_configs(
+            settings, TEST_REALM, (), in_thread_stores().rate_limits
+        ).trusted_proxies.networks

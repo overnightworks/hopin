@@ -16,7 +16,7 @@ from logline import REQUEST_EVENT
 from webauth.config import installed_web_auth_config
 
 from hopin.config.constants import AUTH_CALLBACK_PATH, HEALTH_PATH, WEBSOCKET_PATH, SignalType
-from hopin.config.settings import ServerSettings
+from hopin.config.settings import RealmSettings, ServerSettings
 from hopin.main import serve
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
@@ -81,6 +81,7 @@ async def started_server(
     with redirect_stdout(written):
         serve(
             ServerSettings(),
+            RealmSettings(),
             fixture_page_build(),
             in_thread_stores(),
             stores=stores,

@@ -97,7 +97,6 @@ class ServerSettings(DatabaseSettings):
         default=MAX_PARTICIPANTS_PER_ROOM, ge=MIN_PARTICIPANTS_PER_ROOM, le=MAX_PARTICIPANTS_PER_ROOM
     )
     oidc_issuer: IssuerUrl
-    realm: RealmSettings = Field(default_factory=RealmSettings)
     oidc_client_secret_file: AbsolutePath = Field(repr=False)
     public_origin: OriginUrl
     session_secret_file: AbsolutePath = Field(repr=False)

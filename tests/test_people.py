@@ -69,6 +69,7 @@ def wall_clock():
 def app(sign_in_settings, stores, wall_clock):
     return create_app(
         sign_in_settings().settings,
+        TEST_REALM,
         page_build=fixture_page_build(),
         shared_stores=in_thread_stores(),
         stores=stores,
@@ -397,6 +398,7 @@ def issuer_browser(sign_in_settings, stores):
     issuer = FakeIssuer(sign_in)
     app = create_app(
         sign_in.settings,
+        TEST_REALM,
         page_build=fixture_page_build(),
         shared_stores=in_thread_stores(),
         issuer_transports=issuer.transports,

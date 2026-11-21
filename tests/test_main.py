@@ -18,7 +18,7 @@ from hopin.web.page_build import SHELL_FILE
 from tests.support.dialed_call import METADATA_PATH
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
-from tests.support.sign_in_settings import TEST_DATABASE_URL, TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_DATABASE_URL, TEST_PUBLIC_ORIGIN, TEST_REALM
 
 
 def all_subclasses(base: type) -> set[type]:
@@ -39,6 +39,7 @@ def serve_over_test_stores(sign_in_settings, monkeypatch):
         started: list[UvicornOptions] = []
         serve(
             ServerSettings(),
+            RealmSettings(),
             fixture_page_build(),
             in_thread_stores(),
             run=lambda _application, options: started.append(options),
@@ -75,7 +76,7 @@ class TestMain:
             monkeypatch.setenv("HOPIN_HOST", "127.0.0.1")
             monkeypatch.setenv("HOPIN_PORT", str(taken.getsockname()[1]))
             settings = ServerSettings()
-            application = build_application(settings, fixture_page_build(), in_thread_stores())
+            application = build_application(settings, TEST_REALM, fixture_page_build(), in_thread_stores())
 
             with pytest.raises(SystemExit) as refusal:
                 run_uvicorn(application, uvicorn_options(settings))
@@ -92,7 +93,8 @@ class TestMain:
         for name, value in sign_in_settings().environment.items():
             monkeypatch.setenv(name, value)
         served = TestClient(
-            build_application(ServerSettings(), fixture_page_build(), in_thread_stores()), base_url=TEST_PUBLIC_ORIGIN
+            build_application(ServerSettings(), RealmSettings(), fixture_page_build(), in_thread_stores()),
+            base_url=TEST_PUBLIC_ORIGIN,
         )
 
         assert served.get(METADATA_PATH).status_code == 200
@@ -110,7 +112,8 @@ class TestMain:
         monkeypatch.setenv("HOPIN_SPEECH__AUDIENCE_SCOPE", "scenario-audience")
         monkeypatch.setenv("HOPIN_SPEECH__HEARING", hearing)
         served = TestClient(
-            build_application(ServerSettings(), fixture_page_build(), in_thread_stores()), base_url=TEST_PUBLIC_ORIGIN
+            build_application(ServerSettings(), RealmSettings(), fixture_page_build(), in_thread_stores()),
+            base_url=TEST_PUBLIC_ORIGIN,
         )
 
         with pytest.raises(WebSocketDisconnect) as refused, served.websocket_connect(f"{HEARING_PATH}/a-seat"):
@@ -130,7 +133,7 @@ class TestMain:
         settings = ServerSettings()
 
         with pytest.raises(ValidationError):
-            build_application(settings, page_build, shared_stores)
+            build_application(settings, TEST_REALM, page_build, shared_stores)
 
     @pytest.mark.parametrize(
         ("setting", "value", "expected_line"),
@@ -276,6 +279,18 @@ class TestMain:
     @pytest.mark.parametrize("value", [None, ""], ids=["missing", "empty"])
     def test_refuses_a_missing_or_empty_realm_key_in_one_line_naming_it(self, serve_refusal, key, value):
         serve_refusal(key, value, f"{key} is missing")
+
+    def test_names_the_faulty_settings_of_every_class_in_one_refusal(self, sign_in_settings, monkeypatch, capsys):
+        for name, value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, value)
+        monkeypatch.delenv("REALM_CLIENT_ID")
+        monkeypatch.delenv("HOPIN_PUBLIC_ORIGIN")
+
+        with pytest.raises(SystemExit) as refusal:
+            main(["serve"])
+
+        assert refusal.value.code == 1
+        assert capsys.readouterr().err.splitlines() == ["REALM_CLIENT_ID is missing", "HOPIN_PUBLIC_ORIGIN is missing"]
 
     @pytest.mark.parametrize("arguments", [[], ["frobnicate"]])
     def test_refuses_without_a_command(self, arguments, capsys):

@@ -14,7 +14,7 @@ from hopin.stage.vocabulary import StageSignal
 from tests.stage.support.tables import OTHER_TABLE_ID, SKAT, TABLE_ID, TABLE_LINK
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signaling_fakes import RecordingFeature
 from tests.support.signed_in import cookie_header, handshake_headers, seed_member
 from tests.support.stores import single_process_stores
@@ -53,6 +53,7 @@ class World:
         self.stores = single_process_stores()
         self.app = create_app(
             sign_in_settings().settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             stores=self.stores,

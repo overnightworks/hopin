@@ -15,6 +15,7 @@ from hopin.config.constants import UVICORN_WEBSOCKET_IMPLEMENTATION, SignalType
 from hopin.signaling.frames import SEQUENCE_KEY
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
+from tests.support.sign_in_settings import TEST_REALM
 from tests.support.signed_in import SeededMember, handshake_headers, seed_member
 from tests.support.stores import single_process_stores
 
@@ -71,7 +72,11 @@ async def call(sign_in_settings) -> AsyncIterator[Call]:
     port = listening.getsockname()[1]
     stores = single_process_stores()
     app = create_app(
-        sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores
+        sign_in_settings().settings,
+        TEST_REALM,
+        page_build=fixture_page_build(),
+        shared_stores=in_thread_stores(),
+        stores=stores,
     )
     web_auth = installed_web_auth_config(app)
     host_member = seed_member(stores, web_auth)

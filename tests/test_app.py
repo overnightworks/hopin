@@ -61,7 +61,9 @@ WEBSOCKET_EVENT = "websocket.ended"
 
 def signed_in_client(settings: ServerSettings) -> TestClient:
     stores = single_process_stores()
-    app = create_app(settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores)
+    app = create_app(
+        settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores
+    )
     member = seed_member(stores, installed_web_auth_config(app))
     headers = {"cookie": cookie_header(member.set_cookie_headers)}
     return TestClient(app, base_url=TEST_PUBLIC_ORIGIN, headers=headers, follow_redirects=False)
@@ -69,19 +71,24 @@ def signed_in_client(settings: ServerSettings) -> TestClient:
 
 class TestCreateApp:
     def test_returns_fastapi_application(self, sign_in_settings):
-        app = create_app(sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+        app = create_app(
+            sign_in_settings().settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores()
+        )
         assert isinstance(app, FastAPI)
 
     def test_uses_provided_settings(self, sign_in_settings):
         app = create_app(
-            sign_in_settings(port=9999).settings, page_build=fixture_page_build(), shared_stores=in_thread_stores()
+            sign_in_settings(port=9999).settings,
+            TEST_REALM,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
         )
         assert app.state.settings.port == 9999
 
     def test_installs_the_web_auth_config_built_from_its_settings(self, sign_in_settings):
         sign_in = sign_in_settings()
         config = installed_web_auth_config(
-            create_app(sign_in.settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+            create_app(sign_in.settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores())
         )
         assert isinstance(config, WebAuthConfig)
         assert config.session_secret.get_secret_value() == sign_in.session_secret
@@ -92,7 +99,7 @@ class TestCreateApp:
         page_build = fixture_page_build()
         shared_stores = in_thread_stores()
         with pytest.raises(StartRefusedError, match="HOPIN_SESSION_SECRET_FILE"):
-            create_app(settings, page_build=page_build, shared_stores=shared_stores)
+            create_app(settings, TEST_REALM, page_build=page_build, shared_stores=shared_stores)
 
     def test_does_not_start_with_two_call_features_serving_a_bearer_resource(self, sign_in_settings):
         class BearerFeature:
@@ -112,13 +119,16 @@ class TestCreateApp:
         shared_stores = in_thread_stores()
 
         with pytest.raises(StartRefusedError, match="bearer"):
-            create_app(settings, page_build=page_build, shared_stores=shared_stores, call_features=call_features)
+            create_app(
+                settings, TEST_REALM, page_build=page_build, shared_stores=shared_stores, call_features=call_features
+            )
 
     def test_signs_a_member_in_through_the_issuer_it_is_given(self, sign_in_settings):
         sign_in = sign_in_settings()
         issuer = FakeIssuer(sign_in)
         app = create_app(
             sign_in.settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=issuer.transports,
@@ -138,6 +148,7 @@ class TestCreateApp:
         issuer = FakeIssuer(sign_in)
         app = create_app(
             sign_in.settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=issuer.transports,
@@ -159,6 +170,7 @@ class TestCreateApp:
         stores = single_process_stores()
         app = create_app(
             sign_in.settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=issuer.transports,
@@ -185,6 +197,7 @@ class TestCreateApp:
         issuer = FakeIssuer(sign_in)
         app = create_app(
             sign_in.settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=issuer.transports,
@@ -205,7 +218,12 @@ class TestCreateApp:
 
     def test_registers_routes(self, sign_in_settings):
         response = TestClient(
-            create_app(sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+            create_app(
+                sign_in_settings().settings,
+                TEST_REALM,
+                page_build=fixture_page_build(),
+                shared_stores=in_thread_stores(),
+            )
         ).get("/health")
         assert response.status_code == 200
 
@@ -252,7 +270,11 @@ class TestCreateApp:
 
         response = TestClient(
             create_app(
-                settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), call_features=features
+                settings,
+                TEST_REALM,
+                page_build=fixture_page_build(),
+                shared_stores=in_thread_stores(),
+                call_features=features,
             ),
             base_url=TEST_PUBLIC_ORIGIN,
         ).get("/health")
@@ -296,6 +318,7 @@ class TestExpiredSessionSweep:
         stores = single_process_stores()
         app = create_app(
             sign_in_settings().settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             stores=stores,
@@ -382,6 +405,7 @@ class TestExpiredSessionSweep:
         scheduler = QueuingScheduler()
         app = create_app(
             sign_in_settings().settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             stores=stores,
@@ -440,6 +464,7 @@ def proxied_stack(sign_in_settings) -> ProxiedStack:
     stores = single_process_stores()
     app = create_app(
         sign_in_settings(trusted_proxies=TRUSTED_PROXY).settings,
+        TEST_REALM,
         page_build=fixture_page_build(),
         shared_stores=in_thread_stores(),
         stores=stores,
@@ -463,7 +488,9 @@ def proxied_client(proxied_stack) -> Callable[..., TestClient]:
 
 class TestRequestLine:
     def test_a_request_writes_one_json_line_with_its_route_and_without_its_path(self, sign_in_settings, capsys):
-        app = create_app(sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+        app = create_app(
+            sign_in_settings().settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores()
+        )
         probe = secrets.token_urlsafe(8)
 
         with configured("hopin"):

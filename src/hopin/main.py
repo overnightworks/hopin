@@ -123,6 +123,7 @@ def command_line_parser() -> argparse.ArgumentParser:
 
 def build_application(
     settings: ServerSettings,
+    realm: RealmSettings,
     page_build: PageBuild,
     shared_stores: SharedStores,
     *,
@@ -134,6 +135,7 @@ def build_application(
     voices = VoiceStore()
     return create_app(
         settings,
+        realm,
         page_build=page_build,
         shared_stores=shared_stores,
         stores=stores,
@@ -147,7 +149,7 @@ def build_application(
                 speaking=speech.speaking_service,
                 voices=voices,
                 redis=shared_stores.async_redis,
-                realm=settings.realm,
+                realm=realm,
                 subscription_wait_seconds=subscription_wait_seconds,
             ),
             *configured_stage_feature(settings.public_origin),  # stage
@@ -161,6 +163,7 @@ def run_uvicorn(application: FastAPI, options: UvicornOptions) -> None:
 
 def serve(
     settings: ServerSettings,
+    realm: RealmSettings,
     page_build: PageBuild,
     shared_stores: SharedStores,
     *,
@@ -172,6 +175,7 @@ def serve(
     logger.info("process.started")
     application = build_application(
         settings,
+        realm,
         page_build,
         shared_stores,
         stores=stores,
@@ -182,6 +186,7 @@ def serve(
 
 def serve_on_migrated_database(
     settings: ServerSettings,
+    realm: RealmSettings,
     page_build: PageBuild,
     *,
     subscription_wait_seconds: float = PLACE_SUBSCRIPTION_WAIT_SECONDS,
@@ -197,7 +202,14 @@ def serve_on_migrated_database(
 
     try:
         shared_stores = with_database_readiness(connect_shared_stores(str(settings.redis_url)), engine)
-        serve(settings, page_build, shared_stores, subscription_wait_seconds=subscription_wait_seconds, run=run_at_head)
+        serve(
+            settings,
+            realm,
+            page_build,
+            shared_stores,
+            subscription_wait_seconds=subscription_wait_seconds,
+            run=run_at_head,
+        )
     finally:
         engine.dispose()
 
@@ -244,9 +256,7 @@ def refused_settings(settings_classes: Sequence[type[BaseSettings]]) -> str:
         try:
             settings_class()
         except ValidationError as invalid:
-            # A nested class's refusal reaches its owner unwrapped, and the nested class reports its own keys.
-            if invalid.title == settings_class.__name__:
-                refusal += refusal_lines(settings_class, invalid)
+            refusal += refusal_lines(settings_class, invalid)
         except SettingsError as unreadable:
             refusal += unreadable_line(settings_class, unreadable)
     return refusal
@@ -274,7 +284,7 @@ def main(
         if parsed.command == "migrate":
             migrate_database(DatabaseSettings())
         else:
-            serve_on_migrated_database(ServerSettings(), PageBuild.load(build_directory))
+            serve_on_migrated_database(ServerSettings(), RealmSettings(), PageBuild.load(build_directory))
     except StartRefusedError as refused:
         parser.exit(1, f"{refused}\n")
 

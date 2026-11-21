@@ -21,7 +21,7 @@ from hopin.stores.postgres import create_database_engine
 from hopin.stores.schema import metadata
 from tests.stores.support.service_gate import ServiceGate
 from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -61,7 +61,7 @@ def health_while_serving(settings: ServerSettings, between: Callable[[], None] =
             between()
             ask(client)
 
-    serve_on_migrated_database(settings, fixture_page_build(), run=probe)
+    serve_on_migrated_database(settings, TEST_REALM, fixture_page_build(), run=probe)
     return answers
 
 

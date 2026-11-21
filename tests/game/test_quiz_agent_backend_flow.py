@@ -25,7 +25,7 @@ from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.log_lines import captured_lines, runs_logged
 from tests.support.page_build import fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import handshake_headers, seed_member
 from tests.support.stores import single_process_stores
@@ -288,6 +288,7 @@ class OneLoopServer:
         self._stores = single_process_stores()
         self.app = create_app(
             sign_in.settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=self.issuer.transports,

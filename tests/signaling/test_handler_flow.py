@@ -94,6 +94,7 @@ class TestProductionWiring:
         issuer = FakeIssuer(sign_in)
         app = create_app(
             sign_in.settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=issuer.transports,
