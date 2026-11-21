@@ -109,8 +109,10 @@ class TestTheStartLink:
         assert (response.status_code, response.headers["location"]) == (303, f"{CALL_PATH}/{room_id}")
 
     def test_a_call_showing_another_table_is_not_the_call_of_this_one(self, world):
-        with world.call_showing(), pytest.raises(AssertionError):
-            assert world.signed_in.get(start_link(context=OTHER_TABLE_ID)).status_code == 303
+        with world.call_showing():
+            response = world.signed_in.get(start_link(context=OTHER_TABLE_ID))
+
+        assert (response.status_code, response.content) == (200, PAGE)
 
     @pytest.mark.parametrize(
         "query",
