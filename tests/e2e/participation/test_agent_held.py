@@ -173,6 +173,8 @@ def test_while_held_a_continue_goes_on_with_the_same_sound_in_every_browser_and_
     """CALL-70: A `continue_speaking` with the hold's id answers continued, the window drops `interrupted` in that
     change, the same sound goes on where it paused in every browser and plays to its end, its whole line enters
     uncut, and the second sentence plays after it."""
+    for person in held.everyone:
+        person.wait_for_function("() => window.contextsSuspended > 0", timeout=PLAYBACK_WAIT_MILLISECONDS)
     continued = held.call(CONTINUE_SPEAKING_TOOL, interrupted="1")
     window = held.speaker.window()
 
