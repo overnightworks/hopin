@@ -70,7 +70,10 @@
         role="status"
         aria-label={tileLabel}
     >
-        <div class="vid off" use:agentFigure={{ key, path: agent.figure, gestures: agent.gestures }}>
+        <div
+            class="vid off"
+            use:agentFigure={{ key, path: agent.figure, gestures: agent.gestures, framing: agent.framing }}
+        >
             <span class="av"
                 ><svg
                     class="icon"

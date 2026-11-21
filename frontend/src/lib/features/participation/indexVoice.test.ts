@@ -4,7 +4,7 @@ import { AGENT_ACTIVITY } from "#lib/call/feature-port.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { installedParticipation, joined, tileActivities } from "./page.fixture.ts";
 import type { FakeSound } from "./player.fixture.ts";
-import { FIGURE_MOOD, PARTICIPATION_SIGNAL, VOICE_PATH } from "./wire.ts";
+import { FIGURE_FRAMING, FIGURE_MOOD, PARTICIPATION_SIGNAL, VOICE_PATH } from "./wire.ts";
 
 // The real chat module loads the call sounds, which build an audio context when first imported.
 vi.hoisted(() => {
@@ -191,6 +191,29 @@ describe("an agent's voice", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_GESTURE, { agent_id: "unknown", gesture: "wave" });
 
         expect(page.gestures).toEqual([]);
+    });
+
+    it("CALL-77: hands a framing the server tells to the figure of the agent it names, and drops an unknown agent's", async () => {
+        const page = await pageWithAgents("a1", "a2");
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_FRAMING, { agent_id: "a2", framing: FIGURE_FRAMING.FULL_BODY });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_FRAMING, { agent_id: "unknown", framing: FIGURE_FRAMING.FACE });
+
+        expect(page.framings).toEqual([["agent-a2", "fullBody"]]);
+    });
+
+    it("CALL-78: shows the tile of a late joiner in the framing its joined frame carries, and a later frame's over it", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, {
+            ...joined("someone", "a1"),
+            framing: FIGURE_FRAMING.UPPER_BODY,
+        });
+        const first = page.tiles.get("agent-a1")?.framing;
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_FRAMING, { agent_id: "a1", framing: FIGURE_FRAMING.FACE });
+
+        expect([first, page.tiles.get("agent-a1")?.framing]).toEqual(["upperBody", "face"]);
     });
 
     it("CALL-68: hands the thinking the server tells to the figure of the agent it names, and drops an unknown agent's", async () => {
