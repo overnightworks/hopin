@@ -483,6 +483,20 @@ async def _gestured(participation: Participation, caller: Caller, arguments: Jso
     return ToolOutcome(Relayed(relayed=True).model_dump_json(), is_error=False)
 
 
+async def _left(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
+    refusal = await participation.leave(caller.person, _text_of(arguments, "room"))
+    if refusal is None:
+        return ToolOutcome(json.dumps({"left": True}), is_error=False)
+    return refused(refusal)
+
+
+async def _said(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
+    refusal = await participation.say(caller.person, _text_of(arguments, "room"), _text_of(arguments, "text"))
+    if refusal is None:
+        return ToolOutcome(json.dumps({}), is_error=False)
+    return refused(refusal)
+
+
 async def _framed(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
     framing = member_arguments(SetFramingArguments, arguments)
     if framing.place.kind != CALL_KIND:
@@ -533,16 +547,10 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
         return await _declined(participation(), caller, arguments)
 
     async def leave_call(caller: Caller, arguments: JsonObject) -> ToolOutcome:
-        refusal = await participation().leave(caller.person, _text_of(arguments, "room"))
-        if refusal is None:
-            return ToolOutcome(json.dumps({"left": True}), is_error=False)
-        return refused(refusal)
+        return await _left(participation(), caller, arguments)
 
     async def say(caller: Caller, arguments: JsonObject) -> ToolOutcome:
-        refusal = await participation().say(caller.person, _text_of(arguments, "room"), _text_of(arguments, "text"))
-        if refusal is None:
-            return ToolOutcome(json.dumps({}), is_error=False)
-        return refused(refusal)
+        return await _said(participation(), caller, arguments)
 
     async def speak(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _spoken(participation(), voice, caller, arguments)
