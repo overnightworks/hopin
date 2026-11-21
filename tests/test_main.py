@@ -231,12 +231,14 @@ class TestMain:
                 "postgresql://hopin:sentinel-password@postgres.test.invalid/hopin",
                 "HOPIN_DATABASE_URL is malformed",
                 id="database_url_with_a_password",
+                marks=pytest.mark.shared_stores,
             ),
             pytest.param(
                 "HOPIN_DATABASE_URL",
                 "postgresql://hopin@postgres.test.invalid/hopin?sslpassword=sentinel-password",
                 "HOPIN_DATABASE_URL is malformed",
                 id="database_url_with_a_query",
+                marks=pytest.mark.shared_stores,
             ),
             pytest.param("HOPIN_OIDC_ISSUER", None, "HOPIN_OIDC_ISSUER is missing", id="missing_issuer"),
             pytest.param(
@@ -288,24 +290,35 @@ class TestMain:
                 "postgresql://hopin:sentinel-password@postgres.test.invalid/hopin",
                 "HOPIN_DATABASE_URL is malformed",
                 id="url_with_a_password",
+                marks=pytest.mark.shared_stores,
             ),
             pytest.param(
                 "HOPIN_DATABASE_URL",
                 "postgresql://hopin@postgres.test.invalid/hopin?sslpassword=sentinel-password",
                 "HOPIN_DATABASE_URL is malformed",
                 id="url_with_a_query",
+                marks=pytest.mark.shared_stores,
+            ),
+            pytest.param(
+                "HOPIN_DATABASE_URL",
+                "postgresql://hopin@postgres.test.invalid/hopin#?sslpassword=sentinel-password",
+                "HOPIN_DATABASE_URL is malformed",
+                id="url_with_a_query_behind_a_fragment",
+                marks=pytest.mark.shared_stores,
             ),
             pytest.param(
                 "HOPIN_DATABASE_PASSWORD_FILE",
                 None,
                 "HOPIN_DATABASE_PASSWORD_FILE is missing",
                 id="missing_password_file_setting",
+                marks=pytest.mark.shared_stores,
             ),
             pytest.param(
                 "HOPIN_DATABASE_PASSWORD_FILE",
                 "/sentinel/absent/password",
                 "HOPIN_DATABASE_PASSWORD_FILE names a file that cannot be read",
                 id="absent_password_file",
+                marks=pytest.mark.shared_stores,
             ),
         ],
     )
@@ -314,6 +327,7 @@ class TestMain:
     ):
         serve_refusal(setting, value, expected_line, command="migrate")
 
+    @pytest.mark.shared_stores
     def test_migrate_refuses_an_empty_password_file(self, serve_refusal, tmp_path):
         empty = tmp_path / "empty-password"
         empty.write_bytes(b"")

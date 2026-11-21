@@ -140,7 +140,7 @@ faulthandler_timeout = 120
 markers = [
     "integration: integration tests",
     "e2e: browser end-to-end tests",
-    "shared_stores: tests that run hopin against a live Redis and Postgres (HOPIN_TEST_REDIS_URL, HOPIN_TEST_POSTGRES_URL)",
+    "shared_stores: tests of hopin's shared stores and the database settings `hopin migrate` reads, which the Shared stores job runs: most need a live Redis and Postgres (HOPIN_TEST_REDIS_URL, HOPIN_TEST_POSTGRES_URL)",
 ]
 
 # --- Coverage ---

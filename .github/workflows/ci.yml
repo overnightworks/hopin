@@ -126,6 +126,7 @@ jobs:
       # Two `hopin serve` processes with their own ports against the one Redis and the one Postgres, and apps in the
       # test process over them; `hopin migrate` and `hopin serve`'s database checks run in the test process too. Only
       # the test process writes coverage data: the Coverage job counts those, not the `hopin serve` processes.
+      # The refusals of the database and password-file settings carry the marker too, so this job is where they run.
       - name: Run two processes against one Redis and one Postgres
         env:
           HOPIN_TEST_REDIS_URL: redis://localhost:6379
