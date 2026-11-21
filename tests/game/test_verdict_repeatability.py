@@ -3,12 +3,11 @@
 import pytest
 from starlette.requests import HTTPConnection
 
-from hopin.agent.backend import QuizGameMaster
+from hopin.agent.backend import QuizGameMaster, ThrowawayStarter
 from hopin.game.quiz import Judgement
-from scripts.verdict_repeatability import (
+from hopin.game.verdict_repeatability import (
     RecordedAnswer,
     RecordedCase,
-    ThrowawayStarter,
     agreements,
     passes,
     printed,
@@ -94,4 +93,7 @@ async def test_every_run_asks_the_reveal_request_the_quiz_itself_builds_for_the_
 
 
 def test_the_shipped_recording_holds_answers_for_every_case():
-    assert all(case.answers for case in recorded_cases())
+    cases = recorded_cases()
+
+    assert cases
+    assert all(case.answers for case in cases)

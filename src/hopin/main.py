@@ -29,7 +29,9 @@ clients' own loggers (`httpx2`, `httpcore2`) at WARNING, which keeps the gateway
 """
 
 import argparse
+import asyncio
 import re
+import sys
 from typing import TYPE_CHECKING, TypedDict
 
 import structlog
@@ -38,14 +40,17 @@ from logline import configure
 from pydantic import ValidationError
 from pydantic_settings.exceptions import SettingsError
 
+from hopin.agent.backend import gateway_backend  # game
 from hopin.agent.feature import configured_game_feature  # game
 from hopin.agent.mcp import PLACE_SUBSCRIPTION_WAIT_SECONDS, ParticipationFeature
 from hopin.agent.settings import AgentSettings  # game
 from hopin.agent.speech_settings import SpeechSettings
+from hopin.agent.verdict_check import BackendOf, add_command, configured_agreements  # game
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.secret_files import StartRefusedError
 from hopin.config.settings import ServerSettings
+from hopin.game.verdict_repeatability import passes, printed  # game
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.voice import VoiceStore
 from hopin.stage.feature import configured_stage_feature  # stage
@@ -107,6 +112,7 @@ def command_line_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hopin")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("serve", help="start the server")
+    add_command(commands)  # game
     return parser
 
 
@@ -207,9 +213,21 @@ def refused_settings(settings_classes: Sequence[type[BaseSettings]]) -> str:
     return refusal
 
 
-def main(arguments: Sequence[str] | None = None, *, build_directory: Path = BUILD_DIRECTORY) -> None:
+def main(
+    arguments: Sequence[str] | None = None,
+    *,
+    build_directory: Path = BUILD_DIRECTORY,
+    quiz_backend_of: BackendOf = gateway_backend,  # game
+) -> None:
     parser = command_line_parser()
-    parser.parse_args(arguments)
+    parsed = parser.parse_args(arguments)
+    if parsed.command == "verdict-repeatability":  # game
+        refusal = refused_settings((AgentSettings,))  # game
+        if refusal:  # game
+            parser.exit(1, refusal)  # game
+        report = asyncio.run(configured_agreements(parsed.runs, quiz_backend_of))  # game
+        sys.stdout.write(f"{printed(report)}\n")  # game
+        parser.exit(0 if passes(report, parsed.minimum) else 1)  # game
     refusal = refused_settings(SETTINGS_CLASSES)
     if refusal:
         parser.exit(1, refusal)

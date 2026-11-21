@@ -132,6 +132,26 @@ class StarterRefusedError(Exception):
         self.refusal = refusal
 
 
+class ThrowawayStarter:
+    """Stands for the starter of a run that has no session: a fixed identity of the API group, in German."""
+
+    _IDENTITY: Final = "hopin-verdict-repeatability"
+    _LANGUAGE: Final = "de"
+
+    def __init__(self, api_group: str) -> None:
+        self._person = TurnPerson(Principal(iss=self._IDENTITY, sub=self._IDENTITY), "user", self._groups)
+        self._api_group = api_group
+
+    async def _groups(self) -> frozenset[str]:  # NOSONAR(S7503) TurnPerson awaits its groups
+        return frozenset({self._api_group})
+
+    async def language_of(self, _starter: HTTPConnection) -> str:  # NOSONAR(S7503) QuizStarter is async
+        return self._LANGUAGE
+
+    async def person_of(self, _starter: HTTPConnection) -> TurnPerson:  # NOSONAR(S7503) QuizStarter is async
+        return self._person
+
+
 class StarterPerson:
     """Reads who a run is for and in which language, from the session the starter's socket opened with."""
 

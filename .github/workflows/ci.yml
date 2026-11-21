@@ -570,6 +570,9 @@ jobs:
           docker run --rm --entrypoint python hopin-image -c
           "from importlib.metadata import files; assert any(str(f) == 'hopin/web/build/index.html' for f in files('hopin'))"
 
+      - name: Check that the image carries the verdict repeatability command
+        run: docker run --rm hopin-image hopin verdict-repeatability --help
+
   quality:
     name: quality
     needs: [ci, e2e-shard, e2e, coverage, removal-drill, frontend, image]

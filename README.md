@@ -22,6 +22,8 @@ Only members of the Keycloak group `/apps/hopin` use it. Why HopIn exists and wh
 
 You need Python 3.14+ and [uv](https://docs.astral.sh/uv/). Install with `make install`, set the five required settings and the three required `HOPIN_AGENT__` game settings from Configuration, and start the server with `make run` (`hopin serve`); it listens on `HOPIN_HOST` and `HOPIN_PORT`.
 
+`hopin verdict-repeatability [--runs N] [--minimum S]` asks the configured quiz master the same recorded reveals N times and reports how often its verdicts agree (GM-41 in `docs/game-master.md`); it reads only the `HOPIN_AGENT__` settings, costs real model calls, and the image carries it. `make verdict-repeatability RUNS=N` runs it from a checkout.
+
 Sign-in returns the person to `HOPIN_PUBLIC_ORIGIN`, which must be https, so open HopIn at that origin (behind a TLS-terminating proxy), not at the plain listen address. Without the required settings, or with one malformed, HopIn refuses to start and prints one line per setting naming its environment variable, never its value. `HOPIN_REDIS_URL` names a Redis that every HopIn process shares for its request budgets and for the signals that wake an agent's open listen; a local `redis-server` is enough, and HopIn has no in-memory fallback.
 
 Sign-in needs a Keycloak client whose redirect URI is `HOPIN_PUBLIC_ORIGIN` + `/auth/callback` and that sends the groups claim, and an account in `/apps/hopin`.
