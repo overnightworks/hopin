@@ -3,6 +3,7 @@ import { mount, unmount } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 import type { FeatureCore } from "#lib/call/feature-port.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
+import type { StartLink } from "#lib/ui/navigation.ts";
 import { words } from "#lib/words.ts";
 import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
@@ -21,7 +22,7 @@ const APPS = {
     ],
 };
 
-async function installedStage() {
+async function installedStage(startLink: StartLink | null = null) {
     const handlers = new Map<string, (frame: never) => void>();
     const sent: unknown[] = [];
     const toasts: string[] = [];
@@ -49,6 +50,7 @@ async function installedStage() {
         showChatCard: () => undefined,
         setLineReaders: () => undefined,
         onCallEnded: (hook) => void callEndedHooks.push(hook),
+        startLink,
         onMicrophone: () => undefined,
         takePicture: () => Promise.resolve(null),
     };
@@ -294,5 +296,43 @@ describe("a refusal", () => {
         page.emit(STAGE_SIGNAL.STAGE_REFUSED, { reason: "something_new" });
 
         expect(page.toasts).toEqual([]);
+    });
+});
+
+describe("the start link", () => {
+    const START_LINK = { app: "skat", context: "a".repeat(32) };
+    const CREATED = { participant_id: "me", is_host: true };
+
+    it("attaches its table to the call the page starts, by app and key", async () => {
+        const page = await installedStage(START_LINK);
+
+        page.emit(SIGNAL_TYPE.ROOM_CREATED, CREATED);
+
+        expect(page.sent).toEqual([{ type: STAGE_SIGNAL.STAGE_ATTACH, ...START_LINK }]);
+    });
+
+    it("attaches once, however often a room is created afterwards", async () => {
+        const page = await installedStage(START_LINK);
+
+        page.emit(SIGNAL_TYPE.ROOM_CREATED, CREATED);
+        page.emit(SIGNAL_TYPE.ROOM_CREATED, CREATED);
+
+        expect(page.sent).toHaveLength(1);
+    });
+
+    it("attaches nothing before a room is created", async () => {
+        const page = await installedStage(START_LINK);
+
+        page.emit(SIGNAL_TYPE.EXISTING_PARTICIPANTS, { participant_id: "me", is_host: false });
+
+        expect(page.sent).toEqual([]);
+    });
+
+    it("attaches nothing at any other address", async () => {
+        const page = await installedStage();
+
+        page.emit(SIGNAL_TYPE.ROOM_CREATED, CREATED);
+
+        expect(page.sent).toEqual([]);
     });
 });

@@ -73,6 +73,7 @@ async function installedGame({
         thinkAgentFigure: () => undefined,
         closeMore: () => undefined,
         onCallEnded: (hook) => void callEndedHooks.push(hook),
+        startLink: null,
         onMicrophone: () => undefined,
         takePicture: () => Promise.resolve(null),
     };

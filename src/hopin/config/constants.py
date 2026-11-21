@@ -11,6 +11,8 @@ ROOM_ID_LENGTH = 8
 WEBSOCKET_PATH = "/ws"
 HOME_PATH = "/"
 CALL_PATH = "/c"
+# The one call address that is no room: the stage's start link; no room id equals its last segment.
+START_LINK_PATH = f"{CALL_PATH}/new"
 HEALTH_PATH = "/health"
 APP_ASSET_PATH = "/_app"
 IMMUTABLE_ASSET_DIRECTORY = "immutable"

@@ -91,6 +91,7 @@ if TYPE_CHECKING:
     from hopin.participation.places import PlaceStanding
     from hopin.signaling.features import TransitionFeature
     from hopin.signaling.scheduler import Deadlines, Scheduler
+    from hopin.web.page_build import PageBuild
     from hopin.web.request_language import RequestLanguage
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -453,8 +454,9 @@ class ParticipationFeature:
         deadlines: Deadlines,
         transaction: SignInTransaction,
         request_language: RequestLanguage,
+        page_build: PageBuild,
     ) -> BuiltParticipationFeature:
-        del request_language
+        del request_language, page_build
         built = _BuiltParticipation(
             deadlines,
             auth_config.wall_clock,

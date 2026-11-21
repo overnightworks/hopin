@@ -101,7 +101,14 @@ export function install(core: FeatureCore<StageFrameByType>): Promise<void> {
     const seated = (frame: SeatFrame) => {
         table.seated(frame.participant_id, frame.is_host);
     };
-    core.on(SIGNAL_TYPE.ROOM_CREATED, seated);
+    // The start link's table is attached to the first call this page starts, once.
+    let pendingStartLink = core.startLink;
+    core.on(SIGNAL_TYPE.ROOM_CREATED, (frame) => {
+        seated(frame);
+        if (pendingStartLink === null) return;
+        core.send({ type: STAGE_SIGNAL.STAGE_ATTACH, app: pendingStartLink.app, context: pendingStartLink.context });
+        pendingStartLink = null;
+    });
     core.on(SIGNAL_TYPE.EXISTING_PARTICIPANTS, seated);
     core.on(STAGE_SIGNAL.STAGE_APPS, (frame) => {
         titles = new Map(frame.apps.map((app) => [app.name, app.title]));

@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from hopin.game.voice import VoiceShelf
     from hopin.signaling.features import TransitionFeature
     from hopin.signaling.scheduler import Deadlines, Scheduler
+    from hopin.web.page_build import PageBuild
     from hopin.web.request_language import RequestLanguage
 
 
@@ -68,8 +69,9 @@ class GameFeature:
         deadlines: Deadlines,
         transaction: SignInTransaction,
         request_language: RequestLanguage,
+        page_build: PageBuild,
     ) -> BuiltGameFeature:
-        del scheduler, transaction
+        del scheduler, transaction, page_build
         starter_person = StarterPerson(relying_party, sessions, auth_config, request_language)
         game = Game(
             deadlines=deadlines,
