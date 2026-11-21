@@ -730,7 +730,9 @@ textarea {
 /* Under a coarse pointer the kit gives each chip a margin (8px above and below, and 9px at the sides of the compact one)
    that is part of its 44px target. The offsets give that margin back, so the drawn chips keep the place they had (8px
    from the top on a wide tile, 2px on the narrow one); the narrow tile is too small for two whole targets, so they
-   overlap a little and are clipped by the tile, each centre in its own part. The remove button stays above them. */
+   overlap a little and are clipped by the tile, each centre in its own part. On a sponsor's tile the see chip is above
+   the hearing chip, which is above the listen chip, and the hearing chip's target is cut at its track's left edge, so
+   the three each keep a part of at least 24 by 24 px. The remove button stays above them. */
 @media (any-pointer: coarse) {
     .hear-set:not(.narrow) {
         top: 0;
@@ -752,6 +754,7 @@ textarea {
         left: auto;
         right: -7px;
         bottom: -6px;
+        clip-path: inset(-8px -9px -8px 0);
     }
     .stage[data-surface] .agent-remove {
         z-index: 8;
