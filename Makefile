@@ -48,4 +48,4 @@ run: frontend
 
 # Costs real model calls on the configured gateway; never part of `make check` or CI.
 verdict-repeatability:
-	uv run python scripts/verdict_repeatability.py --runs $(or $(RUNS),10)
+	uv run hopin verdict-repeatability --runs $(or $(RUNS),10)
