@@ -4,7 +4,7 @@
     import { qualityPill, remoteMedia } from "#lib/ui/stage-media.ts";
     import { language, words } from "#lib/words.ts";
     import { AGENT_ACTIVITY } from "#lib/call/feature-port.ts";
-    import { agentFigure, agentTiles, remoteTiles, tileIdOf } from "#lib/ui/stage.svelte.ts";
+    import { agentFigure, agentTiles, compactChips, remoteTiles, tileIdOf } from "#lib/ui/stage.svelte.ts";
 
     const ACTIVITY_LABEL = {
         [AGENT_ACTIVITY.THINKING]: words["tile.agentThinkingLabel"],
@@ -62,7 +62,7 @@
     {@const tileId = tileIdOf(key)}
     {@const tileLabel = ACTIVITY_LABEL[agent.activity]({ name: agent.name })}
     {@const narrow = Number(agentTileWidths[key]) < NARROW_TILE_WIDTH}
-    {@const figured = agent.figure !== undefined}
+    {@const chips = compactChips({ figured: agent.figure !== undefined, narrow })}
     <div
         bind:clientWidth={agentTileWidths[key]}
         class={tileClass}
@@ -100,7 +100,7 @@
                         on={agent.hearing.on}
                         onChange={agent.hearing.onChange}
                         words={kitWords}
-                        compact={figured && !narrow}
+                        compact={chips.hearing}
                     />
                 {/if}
                 {#if agent.seeing !== undefined}
@@ -109,7 +109,7 @@
                         on={agent.seeing.on}
                         onChange={agent.seeing.onChange}
                         words={kitWords}
-                        compact={narrow || figured}
+                        compact={chips.seeing}
                     />
                 {/if}
             </div>

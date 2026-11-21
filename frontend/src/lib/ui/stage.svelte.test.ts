@@ -763,3 +763,16 @@ describe("an agent tile's figure", () => {
         expect(started[0]?.listen.mock.calls).toEqual([[tile("container-p1")]]);
     });
 });
+
+describe("an agent tile's compact chips", () => {
+    it.each([
+        { figured: false, narrow: false, expected: { hearing: false, seeing: false } },
+        { figured: true, narrow: false, expected: { hearing: true, seeing: true } },
+        { figured: false, narrow: true, expected: { hearing: false, seeing: true } },
+        { figured: true, narrow: true, expected: { hearing: false, seeing: true } },
+    ])("CALL-77: shrinks $expected for figured $figured and narrow $narrow", async ({ figured, narrow, expected }) => {
+        const stage = await freshStage();
+
+        expect(stage.compactChips({ figured, narrow })).toEqual(expected);
+    });
+});

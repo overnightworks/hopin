@@ -78,6 +78,11 @@ export function tileIdOf(key: string) {
     return "container-" + key;
 }
 
+/** Which of an agent tile's chips shrink to their icon: both while the tile shows a figure, which leaves less room; a narrow tile already shrinks the see chip, and its hearing chip stays whole there, where hopin.css moves it into a corner. */
+export function compactChips(tile: { figured: boolean; narrow: boolean }) {
+    return { hearing: tile.figured && !tile.narrow, seeing: tile.narrow || tile.figured };
+}
+
 // The call core draws no figure itself: the feature that does hands over its drawer, and a tile without one or without a path stays as it is.
 let figureDrawer: AgentFigureDrawer | null = null;
 
