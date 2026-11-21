@@ -5,7 +5,16 @@ from playwright.sync_api import Page, expect
 
 from tests.e2e.stage.stage_page import expect_table_on_stage, show_table, table_link
 from tests.e2e.support.calls import open_call
-from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_SEE_SWITCH, AGENT_TILE, REMOVE
+from tests.e2e.support.dialed_agent import (
+    AGENT_HEARING_SWITCH,
+    AGENT_LISTEN_SWITCH,
+    AGENT_SEE_SWITCH,
+    AGENT_TILE,
+    REMOVE,
+    TOLERANCE_PIXELS,
+    lies_inside,
+    share_area,
+)
 from tests.e2e.support.people import FORM_FACTORS, PHONE
 
 if TYPE_CHECKING:
@@ -23,7 +32,6 @@ SEE_TRACK = AGENT_SEE_SWITCH + ' >> span[aria-hidden="true"]'
 SEE_ICON = AGENT_SEE_SWITCH + " >> .icon svg"
 CHIP_INSET_PIXELS = 8
 WHOLE_CHIP_FITS_FROM_PIXELS = 131
-TOLERANCE_PIXELS = 1
 MIN_TARGET_PIXELS = 24
 
 
@@ -36,22 +44,6 @@ def box_of(selector: str, page: Page) -> dict[str, float]:
     box = page.locator(selector).bounding_box()
     assert box is not None
     return box
-
-
-def lies_inside(inner: dict[str, float], outer: dict[str, float]) -> bool:
-    return (
-        inner["x"] >= outer["x"] - TOLERANCE_PIXELS
-        and inner["y"] >= outer["y"] - TOLERANCE_PIXELS
-        and inner["x"] + inner["width"] <= outer["x"] + outer["width"] + TOLERANCE_PIXELS
-        and inner["y"] + inner["height"] <= outer["y"] + outer["height"] + TOLERANCE_PIXELS
-    )
-
-
-def overlap_of(first: dict[str, float], second: dict[str, float]) -> float:
-    """The area two boxes share."""
-    width = min(first["x"] + first["width"], second["x"] + second["width"]) - max(first["x"], second["x"])
-    height = min(first["y"] + first["height"], second["y"] + second["height"]) - max(first["y"], second["y"])
-    return max(width, 0) * max(height, 0)
 
 
 LAYOUT_SETTLED_SCRIPT = """([tileSelector, fitsFrom]) => {
@@ -96,13 +88,25 @@ def test_the_switch_stays_on_a_strip_tile_while_a_table_shows_and_still_answers_
     track_box = box_of(TRACK, host)
     remove_box = box_of(AGENT_TILE + " " + REMOVE, host)
     assert lies_inside(track_box, tile_box)
-    assert overlap_of(track_box, remove_box) == 0
-    if tile_box["width"] >= WHOLE_CHIP_FITS_FROM_PIXELS:
+    assert share_area(track_box, remove_box) == 0
+    narrow = tile_box["width"] < WHOLE_CHIP_FITS_FROM_PIXELS
+    expect(host.locator(AGENT_LISTEN_SWITCH)).to_have_count(1)
+    listen_box = box_of(AGENT_LISTEN_SWITCH, host)
+    assert lies_inside(listen_box, tile_box)
+    assert share_area(listen_box, remove_box) == 0
+    assert share_area(listen_box, box_of(AGENT_SEE_SWITCH, host)) == 0
+    assert share_area(listen_box, track_box) == 0
+    hearing_box = box_of(SWITCH, host)
+    assert lies_inside(hearing_box, tile_box)
+    assert share_area(hearing_box, remove_box) == 0
+    assert share_area(hearing_box, box_of(AGENT_SEE_SWITCH, host)) == 0
+    assert share_area(hearing_box, listen_box) == 0
+    if not narrow:
         chip_box = box_of(SWITCH, host)
         assert chip_box["x"] - tile_box["x"] == pytest.approx(CHIP_INSET_PIXELS, abs=TOLERANCE_PIXELS)
         assert chip_box["y"] - tile_box["y"] == pytest.approx(CHIP_INSET_PIXELS, abs=TOLERANCE_PIXELS)
         assert lies_inside(chip_box, tile_box)
-        assert overlap_of(chip_box, remove_box) == 0
+        assert share_area(chip_box, remove_box) == 0
     switch.click()
     expect(switch).to_have_attribute("aria-checked", "false")
     switch.click()
@@ -122,12 +126,12 @@ def test_the_see_switch_stays_on_a_strip_tile_while_a_table_shows_and_the_sponso
     tile_box = box_of(AGENT_TILE, host)
     see_box = box_of(SEE_TRACK, host)
     assert lies_inside(see_box, tile_box)
-    assert overlap_of(see_box, box_of(AGENT_TILE + " " + REMOVE, host)) == 0
-    assert overlap_of(see_box, box_of(TRACK, host)) == 0
+    assert share_area(see_box, box_of(AGENT_TILE + " " + REMOVE, host)) == 0
+    assert share_area(see_box, box_of(TRACK, host)) == 0
     expect(host.locator(SEE_ICON)).to_be_visible()
     icon_box = box_of(SEE_ICON, host)
     assert lies_inside(icon_box, tile_box)
-    assert overlap_of(icon_box, box_of(AGENT_TILE + " " + REMOVE, host)) == 0
+    assert share_area(icon_box, box_of(AGENT_TILE + " " + REMOVE, host)) == 0
     assert lies_inside(icon_box, box_of(AGENT_SEE_SWITCH, host))
     see_switch.click()
     expect(see_switch).to_have_attribute("aria-checked", "true")
@@ -174,10 +178,10 @@ def test_each_switch_on_a_strip_tile_is_a_touch_target_clear_of_the_remove_butto
     ]
     for x, y in remove_points:
         assert host.evaluate(TOPMOST_AT_SCRIPT, [AGENT_TILE + " " + REMOVE, x, y])
-    for selector in (AGENT_HEARING_SWITCH, AGENT_SEE_SWITCH):
+    for selector in (AGENT_HEARING_SWITCH, AGENT_SEE_SWITCH, AGENT_LISTEN_SWITCH):
         switch = host.locator(selector)
         assert switch.evaluate(PRESSABLE_SQUARE_SCRIPT, AGENT_TILE) >= MIN_TARGET_PIXELS
-        assert overlap_of(box_of(selector, host), remove_box) == 0
+        assert share_area(box_of(selector, host), remove_box) == 0
         before = switch.get_attribute("aria-checked") or ""
         switch.tap()
         expect(switch).not_to_have_attribute("aria-checked", before)

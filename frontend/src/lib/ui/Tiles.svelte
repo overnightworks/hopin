@@ -62,7 +62,11 @@
     {@const tileId = tileIdOf(key)}
     {@const tileLabel = ACTIVITY_LABEL[agent.activity]({ name: agent.name })}
     {@const narrow = Number(agentTileWidths[key]) < NARROW_TILE_WIDTH}
-    {@const chips = compactChips({ figured: agent.figure !== undefined, narrow })}
+    {@const chips = compactChips({
+        figured: agent.figure !== undefined,
+        narrow,
+        seeing: agent.seeing !== undefined,
+    })}
     <div
         bind:clientWidth={agentTileWidths[key]}
         class={tileClass}
@@ -92,7 +96,7 @@
             >
             <span class="agent-activity" aria-hidden="true"><i></i><i></i><i></i></span>
         </div>
-        {#if kitWords !== undefined && (agent.hearing !== undefined || agent.seeing !== undefined)}
+        {#if kitWords !== undefined && (agent.hearing !== undefined || agent.listening !== undefined || agent.seeing !== undefined)}
             <div class="hear-set" class:narrow>
                 {#if agent.hearing !== undefined}
                     <HearingSwitch
@@ -103,15 +107,31 @@
                         compact={chips.hearing}
                     />
                 {/if}
-                {#if agent.seeing !== undefined}
-                    <HearingSwitch
-                        kind="see"
-                        on={agent.seeing.on}
-                        onChange={agent.seeing.onChange}
-                        words={kitWords}
-                        compact={chips.seeing}
-                    />
-                {/if}
+                <div class="hear-row">
+                    {#if agent.listening !== undefined}
+                        <div
+                            class="listen-slot"
+                            class:beside-consents={agent.hearing !== undefined && agent.seeing !== undefined}
+                        >
+                            <HearingSwitch
+                                kind="listen"
+                                on={agent.listening.on}
+                                onChange={agent.listening.onChange}
+                                words={kitWords}
+                                compact={chips.listening}
+                            />
+                        </div>
+                    {/if}
+                    {#if agent.seeing !== undefined}
+                        <HearingSwitch
+                            kind="see"
+                            on={agent.seeing.on}
+                            onChange={agent.seeing.onChange}
+                            words={kitWords}
+                            compact={chips.seeing}
+                        />
+                    {/if}
+                </div>
             </div>
         {/if}
         {#if agent.looking === true}

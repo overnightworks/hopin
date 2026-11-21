@@ -688,8 +688,25 @@ textarea {
 /* On a narrow tile (Tiles.svelte decides) the narrowest chip no longer fits beside the remove button (8px, the chip,
    the button's 32px and its 10px), so the hearing chip moves into the tile's lower right corner, clear of the button;
    its icon may be cut, its switch stays whole and pressable. The see chip is the kit's compact one there: its track
-   alone in the upper left corner. */
-.hear-set.narrow {
+   alone in the upper left corner; so is the listen chip of a tile with no sponsor's chips. A sponsor's narrow tile holds
+   all three switches, each compact: the see chip in the upper left corner, the listen chip in the lower left corner and
+   the hearing chip, shrunk to its track, in the lower right corner. */
+.listen-slot {
+    display: contents;
+}
+/* The see chip wraps below the listen chip rather than squeezing its label away on a tile too narrow for both; a strip
+   tile beside a shown surface has no height for a third row, so its row stays one. */
+.hear-row {
+    display: flex;
+    flex-wrap: wrap;
+    max-width: 100%;
+    gap: 4px;
+}
+.stage[data-surface] .hear-row {
+    flex-wrap: nowrap;
+}
+.hear-set.narrow,
+.hear-set.narrow .hear-row {
     display: contents;
 }
 .tile .hear-set.narrow > :not(.compact) {
@@ -700,16 +717,28 @@ textarea {
     width: var(--hear-narrowest);
     max-width: none;
 }
-.tile .hear-set.narrow > .compact {
+.tile .hear-set.narrow .compact {
     position: absolute;
     top: 2px;
     left: 2px;
     z-index: 7;
 }
+.tile .hear-set.narrow .listen-slot.beside-consents .compact {
+    top: auto;
+    bottom: 2px;
+}
+.tile .hear-set.narrow > .compact {
+    top: auto;
+    left: auto;
+    right: 2px;
+    bottom: 2px;
+}
 /* Under a coarse pointer the kit gives each chip a margin (8px above and below, and 9px at the sides of the compact one)
    that is part of its 44px target. The offsets give that margin back, so the drawn chips keep the place they had (8px
    from the top on a wide tile, 2px on the narrow one); the narrow tile is too small for two whole targets, so they
-   overlap a little and are clipped by the tile, each centre in its own part. The remove button stays above them. */
+   overlap a little and are clipped by the tile, each centre in its own part. On a sponsor's tile the see chip is above
+   the hearing chip, which is above the listen chip, and the hearing chip's target is cut at its track's left edge, so
+   the three each keep a part of at least 24 by 24 px. The remove button stays above them. */
 @media (any-pointer: coarse) {
     .hear-set:not(.narrow) {
         top: 0;
@@ -717,9 +746,21 @@ textarea {
     .tile .hear-set.narrow > :not(.compact) {
         bottom: -6px;
     }
-    .tile .hear-set.narrow > .compact {
+    .tile .hear-set.narrow .compact {
         top: -6px;
         left: -7px;
+    }
+    .tile .hear-set.narrow .listen-slot.beside-consents .compact {
+        top: auto;
+        bottom: -6px;
+        z-index: 6;
+    }
+    .tile .hear-set.narrow > .compact {
+        top: auto;
+        left: auto;
+        right: -7px;
+        bottom: -6px;
+        clip-path: inset(-8px -9px -8px 0);
     }
     .stage[data-surface] .agent-remove {
         z-index: 8;
