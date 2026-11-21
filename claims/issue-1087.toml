@@ -1,5 +1,5 @@
 claim_id = "145a29c1c6a5418d8f2c53764818ebb1"
-agent = "Claude 67aaab2c-9f94-4d9f-afe6-2b43deb759a9"
+agent = "Claude d102189c-9f27-4985-8ccc-1652f4bd968e"
 role = "builder"
 base = "4ace98b054e229c8fb86bf2ede6e99c21fadc40b"
 branch = "claude/issue-1087-hopin-migrate"
