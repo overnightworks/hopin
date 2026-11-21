@@ -5,6 +5,7 @@
     import { DELIVERY } from "#lib/call/lines.ts";
     import { LEGAL_LINKS } from "#lib/legal.ts";
     import { words } from "#lib/words.ts";
+    import ScreenTiles from "#lib/ui/ScreenTiles.svelte";
     import Tiles from "#lib/ui/Tiles.svelte";
     import Toasts from "#lib/ui/Toasts.svelte";
     import { cancelLeave, confirmLeave, leaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
@@ -59,7 +60,7 @@
     import { SCREEN, screens } from "#lib/ui/screens.svelte.ts";
     import { pictureInPicture } from "#lib/ui/pip.ts";
     import { ownPictureMedia } from "#lib/ui/stage-media.ts";
-    import { OWN_TILE_ID, ownPicture, stageSurface, stageTileCount } from "#lib/ui/stage.svelte.ts";
+    import { OWN_TILE_ID, ownPicture, screenShares, stageSurface, stageTileCount } from "#lib/ui/stage.svelte.ts";
     import { ACCOUNT_CONSOLE_PATH, LOGOUT_PATH } from "#lib/wire.ts";
 
     import { lockTag, participantCount, statusLine } from "#lib/ui/status.svelte.ts";
@@ -176,7 +177,7 @@
 
 <!-- prettier-ignore -->
 <main class="call" class:hidden={screens.current !== SCREEN.CALL} data-screen="call">
-    <div class="stage" id="stage" data-count={stageTileCount()} data-surface={stageSurface.view === null ? undefined : ""}>
+    <div class="stage" id="stage" data-count={stageTileCount()} data-surface={stageSurface.view === null && screenShares.length === 0 ? undefined : ""}>
         <div class="ctop">
             <div class="left">
                 <div id="status" class={"status status-" + statusLine.type}>{statusLine.text}</div>
@@ -186,7 +187,7 @@
         </div>
         <div id="videoGrid" class="grid">
             <div class="tiles">
-                <div class="tile self" class:mirror={ownPicture.mirrored} id={OWN_TILE_ID} {@attach pictureInPicture}>
+                <div class="tile self mirror" id={OWN_TILE_ID} {@attach pictureInPicture}>
                     <video id="localVideo" autoplay muted playsinline class:hidden={!ownPicture.showsVideo} use:ownPictureMedia={ownPicture.delivery}></video>
                     <div id="localPlaceholder" class="vid off" class:hidden={ownPicture.showsVideo}><span class="av"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 19.5c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg></span></div>
                     <span class="name"><span class="muted" class:hidden={!ownPicture.muted}><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 9.5V6a3 3 0 0 0-5.6-1.5M9 9v2.5a3 3 0 0 0 4.6 2.5M18.5 11a6.5 6.5 0 0 1-1 3.4M5.5 11a6.5 6.5 0 0 0 10 5.5M12 17.5V21M4 4l16 16"/></svg></span>{words["call.ownTileName"]}</span>
@@ -194,6 +195,7 @@
                 <Tiles />
             </div>
         </div>
+        <ScreenTiles />
         {#if stageSurface.view !== null}<div class="surface"><stageSurface.view /></div>{/if}
         <div id="waitingCard" class={["waiting", !invite.isWaitingCardShown && "hidden"]} data-share={invite.share}>
             <h3>{words["call.waitingTitle"]}</h3>

@@ -72,7 +72,6 @@ describe("the picture of the camera", () => {
     it.each([
         ["the person is not in a call", () => (state.inCall = false)],
         ["the camera is off", () => (state.videoEnabled = false)],
-        ["a screen share runs", () => (state.screenStream = {} as MediaStream)],
         ["there is no stream", () => (state.localStream = null)],
         ["the stream carries no video track", () => (state.localStream = localStreamOf())],
         ["the track is disabled", () => (state.localStream = localStreamOf(cameraTrack({ enabled: false })))],

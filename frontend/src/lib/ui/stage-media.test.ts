@@ -2,7 +2,9 @@
 import { flushSync, mount, unmount } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { screenMedia } from "#lib/ui/stage-media.ts";
 import Fixture from "#lib/ui/stage-media.fixture.svelte";
+import ScreenTiles from "#lib/ui/ScreenTiles.svelte";
 import Tiles from "#lib/ui/Tiles.svelte";
 import {
     addRemoteTile,
@@ -10,6 +12,7 @@ import {
     setConnectionQuality,
     setRemoteSpeaking,
     showLocalStream,
+    showRemoteScreen,
     showRemoteStream,
 } from "#lib/ui/stage.svelte.ts";
 
@@ -276,5 +279,103 @@ describe("remote tiles in a component", () => {
         flushSync();
 
         expect(document.querySelector<HTMLElement>("#container-a .connection-quality")?.dataset.quality).toBe("poor");
+    });
+});
+
+describe("shared screens in a component", () => {
+    afterEach(() => {
+        showRemoteScreen("a", null);
+        vi.unstubAllGlobals();
+        document.body.innerHTML = "";
+    });
+
+    it("renders a tile for a shared screen, plays its stream, and removes the tile when the share ends", () => {
+        vi.stubGlobal("MediaStream", FakeStream);
+        const tracking = trackedAssignments();
+        const component = mount(ScreenTiles, { target: document.body });
+        flushSync();
+        expect(document.querySelector(".screens")).toBeNull();
+        const audio = fakeTrack("audio");
+
+        showRemoteScreen("a", new FakeStream([audio, fakeTrack("video", true)]) as unknown as MediaStream);
+        flushSync();
+
+        const video = document.getElementById("screen-video-a") as HTMLVideoElement;
+        expect(video.srcObject).not.toBeNull();
+        expect((video.srcObject as unknown as FakeStream).getTracks()).toEqual([audio]);
+
+        showRemoteScreen("a", null);
+        flushSync();
+
+        expect(document.getElementById("screen-a")).toBeNull();
+        tracking.restore();
+        void unmount(component);
+    });
+
+    it("leaves the video alone when the share has ended before its update runs", () => {
+        const video = document.createElement("video");
+
+        screenMedia(video, { participantId: "a", delivery: 0 }).update();
+
+        expect(video.srcObject).toBeFalsy();
+    });
+
+    it("plays a muted screen picture as soon as it unmutes, without a new delivery", () => {
+        vi.stubGlobal("MediaStream", FakeStream);
+        const tracking = trackedAssignments();
+        const component = mount(ScreenTiles, { target: document.body });
+        const audio = fakeTrack("audio");
+        const picture = fakeTrack("video", true);
+        showRemoteScreen("a", new FakeStream([audio, picture]) as unknown as MediaStream);
+        flushSync();
+        const video = document.getElementById("screen-video-a") as HTMLVideoElement;
+
+        Object.defineProperty(picture, "muted", { value: false });
+        picture.dispatchEvent(new Event("unmute"));
+        flushSync();
+
+        expect((video.srcObject as unknown as FakeStream).getTracks()).toEqual([audio, picture]);
+        tracking.restore();
+        void unmount(component);
+    });
+
+    it("plays the picture of a later share in its new tile when the same track unmutes there", () => {
+        vi.stubGlobal("MediaStream", FakeStream);
+        const tracking = trackedAssignments();
+        const component = mount(ScreenTiles, { target: document.body });
+        const picture = fakeTrack("video", true);
+        showRemoteScreen("a", new FakeStream([picture]) as unknown as MediaStream);
+        flushSync();
+        showRemoteScreen("a", null);
+        flushSync();
+        showRemoteScreen("a", new FakeStream([picture]) as unknown as MediaStream);
+        flushSync();
+        const video = document.getElementById("screen-video-a") as HTMLVideoElement;
+
+        Object.defineProperty(picture, "muted", { value: false });
+        picture.dispatchEvent(new Event("unmute"));
+        flushSync();
+
+        expect((video.srcObject as unknown as FakeStream).getTracks()).toEqual([picture]);
+        tracking.restore();
+        void unmount(component);
+    });
+
+    it("takes the tracks of a second delivery of the screen stream", () => {
+        vi.stubGlobal("MediaStream", FakeStream);
+        const tracking = trackedAssignments();
+        const component = mount(ScreenTiles, { target: document.body });
+        const picture = fakeTrack("video", true);
+        showRemoteScreen("a", new FakeStream([fakeTrack("audio"), picture]) as unknown as MediaStream);
+        flushSync();
+        const video = document.getElementById("screen-video-a") as HTMLVideoElement;
+        const laterAudio = fakeTrack("audio");
+
+        showRemoteScreen("a", new FakeStream([laterAudio, picture]) as unknown as MediaStream);
+        flushSync();
+
+        expect((video.srcObject as unknown as FakeStream).getTracks()).toEqual([laterAudio]);
+        tracking.restore();
+        void unmount(component);
     });
 });

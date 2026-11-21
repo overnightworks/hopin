@@ -31,7 +31,6 @@ PICTURE_IN_PICTURE_INSET_SIDE = 14
 PICTURE_IN_PICTURE_INSET_TOP = 48
 PICTURE_IN_PICTURE_INSET_BOTTOM_ABOVE_STAGE_BOTTOM = 6
 MIRRORED = "matrix(-1, 0, 0, 1, 0, 0)"
-NOT_MIRRORED = "none"
 CAMERA_OFF_SURFACE = "rgb(37, 43, 50)"
 PHONE_QUALITY_BARS_INSET = {"top": 50, "right": 16}
 QUALITY_BAR_COUNT = 3
@@ -227,17 +226,16 @@ def test_stage_lays_out_each_call_size_from_two_to_six_in_the_pictures_shape(
             assert_laid_out_as(host, count, *PHONE_SHAPES[count])
 
 
-def test_stage_unmirrors_the_own_screen_and_mirrors_the_camera_again(
+def test_stage_keeps_mirroring_the_own_camera_while_the_screen_is_shared(
     open_person: Callable[..., Page], base_url: str
 ) -> None:
     host = open_person(**DESKTOP)
     host.add_init_script(SHARE_THE_SCREEN_FROM_A_CANVAS)
     start_call(host, base_url)
     own_video = host.locator("#localVideo")
-    expect(own_video).to_have_css("transform", MIRRORED)
 
     share_the_screen(host)
-    expect(own_video).to_have_css("transform", NOT_MIRRORED)
+    expect(own_video).to_have_css("transform", MIRRORED)
 
     stop_the_screen_share(host)
     expect(own_video).to_have_css("transform", MIRRORED)

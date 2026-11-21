@@ -6,7 +6,10 @@ export type Frame = Record<string, unknown>;
 export class FakeSender {
     track: { kind: string } | null;
     readonly setStreams: ((stream: unknown) => void) | undefined = vi.fn();
-    readonly replaceTrack = vi.fn((track: unknown) => Promise.resolve(track));
+    readonly replaceTrack = vi.fn((track: { kind: string } | null) => {
+        this.track = track;
+        return Promise.resolve();
+    });
     readonly capped: unknown[] = [];
 
     constructor(track: { kind: string } | null) {
@@ -32,9 +35,12 @@ export interface FakeTransceiver {
 export class FakeConnection {
     static readonly instances: FakeConnection[] = [];
     private static offerGate: Promise<void> | null = null;
+    /** The transceivers the browser makes for the media sections of the next offer that is applied. */
+    static readonly incoming: FakeTransceiver[] = [];
     /** Forget every connection made and release the hold on offers. */
     static reset() {
         FakeConnection.instances.length = 0;
+        FakeConnection.incoming.length = 0;
         FakeConnection.offerGate = null;
     }
 
@@ -55,7 +61,8 @@ export class FakeConnection {
     candidates: unknown[] = [];
     transceivers: FakeTransceiver[] = [];
     offerOptions: unknown[] = [];
-    ontrack: ((event: { streams: unknown[] }) => void) | null = null;
+    ontrack: ((event: { streams: unknown[]; transceiver?: unknown }) => void) | null = null;
+    onnegotiationneeded: (() => void) | null = null;
     onicecandidate: ((event: { candidate: unknown }) => void) | null = null;
     closeAfterRemoteDescription = false;
     closeAfterAnswer = false;
@@ -94,12 +101,15 @@ export class FakeConnection {
         });
     }
 
-    addTransceiver(kind: string, init: { direction: string }) {
-        this.transceivers.push({
+    addTransceiver(kindOrTrack: string | { kind: string }, init: { direction: string }) {
+        const track = typeof kindOrTrack === "string" ? null : kindOrTrack;
+        const transceiver = {
             direction: init.direction,
-            receiver: { track: { kind } },
-            sender: new FakeSender(null),
-        });
+            receiver: { track: { kind: track?.kind ?? (kindOrTrack as string) } },
+            sender: new FakeSender(track),
+        };
+        this.transceivers.push(transceiver);
+        return transceiver;
     }
 
     getTransceivers() {
@@ -122,6 +132,8 @@ export class FakeConnection {
 
     removeTrack(sender: FakeSender) {
         sender.track = null;
+        const transceiver = this.transceivers.find((candidate) => candidate.sender === sender);
+        if (transceiver?.direction === "sendonly") transceiver.direction = "inactive";
     }
 
     async createOffer(options?: unknown) {
@@ -147,8 +159,10 @@ export class FakeConnection {
         this.steps.push("remote description");
         this.remoteDescriptions.push(description);
         if (this.closeAfterRemoteDescription) this.signalingState = "closed";
-        else if ((description as Frame).type === "offer") this.signalingState = "have-remote-offer";
-        else this.signalingState = "stable";
+        else if (((description as FakeDescription).init as Frame | undefined)?.type === "offer") {
+            this.signalingState = "have-remote-offer";
+            this.transceivers.push(...FakeConnection.incoming.splice(0));
+        } else this.signalingState = "stable";
         return Promise.resolve();
     }
 
@@ -172,4 +186,30 @@ export class FakeConnection {
 
 export class FakeDescription {
     constructor(readonly init: Frame) {}
+}
+
+export function track(kind: string) {
+    return { kind } as unknown as MediaStreamTrack;
+}
+
+let streamCount = 0;
+
+export function streamWith(...kinds: string[]) {
+    const tracks = kinds.map(track);
+    const listeners: (() => void)[] = [];
+    streamCount += 1;
+    return {
+        id: `stream-${String(streamCount)}`,
+        getTracks: () => tracks,
+        getVideoTracks: () => tracks.filter((candidate) => candidate.kind === "video"),
+        addEventListener: (_type: string, listener: () => void) => listeners.push(listener),
+        loseTrack: () => {
+            tracks.pop();
+            for (const listener of listeners) listener();
+        },
+        loseTracks: () => {
+            tracks.length = 0;
+            for (const listener of listeners) listener();
+        },
+    } as unknown as MediaStream & { loseTracks(): void; loseTrack(): void };
 }

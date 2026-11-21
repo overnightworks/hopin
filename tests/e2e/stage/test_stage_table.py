@@ -22,9 +22,25 @@ from tests.e2e.stage.stage_page import (
     show_table,
     table_link,
 )
-from tests.e2e.support.calls import join, open_call, open_more, press_through_the_prejoin
+from tests.e2e.support.calls import (
+    add_init_scripts,
+    join,
+    open_call,
+    open_more,
+    press_through_the_prejoin,
+    record_page_errors,
+    start_call,
+)
 from tests.e2e.support.dialed_agent import AGENT_TILE, REMOVE
-from tests.e2e.support.media import MEDIA_FLOWING_TIMEOUT_MILLISECONDS
+from tests.e2e.support.media import (
+    MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
+    RECORD_MEDIA_TRACKS,
+    RECORD_PEER_CONNECTIONS,
+    SCREEN_TILE,
+    share_the_screen,
+    wait_for_peer_count,
+    wait_for_the_screen_tile_to_show_the_screen,
+)
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
 
 if TYPE_CHECKING:
@@ -465,3 +481,37 @@ def test_a_strip_tile_shows_no_name_pill_and_an_agent_tile_keeps_its_sparkle(
     expect(host.locator("#videoGrid .tile:not(.self):not(.agent) .name")).to_be_hidden()
     expect(host.locator(AGENT_TILE + " .name")).to_be_hidden()
     expect(host.locator(AGENT_TILE + " .av .icon")).to_be_visible()
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_table_and_a_screen_share_split_the_stage_height_and_neither_is_clipped(
+    open_person: Callable[..., Page],
+    e2e_server: RunningServer,
+    stub_skat: StubSkat,
+    page_errors: list[str],
+    form_factor: dict[str, Any],
+) -> None:
+    """CALL-24: A table on the stage and a shared screen split the stage's height, each whole in view."""
+    sharer = record_page_errors(open_person(**DESKTOP), page_errors)
+    add_init_scripts(sharer, [RECORD_MEDIA_TRACKS, RECORD_PEER_CONNECTIONS])
+    invite_link = start_call(sharer, e2e_server.base_url)
+    watcher = join(open_person, invite_link, form_factor, (RECORD_PEER_CONNECTIONS,), page_errors)
+    for person in (sharer, watcher):
+        wait_for_peer_count(person, 1)
+    show_table(sharer, table_link(stub_skat))
+    share_the_screen(sharer)
+
+    expect_table_on_stage(watcher, stub_skat)
+    expect(watcher.locator(SCREEN_TILE)).to_have_count(1, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
+    wait_for_the_screen_tile_to_show_the_screen(watcher)
+
+    screens = watcher.locator("#stage .screens").bounding_box()
+    surface = watcher.locator(SURFACE).bounding_box()
+    viewport = watcher.viewport_size
+    assert viewport is not None
+    assert screens is not None
+    assert surface is not None
+    assert screens["height"] > 0
+    assert surface["height"] > 0
+    assert screens["y"] + screens["height"] <= surface["y"] + 1, "the screen and the table overlap"
+    assert surface["y"] + surface["height"] <= viewport["height"], "the table runs out of the page"

@@ -256,13 +256,6 @@ def start_sharing_the_screen(person: Page, base_url: str) -> None:
     person.click("#screenBtn")
 
 
-def stop_sharing_the_screen(person: Page, base_url: str) -> None:
-    start_call(person, base_url)
-    share_the_screen(person)
-    person.evaluate(HOLD_MEDIA)
-    person.click("#screenBtn")
-
-
 def turn_on_a_camera_after_starting_without_one(person: Page, base_url: str) -> None:
     press_start_call(person, base_url, with_camera=False)
     call_link_of(person)
@@ -272,7 +265,7 @@ def turn_on_a_camera_after_starting_without_one(person: Page, base_url: str) -> 
 
 @pytest.mark.parametrize(
     "request_media_in_the_call",
-    [start_sharing_the_screen, stop_sharing_the_screen, turn_on_a_camera_after_starting_without_one],
+    [start_sharing_the_screen, turn_on_a_camera_after_starting_without_one],
 )
 def test_media_requested_in_the_call_that_arrives_after_the_host_left_is_stopped_and_changes_nothing(
     open_person: Callable[..., Page], base_url: str, request_media_in_the_call: Callable[[Page, str], None]

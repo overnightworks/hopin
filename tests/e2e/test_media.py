@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.support.calls import add_init_scripts, join, record_page_errors, start_call
+from tests.e2e.support.calls import join, record_page_errors, start_call
 from tests.e2e.support.camera_less_call import (
     CAMERA_OFF_AT_JOIN,
     CameraLessCall,
@@ -23,7 +23,6 @@ from tests.e2e.support.media import (
     OTHER_CAMERA_OFF,
     OTHER_VIDEO,
     PICTURE_ONLY_ON_THE_TILES,
-    RECORD_MEDIA_TRACKS,
     RECORD_PEER_CONNECTIONS,
     SHARE_THE_SCREEN_FROM_A_CANVAS,
     TILE_AUDIO_IS_ALIVE_AND_UNMUTED,
@@ -36,7 +35,6 @@ from tests.e2e.support.media import (
     turn_the_camera_on,
     wait_for_inbound_growth,
     wait_for_peer_count,
-    wait_for_the_light_to_go_out,
     wait_for_the_picture,
     wait_for_video_tracks,
 )
@@ -46,39 +44,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 pytestmark = pytest.mark.e2e
-
-
-@pytest.mark.parametrize(
-    ("camera_turned_off", "pressed", "tracks_after_the_stop"),
-    [(True, "true", ([], [None])), (False, "false", (["live"], ["live"]))],
-    ids=["off", "on"],
-)
-def test_stop_sharing_restores_the_camera_as_the_person_left_it(
-    open_person: Callable[..., Page],
-    base_url: str,
-    page_errors: list[str],
-    camera_turned_off: bool,
-    pressed: str,
-    tracks_after_the_stop: tuple[list[str], list[str | None]],
-) -> None:
-    """CALL-24: Stopping a share brings the camera back only if it was on before."""
-    host = record_page_errors(open_person(**DESKTOP), page_errors)
-    add_init_scripts(host, [RECORD_PEER_CONNECTIONS, RECORD_MEDIA_TRACKS])
-    watcher = join(open_person, start_call(host, base_url), DESKTOP, (RECORD_PEER_CONNECTIONS,), page_errors)
-    wait_for_peer_count(host, 1)
-    wait_for_the_picture(watcher)
-    if camera_turned_off:
-        host.click("#videoBtn")
-
-    share_then_stop_the_screen_share(host)
-
-    expect(host.locator("#videoBtn")).to_have_attribute("aria-pressed", pressed)
-    wait_for_video_tracks(host, *tracks_after_the_stop)
-    if camera_turned_off:
-        wait_for_the_light_to_go_out(host)
-        expect(watcher.locator(ICON_ONLY_ON_THE_TILES)).to_have_count(1)
-    else:
-        wait_for_the_picture(watcher)
 
 
 STREAM_IDS_ON_THE_WIRE = r"""
@@ -262,30 +227,6 @@ def test_a_camera_turned_on_before_a_late_joiner_arrives_reaches_the_late_joiner
     guest.wait_for_function(EVERY_VIDEO_CAP_IS, arg=TWO_CAPS_PER_CONNECTION, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
 
 
-@pytest.mark.parametrize(
-    ("camera_turned_off", "tracks_after_the_stop"),
-    [(False, (["live"], ["live"])), (True, ([], [None]))],
-    ids=["on", "off"],
-)
-def test_stop_sharing_keeps_a_camera_added_mid_call_as_the_person_left_it(
-    camera_less_call: CameraLessCall, camera_turned_off: bool, tracks_after_the_stop: tuple[list[str], list[str | None]]
-) -> None:
-    host, guest = camera_less_call.host, camera_less_call.guest
-    turn_the_camera_on(guest)
-    wait_for_the_picture(host)
-    if camera_turned_off:
-        guest.click("#videoBtn")
-
-    share_then_stop_the_screen_share(guest)
-
-    wait_for_video_tracks(guest, *tracks_after_the_stop)
-    if camera_turned_off:
-        wait_for_the_light_to_go_out(guest)
-        expect(host.locator(OTHER_CAMERA_OFF)).to_be_visible()
-    else:
-        wait_for_the_picture(host)
-
-
 def _measure_the_audio_level_waits(person: Page, give_the_tile_audio: str) -> tuple[float, dict[str, Any]]:
     person.set_content("<video id='tile'></video>")
     person.evaluate("() => { window.requestAnimationFrame = () => 0; }")
@@ -442,7 +383,7 @@ def test_the_answered_picture_arrives_under_the_stream_of_the_voice_in_a_sendrec
     assert stream_ids["audio"] == stream_ids["video"] == stream_ids["local"]
 
 
-def test_stop_sharing_keeps_the_added_camera_of_the_answering_side_for_the_one_who_joined_later(
+def test_a_share_beside_the_added_camera_of_the_answering_side_leaves_it_for_the_one_who_joined_later(
     open_person: Callable[..., Page], base_url: str, page_errors: list[str]
 ) -> None:
     call = start_camera_less_host_call(open_person, base_url, DESKTOP, page_errors, (SHARE_THE_SCREEN_FROM_A_CANVAS,))
@@ -452,11 +393,10 @@ def test_stop_sharing_keeps_the_added_camera_of_the_answering_side_for_the_one_w
 
     share_then_stop_the_screen_share(host)
 
-    wait_for_video_tracks(host, ["live"], ["live"])
+    wait_for_video_tracks(host, ["live"], ["live", None])
     wait_for_the_picture(later_joiner)
-    host.wait_for_function(EVERY_VIDEO_CAP_IS, arg=ONE_CAP_PER_CONNECTION, timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
     for person in (host, later_joiner):
-        assert person.evaluate(VIDEO_TRANSCEIVERS_PER_CONNECTION) == [1]
+        assert person.evaluate(VIDEO_TRANSCEIVERS_PER_CONNECTION) == [2]
 
 
 def test_where_streams_cannot_be_set_the_answering_side_sends_no_picture_and_the_call_stays_as_it_was(

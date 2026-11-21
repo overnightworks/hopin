@@ -17,6 +17,8 @@ export interface StagePort {
     addRemoteTile(participantId: string): void;
     removeRemoteTile(participantId: string): boolean;
     showRemoteStream(participantId: string, stream: MediaStream): void;
+    /** The screen a person shares as a tile of its own; null ends it. */
+    showRemoteScreen(participantId: string, stream: MediaStream | null): void;
     showRemoteName(participantId: string): void;
     setRemoteMediaState(participantId: string, mediaState: RemoteMediaState): void;
     setRemoteSpeaking(participantId: string, speaking: boolean): void;
@@ -49,6 +51,9 @@ export const removeRemoteTile: StagePort["removeRemoteTile"] = (participantId) =
     installedStage().removeRemoteTile(participantId);
 export const showRemoteStream: StagePort["showRemoteStream"] = (participantId, stream) => {
     installedStage().showRemoteStream(participantId, stream);
+};
+export const showRemoteScreen: StagePort["showRemoteScreen"] = (participantId, stream) => {
+    installedStage().showRemoteScreen(participantId, stream);
 };
 export const showRemoteName: StagePort["showRemoteName"] = (participantId) => {
     installedStage().showRemoteName(participantId);
