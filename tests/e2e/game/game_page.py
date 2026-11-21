@@ -51,6 +51,11 @@ def score_line(*correct_by_name: tuple[str, int]) -> str:
     return text("de", "game.scoreLine", scores=", ".join(entries))
 
 
+def final_score_line(*correct_by_name: tuple[str, int]) -> str:
+    entries = [text("de", "game.scoreEntry", name=name, correct=str(correct)) for name, correct in correct_by_name]
+    return text("de", "game.finalScoreLine", scores=", ".join(entries))
+
+
 def start_quiz(person: Page) -> None:
     open_more(person)
     person.click(START_QUIZ)
