@@ -1,0 +1,8 @@
+claim_id = "75ae4c32efd94b4c94779cb54e3ce1f4"
+agent = "Claude 67aaab2c-9f94-4d9f-afe6-2b43deb759a9"
+role = "builder"
+base = "38e78ffd00fa2d057e14b9bee5f540eea0ce1b74"
+branch = "claude/issue-1083-logline-1-7-quality-0-22-1"
+scope = [".github/workflows/ci.yml", ".github/workflows/code-scanning.yml", ".github/workflows/release.yml", "pyproject.toml", "uv.lock"]
+opened_commit = "0061076f9a17adef38a6bebe12f5d0bea6f35596"
+whole_reason = "One fleet-pin raise: the two releases share the lane because each is a pin-only change that CI proves together."
