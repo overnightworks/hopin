@@ -70,6 +70,9 @@ async def test_a_single_run_without_a_verdict_fails_the_report_however_low_the_m
     assert [line.judgement for line in report] == [right, wrong]
     assert not passes(report, 0.5)
 
+    assert "(1 run without verdict)" in printed(report)
+    assert "without verdict" not in printed(await agreement_over(judging(right, wrong)))
+
 
 async def test_every_run_asks_the_reveal_request_the_quiz_itself_builds_for_the_recorded_answers():
     backend = FakeAgentBackend()
