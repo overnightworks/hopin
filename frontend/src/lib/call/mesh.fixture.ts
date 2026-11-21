@@ -6,7 +6,10 @@ export type Frame = Record<string, unknown>;
 export class FakeSender {
     track: { kind: string } | null;
     readonly setStreams: ((stream: unknown) => void) | undefined = vi.fn();
-    readonly replaceTrack = vi.fn((track: unknown) => Promise.resolve(track));
+    readonly replaceTrack = vi.fn((track: { kind: string } | null) => {
+        this.track = track;
+        return Promise.resolve();
+    });
     readonly capped: unknown[] = [];
 
     constructor(track: { kind: string } | null) {
@@ -129,6 +132,8 @@ export class FakeConnection {
 
     removeTrack(sender: FakeSender) {
         sender.track = null;
+        const transceiver = this.transceivers.find((candidate) => candidate.sender === sender);
+        if (transceiver?.direction === "sendonly") transceiver.direction = "inactive";
     }
 
     async createOffer(options?: unknown) {

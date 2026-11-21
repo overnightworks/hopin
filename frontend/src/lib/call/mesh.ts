@@ -68,6 +68,8 @@ function negotiationOf(connection: RTCPeerConnection): Negotiation {
 
 // The transceivers that carry a screen, sent or received; the camera's changes never touch them.
 const screenTransceivers = new WeakSet<RTCRtpTransceiver>();
+// The ones this side opened to send its own screen; a share that ends leaves them inactive for the next one.
+const sentScreenTransceivers = new WeakSet<RTCRtpTransceiver>();
 
 function cameraTransceivers(connection: RTCPeerConnection) {
     return videoTransceivers(connection).filter((transceiver) => !screenTransceivers.has(transceiver));
@@ -103,8 +105,24 @@ async function sendOffer(participantId: string, connection: RTCPeerConnection, o
 
 function addScreenTransceivers(connection: RTCPeerConnection, screenStream: MediaStream) {
     for (const track of screenStream.getTracks()) {
+        const idle = connection
+            .getTransceivers()
+            .find(
+                (transceiver) =>
+                    sentScreenTransceivers.has(transceiver) &&
+                    !transceiver.sender.track &&
+                    transceiver.receiver.track.kind === track.kind,
+            );
+        if (idle) {
+            idle.direction = "sendonly";
+            idle.sender.setStreams(screenStream);
+            void idle.sender.replaceTrack(track).catch(reportError);
+            continue;
+        }
         // A transceiver of its own: addTrack would hand the track to an idle camera transceiver.
-        screenTransceivers.add(connection.addTransceiver(track, { direction: "sendonly", streams: [screenStream] }));
+        const transceiver = connection.addTransceiver(track, { direction: "sendonly", streams: [screenStream] });
+        screenTransceivers.add(transceiver);
+        sentScreenTransceivers.add(transceiver);
     }
 }
 

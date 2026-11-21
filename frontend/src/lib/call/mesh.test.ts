@@ -637,6 +637,22 @@ describe("changing the local media on every connection", () => {
         ]);
     });
 
+    it("reuses the idle screen transceivers for the next share so a call carries one screen line per kind", async () => {
+        const mesh = await freshMesh();
+        const [connection] = await meetPeer(mesh, "p1");
+        const first = streamWith("video", "audio");
+        mesh.addScreenToPeers(first);
+        mesh.removeScreenFromPeers(first);
+        const second = streamWith("video", "audio");
+
+        mesh.addScreenToPeers(second);
+
+        expect(connection?.transceivers.map((transceiver) => transceiver.direction)).toEqual(["sendonly", "sendonly"]);
+        expect(connection?.transceivers.slice(-2).map((transceiver) => transceiver.sender.track)).toEqual(
+            second.getTracks(),
+        );
+    });
+
     it("leaves a connection alone that does not carry the screen", async () => {
         const mesh = await freshMesh();
         const [connection] = await meetPeer(mesh, "p1");
