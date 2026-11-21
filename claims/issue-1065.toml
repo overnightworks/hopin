@@ -1,8 +1,0 @@
-claim_id = "b536bd7707ee4a2abb136659bd14813a"
-agent = "Claude 64069d28-405a-48bf-abe7-c297ffa56fef"
-role = "builder"
-base = "0de5bdc8f6cf2cf4a8209d62f38604a1e75bbc3a"
-branch = "claude/issue-1065-sentence-one-sound"
-scope = ["docs/call.md", "frontend/src/lib/features/participation", "tests/e2e/participation/test_agent_held.py", "tests/e2e/participation/test_agent_speaks.py", "tests/e2e/support/speaker.py"]
-opened_commit = "192c67ae5a91b867890f3434bfacdc2dd03b7502"
-whole_reason = "The player that joins a sentence's chunks, its rule and its e2e proof change together."
