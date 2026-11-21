@@ -323,6 +323,11 @@ class TestTheVerdicts:
         assert outcome == Refused(GameRefusal.UNAVAILABLE)
         assert [log["reason"] for log in logs if log["event"] == TURN_ENDED] == ["malformed_verdicts"]
 
+    async def test_the_verdict_tool_acknowledges_the_hand_in_without_an_error(self):
+        outcome = await VERDICT_TOOL.handler(Principal(iss="https://issuer.example", sub="sub"), {})
+
+        assert not outcome.is_error
+
     async def test_a_second_call_of_the_verdict_tool_is_malformed(self, world):
         starter, _ = world.starter()
         world.backend.answer_next(Succeeds("Sam hat recht.", verdicts=correct(1), verdict_calls=2))

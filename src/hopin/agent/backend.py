@@ -115,9 +115,11 @@ def gateway_backend(settings: AgentSettings) -> QuizBackend:
 class QuizStarter(Protocol):
     """Who a run is for and in which language; the game's starter is the `StarterPerson` of a signed-in seat."""
 
-    async def language_of(self, starter: HTTPConnection) -> str: ...
+    async def language_of(self, starter: HTTPConnection) -> str:
+        """The language tag the run's lines are written in."""
 
-    async def person_of(self, starter: HTTPConnection) -> TurnPerson: ...
+    async def person_of(self, starter: HTTPConnection) -> TurnPerson:
+        """Who the run acts for."""
 
 
 class StarterRefusedError(Exception):
