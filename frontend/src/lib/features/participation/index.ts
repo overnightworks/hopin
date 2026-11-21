@@ -119,6 +119,13 @@ export async function installWith(
                                   core.send({ type: PARTICIPATION_SIGNAL.AGENT_HEARING, agent_id: frame.agent_id, on });
                               },
                           },
+                listening: {
+                    on: !voices.isMuted(frame.agent_id),
+                    onChange: (on: boolean) => {
+                        voices.setMuted(frame.agent_id, !on);
+                        draw(shown.get(frame.agent_id) as ShownAgent);
+                    },
+                },
                 seeing:
                     seeing === undefined
                         ? undefined

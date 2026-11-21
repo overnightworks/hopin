@@ -402,7 +402,11 @@ describe("an agent tile's chips in a component", () => {
         document.body.innerHTML = "";
     });
 
-    const chips = [{ switch: "hearing" as const }, { switch: "seeing" as const }];
+    const chips = [
+        { switch: "hearing" as const, expected: [true, false] },
+        { switch: "listening" as const, expected: [true, false] },
+        { switch: "seeing" as const, expected: [true, false] },
+    ];
 
     async function chipOf(chip: (typeof chips)[number], figure: string | undefined) {
         showAgentTile(
@@ -420,13 +424,29 @@ describe("an agent tile's chips in a component", () => {
     }
 
     it.each(chips)(
-        "CALL-77: makes the $switch chip compact while the tile names a figure, and not otherwise",
+        "CALL-77: makes the $switch chip compact as $expected for a tile that names a figure and one that does not",
         async (chip) => {
             const withFigure = await chipOf(chip, "/api/participation/figures/abc");
             document.body.innerHTML = "";
             const withoutFigure = await chipOf(chip, undefined);
 
-            expect([withFigure, withoutFigure]).toEqual([true, false]);
+            expect([withFigure, withoutFigure]).toEqual(chip.expected);
         },
     );
+
+    it("CALL-79: shows the listen switch on and hands a press to the tile's owner as the value it asks for", async () => {
+        const onChange = vi.fn();
+        showAgentTile({ name: "Ada", activity: "present", listening: { on: true, onChange } } as never, "agent-a1");
+        const component = mount(Tiles, { target: document.body });
+        await vi.waitFor(() => {
+            expect(document.querySelector(".hear-set [role=switch]")).not.toBeNull();
+        });
+        flushSync();
+        const listen = document.querySelector(".hear-set [role=switch]") as HTMLButtonElement;
+
+        listen.click();
+
+        expect([listen.getAttribute("aria-checked"), onChange.mock.calls]).toEqual(["true", [[false]]]);
+        void unmount(component);
+    });
 });

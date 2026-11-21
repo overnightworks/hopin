@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { AGENT_ACTIVITY } from "#lib/call/feature-port.ts";
+import { AGENT_ACTIVITY, type AgentTile } from "#lib/call/feature-port.ts";
 import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { installedParticipation, joined, tileActivities } from "./page.fixture.ts";
 import type { FakeSound } from "./player.fixture.ts";
@@ -350,5 +350,72 @@ describe("an agent's voice", () => {
         page.seat(false, SIGNAL_TYPE.EXISTING_PARTICIPANTS);
 
         expect(page.players.created.map((player) => player.closed)).toEqual([true]);
+    });
+});
+
+describe("an agent's listen switch", () => {
+    const voiceOf = (agentId: string, voiceId: string) => ({ agent_id: agentId, voice_id: voiceId });
+
+    async function pageWithAgents(...agentIds: string[]) {
+        const page = await installedParticipation();
+        page.seat(false);
+        for (const agentId of agentIds) page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", agentId));
+        return page;
+    }
+
+    const listeningOf = (page: { tiles: Map<string, AgentTile> }) =>
+        [...page.tiles.values()].map((tile) => tile.listening?.on);
+
+    it("CALL-79: shows the switch on for every agent's tile, whoever sponsors it, and sends nothing for a press", async () => {
+        const page = await pageWithAgents("a1", "a2");
+        const before = listeningOf(page);
+
+        [...page.tiles.values()][0]?.listening?.onChange(false);
+
+        expect([before, listeningOf(page), page.sent]).toEqual([[true, true], [false, true], []]);
+    });
+
+    it("CALL-79: ends the agent's playing sound and plays none of its later ones while the switch is off, and plays from the next sentence once it is on", async () => {
+        const page = await pageWithAgents("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
+        await page.players.created[0]?.sounds[0]?.start();
+        const tile = () => [...page.tiles.values()][0];
+
+        tile()?.listening?.onChange(false);
+        await Promise.resolve();
+        await Promise.resolve();
+        const whileOff = [tileActivities(page), page.players.created[0]?.muted];
+        tile()?.listening?.onChange(true);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "second"));
+        await page.players.created[0]?.sounds[1]?.start();
+
+        expect([whileOff, page.players.created[0]?.muted, tileActivities(page)]).toEqual([
+            [[AGENT_ACTIVITY.PRESENT], true],
+            false,
+            [AGENT_ACTIVITY.SPEAKING],
+        ]);
+    });
+
+    it("CALL-79: mutes one agent only", async () => {
+        const page = await pageWithAgents("a1", "a2");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a2", "second"));
+
+        [...page.tiles.values()][0]?.listening?.onChange(false);
+
+        expect([listeningOf(page), page.players.created.map((player) => player.muted)]).toEqual([
+            [false, true],
+            [true, false],
+        ]);
+    });
+
+    it("CALL-79: starts on again when the agent is announced anew to a new seat", async () => {
+        const page = await pageWithAgents("a1");
+        [...page.tiles.values()][0]?.listening?.onChange(false);
+
+        page.seat(false, SIGNAL_TYPE.EXISTING_PARTICIPANTS);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a1"));
+
+        expect(listeningOf(page)).toEqual([true]);
     });
 });

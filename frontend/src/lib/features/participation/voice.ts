@@ -14,6 +14,9 @@ export interface AgentVoices {
     resume(agentId: string): void;
     /** Ends the agent's playing sound at once and drops its waiting ones, ends a pause, and reports the agent silent; later sounds play. */
     stop(agentId: string): void;
+    /** Mutes or unmutes the agent in this browser alone: muted, its playing sound ends at once, its waiting ones and every later one never play and are not fetched, and the agent is reported silent; unmuted, the agent's next sounds play. The choice lasts until `close`. */
+    setMuted(agentId: string, muted: boolean): void;
+    isMuted(agentId: string): boolean;
     /** Closes the agent's player, which ends every sound of it, and reports nothing more for the agent. */
     close(agentId: string): void;
 }
@@ -34,11 +37,14 @@ export function createAgentVoices(
     report: (agentId: string, sentence: AgentSentence | null) => void,
 ): AgentVoices {
     const players = new Map<string, AgentPlayer>();
+    // The agents this browser muted; an agent's player is made only at its first voice, so the choice is kept here.
+    const muted = new Set<string>();
 
     function playerOf(agentId: string) {
         let held = players.get(agentId);
         if (held === undefined) {
             held = { player: createPlayer(), playing: 0, paused: false, sentence: null, reported: null };
+            held.player.setMuted(muted.has(agentId));
             players.set(agentId, held);
         }
         return held;
@@ -92,7 +98,19 @@ export function createAgentVoices(
             held.player.resume();
             held.paused = false;
         },
+        // Muting clears the player's pause, so the agent is no longer held here.
+        setMuted(agentId, isMuted) {
+            if (isMuted) muted.add(agentId);
+            else muted.delete(agentId);
+            const held = players.get(agentId);
+            if (held === undefined) return;
+            held.player.setMuted(isMuted);
+            if (isMuted) held.paused = false;
+            show(agentId, held);
+        },
+        isMuted: (agentId) => muted.has(agentId),
         close(agentId) {
+            muted.delete(agentId);
             players.get(agentId)?.player.close();
             players.delete(agentId);
         },
