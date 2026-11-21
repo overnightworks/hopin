@@ -27,6 +27,7 @@ from agents.member import (
     GESTURE_TOOL,
     INVITATION_SECONDS,
     LEASE_SECONDS,
+    SET_FRAMING_TOOL,
     STANDING_URI,
     Interrupted,
     Invitation,
@@ -105,6 +106,8 @@ MCP_GROUP: Final = "/apps/hopin/mcp"
 AGENT_GROUP: Final = "/agents"
 MCP_CLIENT_ID: Final = "agents"
 GLB_MEDIA_TYPE: Final = "model/gltf-binary"
+# The tools offered only while the principal's agent shows a figure.
+FIGURE_TOOLS: Final = frozenset({GESTURE_TOOL, SET_FRAMING_TOOL})
 OFFERS_RECOMPUTE_TASK_NAME: Final = "agent-offers-recompute"
 OFFERS_RECOMPUTE_FAILED_EVENT: Final = "agent_offers_recompute.failed"
 PLACE_SIGNAL_TASK_NAME: Final = "agent-place-signal"
@@ -236,9 +239,10 @@ class _BuiltParticipation:
     async def offered_tools(  # NOSONAR(S7503) OfferedTools is async
         self, declared: Collection[str], principal: Principal
     ) -> Collection[str]:
-        """Every declared tool, and the gesture tool only while the principal's agent shows a figure in some call."""
+        """Every declared tool, and the gesture and framing tools only while the principal's agent shows a figure in
+        some call."""
         shown = self.participation.figures.shown_by(Person(principal.iss, principal.sub))
-        return tuple(name for name in declared if name != GESTURE_TOOL or shown)
+        return tuple(name for name in declared if name not in FIGURE_TOOLS or shown)
 
     def current(self) -> Participation:
         return self.participation

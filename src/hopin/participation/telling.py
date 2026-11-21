@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
     from hopin.participation.frames import ParticipationFrame
     from hopin.participation.participants import DialedAgent
+    from hopin.participation.vocabulary import FigureFraming
     from hopin.signaling.frames import PeerId
     from hopin.signaling.transition import RoomView, Transition
 
@@ -34,9 +35,15 @@ def send_in_room(
             transition.send(peer_id, frame.to_json(), supersedes)
 
 
-def tell_joined(view: RoomView, agent: DialedAgent, peer_ids: Sequence[PeerId], transition: Transition) -> None:
-    """Tell the seats of the agent's tile."""
-    frame = joined_frame(agent, view.name_of(agent.sponsor))
+def tell_joined(
+    view: RoomView,
+    agent: DialedAgent,
+    framing: FigureFraming | None,
+    peer_ids: Sequence[PeerId],
+    transition: Transition,
+) -> None:
+    """Tell the seats of the agent's tile, with the framing its figure has taken, when it took one."""
+    frame = joined_frame(agent, view.name_of(agent.sponsor), framing)
     for peer_id in peer_ids:
         transition.send(peer_id, frame.to_json())
 

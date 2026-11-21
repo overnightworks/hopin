@@ -57,6 +57,7 @@ class ParticipationSignal(StrEnum):
     AGENT_HELD = "agent_held"
     AGENT_CONTINUED = "agent_continued"
     AGENT_GESTURE = "agent_gesture"
+    AGENT_FRAMING = "agent_framing"
     AGENT_THINKING = "agent_thinking"
     AGENT_TURN_STATE = "agent_turn_state"
     AGENT_SEEING = "agent_seeing"
@@ -101,6 +102,15 @@ class FigureGesture(StrEnum):
     """A gesture a figure makes on its tile, as a seat is told it."""
 
     WAVE = "wave"
+
+
+class FigureFraming(StrEnum):
+    """How much of itself a figure shows on its tile, as a seat is told it; the values are figure's framings."""
+
+    FACE = "face"
+    SHOULDERS = "shoulders"
+    UPPER_BODY = "upperBody"
+    FULL_BODY = "fullBody"
 
 
 class TurnOutcome(StrEnum):
@@ -281,6 +291,7 @@ BROWSER_ENUMS: dict[str, type[StrEnum | IntEnum]] = {
     "INVITATION_OUTCOME": InvitationOutcome,
     "HEARING_CLOSE": HearingClose,
     "FIGURE_GESTURE": FigureGesture,
+    "FIGURE_FRAMING": FigureFraming,
     "FIGURE_MOOD": FigureMood,
     "TURN_OUTCOME": TurnOutcome,
     "FIGURE_END": FigureEnd,

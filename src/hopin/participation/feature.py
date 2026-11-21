@@ -183,7 +183,7 @@ class Participation(TransitionFeature):
         self._places.put(agent.person, agent.room_id, agent)
         self._hearing.joined(agent, brought_by_sponsor=brought_by_sponsor)
         self._on_changed(agent.person)
-        tell_joined(view, agent, view.members, transition)
+        tell_joined(view, agent, self.figures.framing_of(agent), view.members, transition)
         self._switches.tell(agent, transition)
 
     async def leave(self, person: Person, room_id: str) -> AgentRefusal | None:
@@ -456,7 +456,7 @@ class Participation(TransitionFeature):
             return
         self._seat_views.joined(peer_id, view.room_id)
         for agent in [agent for agent in self._places.joined() if agent.room_id == view.room_id]:
-            tell_joined(view, agent, [peer_id], transition)
+            tell_joined(view, agent, self.figures.framing_of(agent), [peer_id], transition)
             self.figures.tell_turn_state(agent, peer_id, transition)
             self._agent_speech.tell_held(view, transition, agent, peer_id)
         self._offer(view, transition)
