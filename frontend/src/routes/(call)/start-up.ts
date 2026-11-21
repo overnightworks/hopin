@@ -56,11 +56,18 @@ import { readAccount } from "#lib/ui/account.svelte.ts";
 import { installStartRequested, showGreeting } from "#lib/ui/home.svelte.ts";
 import { TOAST_KIND, clearToast, showToast } from "#lib/ui/toast.svelte.ts";
 import { PREJOIN_KIND, installPrejoinStart, openPrejoin } from "#lib/ui/prejoin.svelte.ts";
-import { callUrl, getRoomIdFromUrl, goThroughSignIn, showCallAddress } from "#lib/ui/navigation.ts";
+import {
+    callUrl,
+    getRoomIdFromUrl,
+    getStartLinkFromUrl,
+    goThroughSignIn,
+    showCallAddress,
+} from "#lib/ui/navigation.ts";
 import { SCREEN, showScreen } from "#lib/ui/screens.svelte.ts";
 import { words } from "#lib/words.ts";
 
 const callEndedHooks: (() => void)[] = [];
+const START_LINK = getStartLinkFromUrl();
 // What a feature's browser module may reach; its `install` gets it before signaling connects.
 const FEATURE_CORE: FeatureCore<never> = Object.freeze({
     on: onFeatureFrame,
@@ -86,6 +93,7 @@ const FEATURE_CORE: FeatureCore<never> = Object.freeze({
     onCallEnded: (hook: () => void) => {
         callEndedHooks.push(hook);
     },
+    startLink: START_LINK,
 });
 // Signaling drops a frame no handler takes for good, so every feature is installed before it connects.
 // A feature that fails to load never stops the call; it resolves to whether every feature is in.
@@ -263,6 +271,8 @@ export function startUp() {
 
     if (getRoomIdFromUrl()) {
         openPrejoin(PREJOIN_KIND.GUEST);
+    } else if (START_LINK) {
+        openPrejoin(PREJOIN_KIND.HOST);
     } else {
         showScreen(SCREEN.HOME);
     }

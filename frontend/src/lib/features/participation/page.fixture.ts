@@ -100,6 +100,7 @@ export async function installedParticipation(installOn?: typeof install) {
         onCallEnded: (hook) => {
             callEndedHooks.push(hook);
         },
+        startLink: null,
     };
     await (installOn ?? ((on) => installWith(on, players.createPlayer)))(core);
     // What the page draws follows its state at the next flush.
