@@ -15,7 +15,7 @@ import {
     SIGNAL_TYPE,
 } from "#lib/wire.ts";
 import { type MonitoredConnection, monitorSpeaking } from "#lib/call/speaking.ts";
-import { addRemoteTile, removeRemoteTile, showRemoteStream } from "#lib/call/stage-port.ts";
+import { addRemoteTile, removeRemoteTile, showRemoteScreen, showRemoteStream } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
 
 let rtcConfiguration: RTCConfiguration = { iceServers: [] };
@@ -47,6 +47,33 @@ interface SignalingQueue {
     tail: Promise<unknown>;
 }
 
+// Perfect negotiation: either side may offer once the first exchange is done. The person who joined offers first and
+// is impolite; the one already there is polite and gives way when both offer at once.
+interface Negotiation {
+    readonly polite: boolean;
+    makingOffer: boolean;
+    ignoringOffer: boolean;
+    // Tracks added before the first exchange ride in it; only a change after it needs a new offer.
+    settled: boolean;
+    // The first stream a person sends carries their camera and microphone, any later one their screen.
+    cameraStreamId: string | null;
+}
+
+const negotiations = new WeakMap<RTCPeerConnection, Negotiation>();
+
+function negotiationOf(connection: RTCPeerConnection): Negotiation {
+    const negotiation = negotiations.get(connection);
+    if (!negotiation) throw new Error("The connection has no negotiation");
+    return negotiation;
+}
+
+// The transceivers that carry a screen, sent or received; the camera's changes never touch them.
+const screenTransceivers = new WeakSet<RTCRtpTransceiver>();
+
+function cameraTransceivers(connection: RTCPeerConnection) {
+    return videoTransceivers(connection).filter((transceiver) => !screenTransceivers.has(transceiver));
+}
+
 const connectionsByParticipant = new Map<string, RTCPeerConnection>();
 const remoteSignalingByParticipant = new Map<string, SignalingQueue>();
 let peersChanged = () => {};
@@ -60,13 +87,26 @@ export function peerCount() {
 }
 
 async function sendOffer(participantId: string, connection: RTCPeerConnection, options?: RTCOfferOptions) {
-    const offer = await connection.createOffer(options);
-    await connection.setLocalDescription(offer);
-    send({
-        type: SIGNAL_TYPE.OFFER,
-        target: participantId,
-        sdp: connection.localDescription,
-    });
+    const negotiation = negotiationOf(connection);
+    negotiation.makingOffer = true;
+    try {
+        const offer = await connection.createOffer(options);
+        await connection.setLocalDescription(offer);
+        send({
+            type: SIGNAL_TYPE.OFFER,
+            target: participantId,
+            sdp: connection.localDescription,
+        });
+    } finally {
+        negotiation.makingOffer = false;
+    }
+}
+
+function addScreenTransceivers(connection: RTCPeerConnection, screenStream: MediaStream) {
+    for (const track of screenStream.getTracks()) {
+        // A transceiver of its own: addTrack would hand the track to an idle camera transceiver.
+        screenTransceivers.add(connection.addTransceiver(track, { direction: "sendonly", streams: [screenStream] }));
+    }
 }
 
 function capUploads() {
@@ -75,6 +115,14 @@ function capUploads() {
 
 async function createPeerConnection(participantId: string, initiator: boolean) {
     const connection = new RTCPeerConnection(rtcConfiguration);
+    const negotiation: Negotiation = {
+        polite: !initiator,
+        makingOffer: false,
+        ignoringOffer: false,
+        settled: false,
+        cameraStreamId: null,
+    };
+    negotiations.set(connection, negotiation);
     connectionsByParticipant.set(participantId, connection);
     // Negotiated, so both sides make it with the connection before the first offer is made or applied.
     lines.addPeer(
@@ -95,6 +143,7 @@ async function createPeerConnection(participantId: string, initiator: boolean) {
             connection.addTransceiver("video", { direction: "sendrecv", streams: [state.localStream] });
         }
     }
+    if (state.screenStream) addScreenTransceivers(connection, state.screenStream);
 
     void capUploads();
     addRemoteTile(participantId);
@@ -102,7 +151,22 @@ async function createPeerConnection(participantId: string, initiator: boolean) {
 
     connection.ontrack = (event) => {
         const [stream] = event.streams;
-        if (stream) showRemoteStream(participantId, stream);
+        if (!stream) return;
+        negotiation.cameraStreamId ??= stream.id;
+        if (stream.id === negotiation.cameraStreamId) {
+            showRemoteStream(participantId, stream);
+            return;
+        }
+        screenTransceivers.add(event.transceiver);
+        showRemoteScreen(participantId, stream);
+        // The stream loses its tracks when the sender stops the share.
+        stream.addEventListener("removetrack", () => {
+            if (stream.getTracks().length === 0) showRemoteScreen(participantId, null);
+        });
+    };
+
+    connection.onnegotiationneeded = () => {
+        if (negotiation.settled) void sendOffer(participantId, connection).catch(reportError);
     };
 
     connection.onicecandidate = (event) => {
@@ -117,6 +181,7 @@ async function createPeerConnection(participantId: string, initiator: boolean) {
 
     if (initiator) {
         await sendOffer(participantId, connection);
+        negotiation.settled = true;
         watchIceConnection(connection, () => sendOffer(participantId, connection, { iceRestart: true }));
     }
 
@@ -139,6 +204,7 @@ function applyInArrivalOrder(participantId: string, step: () => Promise<void>) {
         .catch(reportError);
 }
 
+// Only the first answer hands the camera over: a later offer's receive-only video is a screen being sent to us.
 async function sendLocalVideoInAnswer(connection: RTCPeerConnection) {
     if (!state.localStream) return;
     const [videoTrack = null] = state.localStream.getVideoTracks();
@@ -158,11 +224,17 @@ function isClosed(connection: RTCPeerConnection) {
 
 async function answerOffer(data: OfferRelayFrame) {
     const connection = connectionsByParticipant.get(data.from) ?? (await createPeerConnection(data.from, false));
+    const negotiation = negotiationOf(connection);
+    const collision = negotiation.makingOffer || connection.signalingState !== "stable";
+    negotiation.ignoringOffer = !negotiation.polite && collision;
+    if (negotiation.ignoringOffer) return;
     await connection.setRemoteDescription(new RTCSessionDescription(data.sdp as RTCSessionDescriptionInit));
-    await sendLocalVideoInAnswer(connection);
+    if (!negotiation.settled) await sendLocalVideoInAnswer(connection);
     if (isClosed(connection)) return;
     const answer = await connection.createAnswer();
     if (isClosed(connection)) return;
+    // Set before the answer ends the exchange: the change that waited for it offers as soon as the state is stable.
+    negotiation.settled = true;
     await connection.setLocalDescription(answer);
     send({
         type: SIGNAL_TYPE.ANSWER,
@@ -180,8 +252,12 @@ async function applyAnswer(data: AnswerRelayFrame) {
 
 async function applyIceCandidate(data: IceCandidateRelayFrame) {
     const connection = connectionsByParticipant.get(data.from);
-    if (connection && data.candidate) {
+    if (!connection || !data.candidate) return;
+    try {
         await connection.addIceCandidate(new RTCIceCandidate(data.candidate));
+    } catch (error) {
+        // A candidate of an offer that was ignored has nothing to attach to.
+        if (!negotiationOf(connection).ignoringOffer) throw error;
     }
 }
 
@@ -201,21 +277,23 @@ export function removeAllPeers() {
     }
 }
 
-export function addTrackToPeers(track: MediaStreamTrack, stream: MediaStream) {
+export function addScreenToPeers(screenStream: MediaStream) {
     for (const connection of connectionsByParticipant.values()) {
-        connection.addTrack(track, stream);
+        addScreenTransceivers(connection, screenStream);
     }
 }
 
-export function removeTrackFromPeers(track: MediaStreamTrack) {
+export function removeScreenFromPeers(screenStream: MediaStream) {
+    const tracks = screenStream.getTracks();
     for (const connection of connectionsByParticipant.values()) {
-        const sender = connection.getSenders().find((candidate) => candidate.track === track);
-        if (sender) connection.removeTrack(sender);
+        for (const sender of connection.getSenders()) {
+            if (sender.track && tracks.includes(sender.track)) connection.removeTrack(sender);
+        }
     }
 }
 
 export async function replaceVideoTrackOnPeers(newTrack: MediaStreamTrack | null) {
-    const transceivers = [...connectionsByParticipant.values()].flatMap(videoTransceivers);
+    const transceivers = [...connectionsByParticipant.values()].flatMap(cameraTransceivers);
     await Promise.all(transceivers.map((transceiver) => transceiver.sender.replaceTrack(newTrack)));
     await capUploads();
 }

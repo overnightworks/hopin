@@ -32,9 +32,12 @@ export interface FakeTransceiver {
 export class FakeConnection {
     static readonly instances: FakeConnection[] = [];
     private static offerGate: Promise<void> | null = null;
+    /** The transceivers the browser makes for the media sections of the next offer that is applied. */
+    static readonly incoming: FakeTransceiver[] = [];
     /** Forget every connection made and release the hold on offers. */
     static reset() {
         FakeConnection.instances.length = 0;
+        FakeConnection.incoming.length = 0;
         FakeConnection.offerGate = null;
     }
 
@@ -55,7 +58,8 @@ export class FakeConnection {
     candidates: unknown[] = [];
     transceivers: FakeTransceiver[] = [];
     offerOptions: unknown[] = [];
-    ontrack: ((event: { streams: unknown[] }) => void) | null = null;
+    ontrack: ((event: { streams: unknown[]; transceiver?: unknown }) => void) | null = null;
+    onnegotiationneeded: (() => void) | null = null;
     onicecandidate: ((event: { candidate: unknown }) => void) | null = null;
     closeAfterRemoteDescription = false;
     closeAfterAnswer = false;
@@ -94,12 +98,15 @@ export class FakeConnection {
         });
     }
 
-    addTransceiver(kind: string, init: { direction: string }) {
-        this.transceivers.push({
+    addTransceiver(kindOrTrack: string | { kind: string }, init: { direction: string }) {
+        const track = typeof kindOrTrack === "string" ? null : kindOrTrack;
+        const transceiver = {
             direction: init.direction,
-            receiver: { track: { kind } },
-            sender: new FakeSender(null),
-        });
+            receiver: { track: { kind: track?.kind ?? (kindOrTrack as string) } },
+            sender: new FakeSender(track),
+        };
+        this.transceivers.push(transceiver);
+        return transceiver;
     }
 
     getTransceivers() {
@@ -147,8 +154,10 @@ export class FakeConnection {
         this.steps.push("remote description");
         this.remoteDescriptions.push(description);
         if (this.closeAfterRemoteDescription) this.signalingState = "closed";
-        else if ((description as Frame).type === "offer") this.signalingState = "have-remote-offer";
-        else this.signalingState = "stable";
+        else if (((description as FakeDescription).init as Frame | undefined)?.type === "offer") {
+            this.signalingState = "have-remote-offer";
+            this.transceivers.push(...FakeConnection.incoming.splice(0));
+        } else this.signalingState = "stable";
         return Promise.resolve();
     }
 

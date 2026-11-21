@@ -6,10 +6,9 @@ const DATA_URL_PREFIX = "data:image/jpeg;base64,";
 const BYTES_PER_BASE64_GROUP = 3;
 const CHARACTERS_PER_BASE64_GROUP = 4;
 
-// The person's own camera track while they are in a call with the camera on: never the screen share's, which replaces
-// the camera's track in the local stream while it runs.
+// The person's own camera track while they are in a call with the camera on.
 function liveCamera(): MediaStreamTrack | null {
-    if (!state.inCall || !state.videoEnabled || state.screenStream !== null) return null;
+    if (!state.inCall || !state.videoEnabled) return null;
     const track = state.localStream?.getVideoTracks()[0];
     return track !== undefined && track.enabled && track.readyState === "live" ? track : null;
 }

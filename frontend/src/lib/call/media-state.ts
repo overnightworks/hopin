@@ -5,13 +5,9 @@ import { SIGNAL_TYPE } from "#lib/wire.ts";
 import { setRemoteMediaState } from "#lib/call/stage-port.ts";
 import { state } from "#lib/call/state.ts";
 
-function showsOwnVideo() {
-    return state.screenStream !== null || state.videoEnabled;
-}
-
 export function announceMediaState() {
     if (!isConnected()) return;
-    send({ type: SIGNAL_TYPE.MEDIA_STATE, audio: state.audioEnabled, video: showsOwnVideo() });
+    send({ type: SIGNAL_TYPE.MEDIA_STATE, audio: state.audioEnabled, video: state.videoEnabled });
 }
 
 export function registerMediaStateHandlers() {

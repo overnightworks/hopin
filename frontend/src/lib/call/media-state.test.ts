@@ -52,7 +52,8 @@ describe("announcing the own media state", () => {
     it.each([
         ["camera on", { videoEnabled: true, shares: false }, true],
         ["camera off", { videoEnabled: false, shares: false }, false],
-        ["camera off and sharing the screen", { videoEnabled: false, shares: true }, true],
+        ["camera off and sharing the screen", { videoEnabled: false, shares: true }, false],
+        ["camera on and sharing the screen", { videoEnabled: true, shares: true }, true],
     ])("sends video for %s", async (_name, { videoEnabled, shares }, video) => {
         const { announceMediaState, state } = await freshMediaState();
         state.videoEnabled = videoEnabled;

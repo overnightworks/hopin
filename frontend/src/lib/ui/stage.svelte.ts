@@ -21,17 +21,14 @@ import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 export const ownPicture = $state<{
     stream: MediaStream | null;
     delivery: number;
-    mirrored: boolean;
     showsVideo: boolean;
     muted: boolean;
-}>({ stream: null, delivery: 0, mirrored: true, showsVideo: true, muted: false });
+}>({ stream: null, delivery: 0, showsVideo: true, muted: false });
 
-// The call state is read when these run, not reactively: the mirror follows a screen share only at the next stream.
 export function showLocalStream(stream: MediaStream | null) {
     ownPicture.stream = stream;
     // The same stream arrives again after a track swap; the counter is what makes the video take it again.
     ownPicture.delivery += 1;
-    ownPicture.mirrored = !state.screenStream;
 }
 
 export function updateLocalPreview() {
@@ -52,6 +49,15 @@ export interface RemoteTile {
 
 // In join order: appended on add, spliced on remove, never sorted.
 export const remoteTiles = $state<RemoteTile[]>([]);
+
+export interface ScreenShare {
+    readonly participantId: string;
+    readonly name: string;
+    streamDelivery: number;
+}
+
+// The screens being shared, each a tile of its own beside the sharer's camera tile.
+export const screenShares = $state<ScreenShare[]>([]);
 
 // The agents' tiles come from the features that own the agents; an agent is no person, so it has no stream and no place in the call. They stay in the order they were shown.
 export const agentTiles = new SvelteMap<string, AgentTile>();
@@ -226,6 +232,8 @@ const speakingByParticipant = new SvelteMap<string, boolean>();
 // eslint-disable-next-line svelte/prefer-svelte-reactivity -- deliberately not reactive
 const remoteStreams = new Map<string, MediaStream>();
 // eslint-disable-next-line svelte/prefer-svelte-reactivity -- deliberately not reactive
+const screenStreams = new Map<string, MediaStream>();
+// eslint-disable-next-line svelte/prefer-svelte-reactivity -- deliberately not reactive
 const remoteQualities = new Map<string, ConnectionQuality>();
 // eslint-disable-next-line svelte/prefer-svelte-reactivity -- deliberately not reactive
 const remoteVideos = new Map<string, HTMLVideoElement>();
@@ -255,6 +263,10 @@ function createTile(participantId: string): RemoteTile {
 
 export function remoteStreamOf(participantId: string) {
     return remoteStreams.get(participantId);
+}
+
+export function screenStreamOf(participantId: string) {
+    return screenStreams.get(participantId);
 }
 
 export function remoteQualityOf(participantId: string) {
@@ -299,6 +311,7 @@ export function removeRemoteTile(participantId: string) {
     speakingByParticipant.delete(participantId);
     remoteStreams.delete(participantId);
     remoteQualities.delete(participantId);
+    showRemoteScreen(participantId, null);
     const index = remoteTiles.findIndex((tile) => tile.id === participantId);
     if (index === -1) return false;
     remoteTiles.splice(index, 1);
@@ -311,6 +324,28 @@ export function showRemoteStream(participantId: string, stream: MediaStream) {
     if (!tile) return;
     remoteStreams.set(participantId, stream);
     tile.streamDelivery += 1;
+}
+
+export function showRemoteScreen(participantId: string, stream: MediaStream | null) {
+    const index = screenShares.findIndex((share) => share.participantId === participantId);
+    if (stream === null) {
+        screenStreams.delete(participantId);
+        if (index !== -1) screenShares.splice(index, 1);
+        return;
+    }
+    screenStreams.set(participantId, stream);
+    if (index === -1) {
+        screenShares.push({
+            participantId,
+            get name() {
+                return findTile(participantId)?.name ?? "";
+            },
+            streamDelivery: 1,
+        });
+    } else {
+        const share = screenShares[index];
+        if (share) share.streamDelivery += 1;
+    }
 }
 
 export function showRemoteName(participantId: string) {

@@ -17,35 +17,16 @@ describe("own picture", () => {
     it("starts as the layout's markup shows it", async () => {
         const { ownPicture } = await freshStage();
 
-        expect(ownPicture).toEqual({ stream: null, delivery: 0, mirrored: true, showsVideo: true, muted: false });
+        expect(ownPicture).toEqual({ stream: null, delivery: 0, showsVideo: true, muted: false });
     });
 
-    it("holds the stream and mirrors it when no screen is shared", async () => {
+    it("holds the stream", async () => {
         const { ownPicture, showLocalStream } = await freshStage();
         const stream = someStream();
 
         showLocalStream(stream);
 
         expect(ownPicture.stream).toBe(stream);
-        expect(ownPicture.mirrored).toBe(true);
-    });
-
-    it("does not mirror the stream while a screen is shared", async () => {
-        const { ownPicture, showLocalStream, state } = await freshStage();
-        state.screenStream = someStream();
-
-        showLocalStream(someStream());
-
-        expect(ownPicture.mirrored).toBe(false);
-    });
-
-    it("keeps the mirror it set until the next stream arrives", async () => {
-        const { ownPicture, showLocalStream, state } = await freshStage();
-        showLocalStream(someStream());
-
-        state.screenStream = someStream();
-
-        expect(ownPicture.mirrored).toBe(true);
     });
 
     it("counts a delivery for the same stream again", async () => {

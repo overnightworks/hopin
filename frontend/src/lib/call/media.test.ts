@@ -15,17 +15,17 @@ vi.mock("#lib/call/signaling.ts", () => ({
 }));
 
 const peers = vi.hoisted(() => ({
-    added: [] as { track: unknown; stream: unknown }[],
+    added: [] as unknown[],
     removed: [] as unknown[],
     replaced: [] as unknown[],
 }));
 
 vi.mock("#lib/call/mesh.ts", () => ({
-    addTrackToPeers: (track: unknown, stream: unknown) => {
-        peers.added.push({ track, stream });
+    addScreenToPeers: (stream: unknown) => {
+        peers.added.push(stream);
     },
-    removeTrackFromPeers: (track: unknown) => {
-        peers.removed.push(track);
+    removeScreenFromPeers: (stream: unknown) => {
+        peers.removed.push(stream);
     },
     replaceVideoTrackOnPeers: (track: unknown) => {
         peers.replaced.push(track);
@@ -310,17 +310,20 @@ describe("turning the camera on", () => {
         expect(fresh.state.videoEnabled).toBe(true);
     });
 
-    it("only records the choice during a share", async () => {
+    it("opens the camera during a share and leaves the share alone", async () => {
         const fresh = await freshMedia();
-        await sharing(fresh, "video");
+        const { screen } = await sharing(fresh, "video");
         fresh.state.videoEnabled = false;
 
-        await fresh.addCamera();
+        const adding = fresh.addCamera();
+        const camera = streamOf("video");
+        requests[0]?.resolve(camera);
+        await adding;
 
-        expect(requests).toEqual([]);
         expect(fresh.state.videoEnabled).toBe(true);
-        expect(peers.replaced).toEqual([]);
-        expect(mediaStates()).toHaveLength(1);
+        expect(fresh.state.localStream?.getVideoTracks()).toEqual([camera.tracks[0]]);
+        expect(fresh.state.screenStream).toBe(screen);
+        expect(screen.tracks[0]?.stopped).toBe(false);
     });
 
     it("throws a CameraError carrying the cause's name and message when the request fails", async () => {
@@ -412,55 +415,30 @@ describe("turning the camera off", () => {
         expect(fresh.state.videoEnabled).toBe(false);
         expect(fresh.state.screenStream).toBe(screen);
         expect(screen.tracks[0]?.stopped).toBe(false);
-        expect(peers.replaced).toEqual([]);
-        expect(mediaStates()).toEqual([{ type: SIGNAL_TYPE.MEDIA_STATE, audio: true, video: true }]);
+        expect(peers.replaced).toEqual([null]);
+        expect(mediaStates()).toEqual([{ type: SIGNAL_TYPE.MEDIA_STATE, audio: true, video: false }]);
     });
 });
 
 describe("sharing the screen", () => {
-    it("replaces the camera track with the screen's, stops the camera and ends through the callback", async () => {
+    it("sends the screen beside the camera, leaves the camera untouched and ends through the callback", async () => {
         const fresh = await freshMedia();
         const own = await startedCall(fresh);
         const cameraTrack = own.getVideoTracks()[0];
         const onEnded = vi.fn();
         const starting = fresh.toggleScreenShare(onEnded);
         expect(requests.map((request) => request.constraints)).toEqual([{ video: true, audio: true }]);
-        const screen = streamOf("video");
+        const screen = streamOf("video", "audio");
         requests[0]?.resolve(screen);
         await starting;
 
         expect(fresh.state.screenStream).toBe(screen);
-        expect(own.getVideoTracks()).toEqual([screen.tracks[0]]);
-        expect(cameraTrack?.stopped).toBe(true);
-        expect(peers.replaced).toEqual([screen.tracks[0]]);
-        expect(peers.added).toEqual([]);
-        expect(mediaStates()).toEqual([{ type: SIGNAL_TYPE.MEDIA_STATE, audio: true, video: true }]);
+        expect(peers.added).toEqual([screen]);
+        expect(own.getVideoTracks()).toEqual([cameraTrack]);
+        expect(cameraTrack?.stopped).toBe(false);
+        expect(peers.replaced).toEqual([]);
         screen.tracks[0]?.onended?.();
         expect(onEnded).toHaveBeenCalledOnce();
-    });
-
-    it("hands the screen's audio to the peers under the screen's stream", async () => {
-        const fresh = await freshMedia();
-        const { screen } = await sharing(fresh, "video", "audio");
-
-        expect(peers.added).toEqual([{ track: screen.tracks[1], stream: screen }]);
-    });
-
-    it("overtakes a pending camera request", async () => {
-        const fresh = await freshMedia();
-        await startedCall(fresh);
-        fresh.releaseCamera();
-        const adding = fresh.addCamera();
-        const sharingNow = fresh.toggleScreenShare(vi.fn());
-        const screen = streamOf("video");
-        const lateCamera = streamOf("video");
-        requests[1]?.resolve(screen);
-        await sharingNow;
-        requests[0]?.resolve(lateCamera);
-        await adding;
-
-        expect(lateCamera.tracks[0]?.stopped).toBe(true);
-        expect(fresh.state.localStream?.getVideoTracks()).toEqual([screen.tracks[0]]);
     });
 
     it("stops a screen that arrives after the media ended", async () => {
@@ -520,49 +498,33 @@ describe("sharing the screen", () => {
 });
 
 describe("stopping the share", () => {
-    it("sends no video and removes the screen's audio when the camera is off", async () => {
+    it("takes the screen from the peers and stops it, leaving the camera as it is", async () => {
         const fresh = await freshMedia();
-        const { screen } = await sharing(fresh, "video", "audio");
-        fresh.state.videoEnabled = false;
+        const { own, screen } = await sharing(fresh, "video", "audio");
+        const cameraTrack = own.getVideoTracks()[0];
 
         await fresh.toggleScreenShare(vi.fn());
 
-        expect(peers.removed).toEqual([screen.tracks[1]]);
+        expect(peers.removed).toEqual([screen]);
         expect(screen.tracks.every((candidate) => candidate.stopped)).toBe(true);
         expect(fresh.state.screenStream).toBeNull();
-        expect(peers.replaced).toEqual([null]);
-        expect(mediaStates()).toEqual([{ type: SIGNAL_TYPE.MEDIA_STATE, audio: true, video: false }]);
+        expect(requests).toEqual([]);
+        expect(own.getVideoTracks()).toEqual([cameraTrack]);
+        expect(cameraTrack?.stopped).toBe(false);
+        expect(peers.replaced).toEqual([]);
     });
 
-    it("opens the camera again and replaces the screen's track when the camera is on", async () => {
-        const fresh = await freshMedia();
-        const { own, screen } = await sharing(fresh, "video");
-
-        const stopping = fresh.toggleScreenShare(vi.fn());
-        expect(requests.map((request) => request.constraints)).toEqual([{ video: true }]);
-        const camera = streamOf("video");
-        requests[0]?.resolve(camera);
-        await stopping;
-
-        expect(peers.removed).toEqual([]);
-        expect(screen.tracks[0]?.stopped).toBe(true);
-        expect(own.getVideoTracks()).toEqual([camera.tracks[0]]);
-        expect(peers.replaced).toEqual([camera.tracks[0]]);
-        expect(mediaStates()).toEqual([{ type: SIGNAL_TYPE.MEDIA_STATE, audio: true, video: true }]);
-    });
-
-    it("turns the camera off, sends no video and throws on when the camera cannot reopen", async () => {
+    it("leaves a camera that is off off", async () => {
         const fresh = await freshMedia();
         await sharing(fresh, "video");
+        fresh.releaseCamera();
+        peers.replaced.length = 0;
 
-        const stopping = fresh.toggleScreenShare(vi.fn());
-        requests[0]?.reject(rejection("NotReadableError"));
+        await fresh.toggleScreenShare(vi.fn());
 
-        await expect(stopping).rejects.toBeInstanceOf(fresh.CameraError);
+        expect(requests).toEqual([]);
         expect(fresh.state.videoEnabled).toBe(false);
-        expect(peers.replaced).toEqual([null]);
-        expect(fresh.stage.updateLocalPreview).toHaveBeenCalledOnce();
-        expect(mediaStates()).toEqual([{ type: SIGNAL_TYPE.MEDIA_STATE, audio: true, video: false }]);
+        expect(peers.replaced).toEqual([]);
     });
 });
 
