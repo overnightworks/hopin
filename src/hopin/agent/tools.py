@@ -523,8 +523,8 @@ def participation_tools(participation: Callable[[], Participation], voice: Agent
     an agent's sentences, none while speaking is off."""
 
     async def join_call(caller: Caller, arguments: JsonObject) -> ToolOutcome:
-        outcome = await participation().dial_in(caller.person, _text_of(arguments, "room"), _text_of(arguments, "name"))
-        return _joined_or_refused(outcome)
+        room, name = _text_of(arguments, "room"), _text_of(arguments, "name")
+        return _joined_or_refused(await participation().dial_in(caller.person, room, name))
 
     async def accept_invitation(caller: Caller, arguments: JsonObject) -> ToolOutcome:
         return await _accepted(participation(), caller, arguments)
