@@ -37,9 +37,10 @@ SPEAKING_TILE = re.compile(r"\bspeaking\b")
 
 # Each page records the length of every sound its players start, how many sources it stopped and how often a player
 # suspended and resumed its context, which is what a pause and its resume do. A sound has ended when the source that
-# ended was the last chunk its context started, an earlier chunk ending being the sound still going on. A player starts a
-# sound as the chunks of its body arrive, each chunk beginning where the one before it ends on its own context's clock,
-# so the chunks of one context that join up are one sound, whichever other player starts between them.
+# ended was the last chunk its context started, an earlier chunk ending being the sound still going on.
+# A player starts a sound as the chunks of its body arrive, each chunk beginning where the one before it ends on its
+# own context's clock, so the chunks of one context that join up are one sound,
+# whichever other player starts between them.
 RECORD_PLAYBACK = """
 () => {
     window.soundsStarted = [];
