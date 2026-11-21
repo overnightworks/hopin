@@ -1,0 +1,8 @@
+claim_id = "3e198c933dde4be9a85d2bcbfaa15e6d"
+agent = "Claude 67aaab2c-9f94-4d9f-afe6-2b43deb759a9"
+role = "builder"
+base = "4ace98b054e229c8fb86bf2ede6e99c21fadc40b"
+branch = "claude/issue-1088-session-transaction-readers"
+scope = ["src/hopin/agent", "src/hopin/app.py", "src/hopin/auth/gate.py", "src/hopin/signaling/identity.py", "src/hopin/stage/feature.py", "src/hopin/stores/session_transaction.py", "src/hopin/web/request_language.py", "tests/agent", "tests/auth", "tests/game/support", "tests/signaling", "tests/stage", "tests/test_app.py", "tests/web"]
+opened_commit = "22ab0bc89efbe5ef7030d00cd6914faea22085fb"
+whole_reason = "One port change: every reader of the session store moves to the transaction in one step, or the composition root serves two shapes."
