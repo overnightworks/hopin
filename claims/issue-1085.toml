@@ -1,0 +1,8 @@
+claim_id = "535562dc98454893a36d7c16eb2a7407"
+agent = "Claude 67aaab2c-9f94-4d9f-afe6-2b43deb759a9"
+role = "builder"
+base = "38e78ffd00fa2d057e14b9bee5f540eea0ce1b74"
+branch = "claude/issue-1085-agent-voice-mute"
+scope = ["README.md", "docs/call.md", "docs/mockups/agent-tile-hearing.html", "frontend/src/lib/features/figure", "frontend/src/lib/features/participation", "frontend/src/lib/ui", "tests/e2e/participation", "tests/e2e/support"]
+opened_commit = "07082e51e7f5b701428342aeb618b5865f22cbbb"
+whole_reason = "One switch from the tile to the agent's player: the chip, the per-browser state and the player's mute have no effect without each other."
