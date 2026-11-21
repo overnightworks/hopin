@@ -43,6 +43,7 @@ RECORD_PLAYBACK = """
 () => {
     window.soundsStarted = [];
     window.soundsStopped = 0;
+    window.sourcesEnded = 0;
     window.contextsSuspended = 0;
     window.contextsResumed = 0;
     const lastSoundOf = new WeakMap();
@@ -53,6 +54,7 @@ RECORD_PLAYBACK = """
         if (last?.joinsAt === when) window.soundsStarted[index] += this.buffer.duration;
         else index = window.soundsStarted.push(this.buffer.duration) - 1;
         lastSoundOf.set(this.context, { index, joinsAt: when + this.buffer.duration });
+        this.addEventListener('ended', () => { window.sourcesEnded += 1; });
         return start.call(this, when, ...args);
     };
     const stop = AudioBufferSourceNode.prototype.stop;
