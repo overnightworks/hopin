@@ -73,25 +73,25 @@ export function remoteMedia(video: HTMLVideoElement, { participantId }: RemoteDe
     };
 }
 
-function attachScreenStream(video: HTMLVideoElement, participantId: string) {
-    const stream = screenStreamOf(participantId);
-    if (!stream) return;
-    attachTracksThatHaveData(video, stream);
-    for (const track of stream.getVideoTracks()) {
-        if (tracksWatched.has(track)) continue;
-        tracksWatched.add(track);
-        track.addEventListener("unmute", () => {
-            attachTracksThatHaveData(video, stream);
-        });
-    }
-}
-
 // The video of a shared screen takes the stream that arrived before it mounted, and each one that arrives later.
+// A track can outlive its tile (the sender's transceiver is reused for the next share), so each video listens to the
+// tracks itself and stops when it goes.
 export function screenMedia(video: HTMLVideoElement, { participantId }: RemoteDelivery) {
-    attachScreenStream(video, participantId);
+    const watched = new Set<MediaStreamTrack>();
+    const attachCurrent = () => {
+        const stream = screenStreamOf(participantId);
+        if (!stream) return;
+        attachTracksThatHaveData(video, stream);
+        for (const track of stream.getVideoTracks()) {
+            watched.add(track);
+            track.addEventListener("unmute", attachCurrent);
+        }
+    };
+    attachCurrent();
     return {
-        update() {
-            attachScreenStream(video, participantId);
+        update: attachCurrent,
+        destroy() {
+            for (const track of watched) track.removeEventListener("unmute", attachCurrent);
         },
     };
 }

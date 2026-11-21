@@ -339,6 +339,28 @@ describe("shared screens in a component", () => {
         void unmount(component);
     });
 
+    it("plays the picture of a later share in its new tile when the same track unmutes there", () => {
+        vi.stubGlobal("MediaStream", FakeStream);
+        const tracking = trackedAssignments();
+        const component = mount(ScreenTiles, { target: document.body });
+        const picture = fakeTrack("video", true);
+        showRemoteScreen("a", new FakeStream([picture]) as unknown as MediaStream);
+        flushSync();
+        showRemoteScreen("a", null);
+        flushSync();
+        showRemoteScreen("a", new FakeStream([picture]) as unknown as MediaStream);
+        flushSync();
+        const video = document.getElementById("screen-video-a") as HTMLVideoElement;
+
+        Object.defineProperty(picture, "muted", { value: false });
+        picture.dispatchEvent(new Event("unmute"));
+        flushSync();
+
+        expect((video.srcObject as unknown as FakeStream).getTracks()).toEqual([picture]);
+        tracking.restore();
+        void unmount(component);
+    });
+
     it("takes the tracks of a second delivery of the screen stream", () => {
         vi.stubGlobal("MediaStream", FakeStream);
         const tracking = trackedAssignments();
