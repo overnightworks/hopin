@@ -53,7 +53,13 @@ from tests.support.page_build import (
     VERSION_FILE,
     fixture_page_build,
 )
-from tests.support.sign_in_settings import END_SESSION_URL, TEST_ISSUER, TEST_PUBLIC_ORIGIN, SignInSettings
+from tests.support.sign_in_settings import (
+    END_SESSION_URL,
+    TEST_ISSUER,
+    TEST_PUBLIC_ORIGIN,
+    TEST_REALM,
+    SignInSettings,
+)
 from tests.support.signed_in import SeededMember, cookie_header, handshake_headers, seed_member
 from tests.support.stores import single_process_stores
 
@@ -116,6 +122,7 @@ class Application:
         self.issuer = FakeIssuer(sign_in)
         self.app = create_app(
             sign_in.settings,
+            TEST_REALM,
             page_build=fixture_page_build(languages),
             shared_stores=in_thread_stores(),
             stores=self.stores,
@@ -498,7 +505,7 @@ class TestRevalidation:
     def test_the_admitted_callback_that_sets_the_session_cookie_is_never_stored(self, application):
         start = application.get(AUTH_START_PATH, **BROWSER_ACCEPT)
         query = application.issuer.authorize(
-            start.headers["location"], subject="anna", groups=["/apps/hopin"], username="anna"
+            start.headers["location"], subject="anna", groups=[TEST_REALM.login_group], username="anna"
         )
 
         callback = application.get(f"{AUTH_CALLBACK_PATH}?{query}", **BROWSER_ACCEPT)
@@ -518,7 +525,7 @@ class TestSessionLifetime:
         sign_in = sign_in_settings()
         stores = single_process_stores()
         now = [1_800_000_000.0]
-        configs = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits)
+        configs = build_sign_in_configs(sign_in.settings, TEST_REALM, (), in_thread_stores().rate_limits)
         config: WebAuthConfig = replace(configs.web_auth, wall_clock=lambda: now[0])
         member = seed_member(stores, config)
         app = FastAPI()

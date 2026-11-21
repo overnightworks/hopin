@@ -28,7 +28,7 @@ from hopin.signaling.scheduler import AsyncioScheduler
 from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
-from tests.support.sign_in_settings import build_sign_in_settings
+from tests.support.sign_in_settings import TEST_REALM, build_sign_in_settings
 from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
@@ -197,6 +197,7 @@ def participation_feature(
         speaking=speech if speaks else None,
         voices=voices or VoiceStore(),
         redis=loopback.shared_stores.async_redis,
+        realm=TEST_REALM,
     )
 
 
@@ -237,6 +238,7 @@ def running_hopin(
     """
     app = create_app(
         loopback.sign_in.settings,
+        TEST_REALM,
         page_build=PageBuild.load(page_build_directory),
         shared_stores=loopback.shared_stores,
         scheduler=QuickRecheckScheduler(),

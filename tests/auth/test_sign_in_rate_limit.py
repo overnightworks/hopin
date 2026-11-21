@@ -22,7 +22,7 @@ from hopin.config.constants import (
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 
 pytestmark = pytest.mark.integration
 
@@ -77,7 +77,9 @@ class Deployment:
         """Callback queries carrying a valid code, from a start made by an address nobody else uses."""
         start = self.client("192.0.2.200").get(AUTH_START_PATH)
         return [
-            self.issuer.authorize(start.headers["location"], subject="anna", groups=["/apps/hopin"], username="anna")
+            self.issuer.authorize(
+                start.headers["location"], subject="anna", groups=[TEST_REALM.login_group], username="anna"
+            )
             for _ in range(count)
         ]
 
@@ -86,7 +88,7 @@ class Deployment:
         start = browser.get(AUTH_START_PATH)
         assert start.status_code == HTTPStatus.SEE_OTHER
         query = self.issuer.authorize(
-            start.headers["location"], subject="anna", groups=["/apps/hopin"], username="anna"
+            start.headers["location"], subject="anna", groups=[TEST_REALM.login_group], username="anna"
         )
         callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         assert callback.headers["location"] != NO_ACCESS_PATH
@@ -109,6 +111,7 @@ def make_deployment(sign_in_settings: Callable[..., SignInSettings], monkeypatch
         return Deployment(
             create_app(
                 sign_in.settings,
+                TEST_REALM,
                 page_build=fixture_page_build(),
                 shared_stores=in_thread_stores(),
                 issuer_transports=issuer.transports,
@@ -270,7 +273,7 @@ class TestTrustedProxiesSetting:
 
         rate_limits = in_thread_stores().rate_limits
         with pytest.raises(SignInConfigurationError, match="HOPIN_TRUSTED_PROXIES") as refusal:
-            build_sign_in_configs(settings, (), rate_limits)
+            build_sign_in_configs(settings, TEST_REALM, (), rate_limits)
 
         assert value not in str(refusal.value)
         assert "HOPIN_SESSION_SECRET_FILE" not in str(refusal.value)
@@ -279,4 +282,6 @@ class TestTrustedProxiesSetting:
         settings = sign_in_settings().settings
 
         assert settings.trusted_proxies == ""
-        assert not build_sign_in_configs(settings, (), in_thread_stores().rate_limits).trusted_proxies.networks
+        assert not build_sign_in_configs(
+            settings, TEST_REALM, (), in_thread_stores().rate_limits
+        ).trusted_proxies.networks

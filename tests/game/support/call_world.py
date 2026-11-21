@@ -21,7 +21,7 @@ from hopin.participation.voice import VoiceStore
 from tests.game.support.fake_agent_backend import DEFAULT_QUESTION
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import cookie_header, handshake_headers, seed_member
 from tests.support.stores import single_process_stores
@@ -145,6 +145,7 @@ def serving_call(
     voices = VoiceStore()
     app = create_app(
         sign_in.settings,
+        TEST_REALM,
         page_build=fixture_page_build(),
         shared_stores=shared_stores,
         issuer_transports=issuer.transports,
@@ -156,7 +157,12 @@ def serving_call(
             else (
                 GameFeature(backend, voices, speech),
                 # The voices are served by participation's route.
-                ParticipationFeature(sign_in.settings.public_origin, voices=voices, redis=shared_stores.async_redis),
+                ParticipationFeature(
+                    sign_in.settings.public_origin,
+                    voices=voices,
+                    redis=shared_stores.async_redis,
+                    realm=TEST_REALM,
+                ),
             )
         ),
     )

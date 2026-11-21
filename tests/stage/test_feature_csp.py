@@ -6,7 +6,7 @@ from hopin.stage.feature import StageFeature
 from hopin.stage.settings import StageApp
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 
 pytestmark = pytest.mark.integration
 
@@ -17,6 +17,7 @@ CHESS = StageApp(name="chess", title="Schach", origin="https://chess.example", f
 def content_security_policy(sign_in_settings, call_features):
     app = create_app(
         sign_in_settings().settings,
+        TEST_REALM,
         page_build=fixture_page_build(),
         shared_stores=in_thread_stores(),
         call_features=call_features,

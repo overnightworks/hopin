@@ -11,7 +11,7 @@ from hopin.words import text
 from tests.e2e.support.calls import open_prejoin, record_page_errors, start_call, wait_until_the_prejoin_media_answered
 from tests.e2e.support.page_assertions import ACCOUNT_AVATAR, ACCOUNT_MENU, expect_both_legal_links
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE
-from tests.support.sign_in_settings import END_SESSION_URL, TEST_ISSUER
+from tests.support.sign_in_settings import END_SESSION_URL, TEST_ISSUER, TEST_REALM
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -109,7 +109,7 @@ def log_out_from_the_open_menu(person: Page, e2e_server: RunningServer, id_token
     assert (end_session.method, parse_qs(end_session.post_data)) == (
         "POST",
         {
-            "client_id": ["hopin"],
+            "client_id": [TEST_REALM.client_id],
             "post_logout_redirect_uri": [f"https://{urlsplit(e2e_server.base_url).netloc}{LOGIN_PATH}"],
             "id_token_hint": [id_token.get_secret_value()],
         },

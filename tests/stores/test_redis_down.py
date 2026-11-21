@@ -11,7 +11,7 @@ from hopin.app import create_app
 from hopin.config.constants import HEALTH_PATH, LOGIN_PATH
 from hopin.stores.redis import connect_shared_stores
 from tests.support.page_build import fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 
 pytestmark = pytest.mark.integration
 
@@ -31,6 +31,7 @@ def unreachable_redis_url() -> str:
 def served_without_redis(sign_in_settings, unreachable_redis_url) -> TestClient:
     app = create_app(
         sign_in_settings().settings,
+        TEST_REALM,
         page_build=fixture_page_build(),
         shared_stores=connect_shared_stores(unreachable_redis_url),
     )
@@ -44,12 +45,14 @@ def started_without_subscription(sign_in_settings, unreachable_redis_url) -> Tes
     shared_stores = connect_shared_stores(unreachable_redis_url)
     app = create_app(
         settings,
+        TEST_REALM,
         page_build=fixture_page_build(),
         shared_stores=shared_stores,
         call_features=(
             ParticipationFeature(
                 settings.public_origin,
                 redis=shared_stores.async_redis,
+                realm=TEST_REALM,
                 subscription_wait_seconds=SHORT_SUBSCRIPTION_WAIT_SECONDS,
             ),
         ),

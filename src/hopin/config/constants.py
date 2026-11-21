@@ -34,9 +34,6 @@ IMMUTABLE_ASSET_CACHE_CONTROL = "private, max-age=31536000, immutable"
 
 PERMISSIONS_POLICY = "camera=(self), microphone=(self), display-capture=(self), geolocation=()"
 
-OIDC_CLIENT_ID = "hopin"
-LOGIN_GROUP = "/apps/hopin"
-ADMIN_GROUP = f"{LOGIN_GROUP}/admin"
 PEOPLE_EXPORT_VERSION = 1
 EXPORT_APP_NAME = "hopin"
 OIDC_SCOPES = ("openid", "profile", "groups")

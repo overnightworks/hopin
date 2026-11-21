@@ -5,9 +5,8 @@ from logline.testing import configured
 from starlette.websockets import WebSocketDisconnect
 from webauth.admission import AppRole
 
-from hopin.agent.mcp import MCP_GROUP, MCP_SCOPE
 from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
-from hopin.config.constants import CALL_FEATURES_PATH, LOGIN_GROUP, POLICY_VIOLATION_CLOSE_CODE, WEBSOCKET_PATH
+from hopin.config.constants import CALL_FEATURES_PATH, POLICY_VIOLATION_CLOSE_CODE, WEBSOCKET_PATH
 from hopin.participation.vocabulary import AgentRefusal
 from tests.support.dialed_call import METADATA_PATH, admin_groups, join_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
@@ -17,7 +16,7 @@ from tests.support.forwarded_clients import (
     forwarding_headers,
     lines_of_event,
 )
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signed_in import handshake_headers
 
 pytestmark = pytest.mark.integration
@@ -53,9 +52,9 @@ class TestWhoIsLetIn:
         [
             pytest.param({"no_bearer": True}, 401, True, id="no bearer"),
             pytest.param({"audience": "https://elsewhere.test.invalid/mcp"}, 401, True, id="a wrong audience"),
-            pytest.param({"authorized_party": "hopin"}, 401, True, id="a foreign azp"),
+            pytest.param({"authorized_party": TEST_REALM.client_id}, 401, True, id="a foreign azp"),
             pytest.param({"scope": "openid"}, 403, True, id="no mcp scope"),
-            pytest.param({"groups": (LOGIN_GROUP,)}, 403, False, id="a person outside the mcp group"),
+            pytest.param({"groups": (TEST_REALM.login_group,)}, 403, False, id="a person outside the mcp group"),
             pytest.param({"age_seconds": 400}, 401, True, id="a token past its life and the leeway"),
         ],
     )
@@ -97,9 +96,9 @@ class TestWhoIsLetIn:
         stranger = dialed_call.issuer.access_token(
             "nobody-signed-in",
             audience=dialed_call.audience,
-            authorized_party="agents",
-            scope=MCP_SCOPE,
-            groups=(LOGIN_GROUP, MCP_GROUP),
+            authorized_party=TEST_REALM.mcp_client_id,
+            scope=TEST_REALM.mcp_scope,
+            groups=(TEST_REALM.login_group, TEST_REALM.mcp_group),
         )
 
         assert dialed_call.call(stranger, JOIN_CALL, {"room": "x", "name": NAME}).status == 403
@@ -122,7 +121,7 @@ class TestWhoIsLetIn:
     def test_the_metadata_names_the_resource_without_a_session(self, dialed_call):
         document = dialed_call.client.get(METADATA_PATH)
 
-        assert (document.status_code, document.json()["scopes_supported"]) == (200, [MCP_SCOPE])
+        assert (document.status_code, document.json()["scopes_supported"]) == (200, [TEST_REALM.mcp_scope])
 
     def test_the_agents_token_opens_neither_the_pages_api_nor_the_socket(self, dialed_call):
         account, _, _ = dialed_call.seated()

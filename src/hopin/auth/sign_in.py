@@ -17,9 +17,7 @@ from webauth.sign_in_routes import LogoutPageText, RefusalPage, SignInRefusal
 from webauth.web_auth import IssuerCalls, SignInPages, WebAuth, WebAuthSettings, WebAuthStores
 
 from hopin.config.constants import (
-    ADMIN_GROUP,
     AUTH_CALLBACK_PATH,
-    LOGIN_GROUP,
     LOGIN_PATH,
     NO_ACCESS_PATH,
     OIDC_LEEWAY_SECONDS,
@@ -41,7 +39,7 @@ if TYPE_CHECKING:
     from webauth.policies import SecurityHeadersPolicy
     from webauth.ports import AccountEvent, RateLimitBackend
 
-    from hopin.config.settings import ServerSettings
+    from hopin.config.settings import RealmSettings, ServerSettings
     from hopin.web.page_build import PageBuild
     from hopin.words import Language
 
@@ -66,6 +64,7 @@ class SignInConfigs:
     oidc_client: OidcClientConfig
     web_auth: WebAuthConfig
     trusted_proxies: TrustedProxies
+    groups: AdmissionConfig
 
 
 @dataclass(frozen=True)
@@ -83,6 +82,7 @@ ISSUER_OVER_HTTPS = IssuerTransports(
 
 def build_sign_in_configs(
     settings: ServerSettings,
+    realm: RealmSettings,
     feature_scopes: tuple[str, ...],
     rate_limits: RateLimitBackend,
     wall_clock: Callable[[], float] = time.time,
@@ -90,7 +90,7 @@ def build_sign_in_configs(
     client_secret = read_secret_file(settings.oidc_client_secret_file, "HOPIN_OIDC_CLIENT_SECRET_FILE")
     session_secret = read_secret_file(settings.session_secret_file, "HOPIN_SESSION_SECRET_FILE")
     try:
-        oidc_client = _build_oidc_client(settings, client_secret, feature_scopes)
+        oidc_client = _build_oidc_client(settings, realm, client_secret, feature_scopes)
     except ValueError as refusal:
         raise SignInConfigurationError(f"HOPIN_OIDC_ISSUER and HOPIN_PUBLIC_ORIGIN are refused: {refusal}") from None
     trusted_proxies = _parse_trusted_proxies(settings.trusted_proxies)
@@ -98,7 +98,10 @@ def build_sign_in_configs(
         web_auth = _build_web_auth(settings, session_secret, rate_limits, wall_clock)
     except ValueError as refusal:
         raise SignInConfigurationError(f"HOPIN_SESSION_SECRET_FILE is refused: {refusal}") from None
-    return SignInConfigs(oidc_client=oidc_client, web_auth=web_auth, trusted_proxies=trusted_proxies)
+    groups = AdmissionConfig(
+        bound_issuer=oidc_client.issuer, login_group=realm.login_group, admin_group=realm.admin_group
+    )
+    return SignInConfigs(oidc_client=oidc_client, web_auth=web_auth, trusted_proxies=trusted_proxies, groups=groups)
 
 
 def _parse_trusted_proxies(raw: str) -> TrustedProxies:
@@ -109,7 +112,7 @@ def _parse_trusted_proxies(raw: str) -> TrustedProxies:
 
 
 def _build_oidc_client(
-    settings: ServerSettings, client_secret: SecretStr, feature_scopes: tuple[str, ...]
+    settings: ServerSettings, realm: RealmSettings, client_secret: SecretStr, feature_scopes: tuple[str, ...]
 ) -> OidcClientConfig:
     openid_connect = settings.oidc_issuer + OPENID_CONNECT_PATH
     return OidcClientConfig(
@@ -118,7 +121,7 @@ def _build_oidc_client(
         token_endpoint=f"{openid_connect}/token",
         jwks_url=f"{openid_connect}/certs",
         end_session_endpoint=f"{openid_connect}/logout",
-        client_id=settings.oidc_client_id,
+        client_id=realm.client_id,
         client_secret=client_secret,
         redirect_uri=settings.public_origin + AUTH_CALLBACK_PATH,
         post_logout_redirect_uri=settings.public_origin + LOGIN_PATH,
@@ -176,7 +179,7 @@ def build_web_auth(
             rate_limit=RateLimitPolicy(exempt=RATE_LIMIT_EXEMPT_PATH_RULES),
         ),
         stores=stores,
-        groups=AdmissionConfig(bound_issuer=client.issuer, login_group=LOGIN_GROUP, admin_group=ADMIN_GROUP),
+        groups=sign_in_configs.groups,
         pages=SignInPages(
             refused=lambda request, refusal: _refusal_response(refusal, page_build, request_language(request)),
             logout_page_text=lambda request: _logout_page_text(request_language(request), logout_button_label),

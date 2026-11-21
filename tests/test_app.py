@@ -27,7 +27,6 @@ from hopin.config.constants import (
     AUTH_START_PATH,
     CALL_FEATURES_PATH,
     HEALTH_PATH,
-    LOGIN_GROUP,
     SESSION_SWEEP_SECONDS,
     WEBSOCKET_PATH,
     SignalType,
@@ -42,7 +41,7 @@ from tests.support.forwarded_clients import (
 )
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import FIXTURE_SCRIPT_HASH, SIGN_IN_ICON, SIGN_IN_STYLESHEET, fixture_page_build
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signaling_fakes import RecordingFeature, WitnessFeatureBuilder
 from tests.support.signed_in import cookie_header, handshake_headers, new_id_token, seed_member
 from tests.support.stores import single_process_stores
@@ -61,7 +60,9 @@ SESSION_COOKIE = "__Host-session_id"
 
 def signed_in_client(settings: ServerSettings) -> TestClient:
     stores = single_process_stores()
-    app = create_app(settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores)
+    app = create_app(
+        settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores
+    )
     member = seed_member(stores, installed_web_auth_config(app))
     headers = {"cookie": cookie_header(member.set_cookie_headers)}
     return TestClient(app, base_url=TEST_PUBLIC_ORIGIN, headers=headers, follow_redirects=False)
@@ -69,19 +70,24 @@ def signed_in_client(settings: ServerSettings) -> TestClient:
 
 class TestCreateApp:
     def test_returns_fastapi_application(self, sign_in_settings):
-        app = create_app(sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+        app = create_app(
+            sign_in_settings().settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores()
+        )
         assert isinstance(app, FastAPI)
 
     def test_uses_provided_settings(self, sign_in_settings):
         app = create_app(
-            sign_in_settings(port=9999).settings, page_build=fixture_page_build(), shared_stores=in_thread_stores()
+            sign_in_settings(port=9999).settings,
+            TEST_REALM,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
         )
         assert app.state.settings.port == 9999
 
     def test_installs_the_web_auth_config_built_from_its_settings(self, sign_in_settings):
         sign_in = sign_in_settings()
         config = installed_web_auth_config(
-            create_app(sign_in.settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+            create_app(sign_in.settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores())
         )
         assert isinstance(config, WebAuthConfig)
         assert config.session_secret.get_secret_value() == sign_in.session_secret
@@ -92,7 +98,7 @@ class TestCreateApp:
         page_build = fixture_page_build()
         shared_stores = in_thread_stores()
         with pytest.raises(StartRefusedError, match="HOPIN_SESSION_SECRET_FILE"):
-            create_app(settings, page_build=page_build, shared_stores=shared_stores)
+            create_app(settings, TEST_REALM, page_build=page_build, shared_stores=shared_stores)
 
     def test_does_not_start_with_two_call_features_serving_a_bearer_resource(self, sign_in_settings):
         class BearerFeature:
@@ -112,20 +118,25 @@ class TestCreateApp:
         shared_stores = in_thread_stores()
 
         with pytest.raises(StartRefusedError, match="bearer"):
-            create_app(settings, page_build=page_build, shared_stores=shared_stores, call_features=call_features)
+            create_app(
+                settings, TEST_REALM, page_build=page_build, shared_stores=shared_stores, call_features=call_features
+            )
 
     def test_signs_a_member_in_through_the_issuer_it_is_given(self, sign_in_settings):
         sign_in = sign_in_settings()
         issuer = FakeIssuer(sign_in)
         app = create_app(
             sign_in.settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=issuer.transports,
         )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
-        query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
+        query = issuer.authorize(
+            start.headers["location"], subject="subject", groups=[TEST_REALM.login_group], username="alice"
+        )
         callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         assert start.headers["location"].startswith(sign_in.settings.oidc_issuer)
         assert callback.status_code == 303
@@ -136,13 +147,16 @@ class TestCreateApp:
         issuer = FakeIssuer(sign_in)
         app = create_app(
             sign_in.settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=issuer.transports,
         )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
-        query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
+        query = issuer.authorize(
+            start.headers["location"], subject="subject", groups=[TEST_REALM.login_group], username="alice"
+        )
         browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
 
         answer = browser.get(ACCOUNT_PATH)
@@ -155,6 +169,7 @@ class TestCreateApp:
         stores = single_process_stores()
         app = create_app(
             sign_in.settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=issuer.transports,
@@ -162,7 +177,9 @@ class TestCreateApp:
         )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
-        query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
+        query = issuer.authorize(
+            start.headers["location"], subject="subject", groups=[TEST_REALM.login_group], username="alice"
+        )
         browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         cookie = f"{SESSION_COOKIE}={browser.cookies[SESSION_COOKIE]}"
         session_id = session_id_from_request(
@@ -179,13 +196,16 @@ class TestCreateApp:
         issuer = FakeIssuer(sign_in)
         app = create_app(
             sign_in.settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=issuer.transports,
         )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
-        query = issuer.authorize(start.headers["location"], subject="subject", groups=[LOGIN_GROUP], username="alice")
+        query = issuer.authorize(
+            start.headers["location"], subject="subject", groups=[TEST_REALM.login_group], username="alice"
+        )
         callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         handshake = {"origin": TEST_PUBLIC_ORIGIN, "cookie": cookie_header(callback.headers.get_list("set-cookie"))}
         with browser.websocket_connect(WEBSOCKET_PATH, headers=handshake) as socket:
@@ -197,7 +217,12 @@ class TestCreateApp:
 
     def test_registers_routes(self, sign_in_settings):
         response = TestClient(
-            create_app(sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+            create_app(
+                sign_in_settings().settings,
+                TEST_REALM,
+                page_build=fixture_page_build(),
+                shared_stores=in_thread_stores(),
+            )
         ).get("/health")
         assert response.status_code == 200
 
@@ -244,7 +269,11 @@ class TestCreateApp:
 
         response = TestClient(
             create_app(
-                settings, page_build=fixture_page_build(), shared_stores=in_thread_stores(), call_features=features
+                settings,
+                TEST_REALM,
+                page_build=fixture_page_build(),
+                shared_stores=in_thread_stores(),
+                call_features=features,
             ),
             base_url=TEST_PUBLIC_ORIGIN,
         ).get("/health")
@@ -288,6 +317,7 @@ class TestExpiredSessionSweep:
         stores = single_process_stores()
         app = create_app(
             sign_in_settings().settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             stores=stores,
@@ -374,6 +404,7 @@ class TestExpiredSessionSweep:
         scheduler = QueuingScheduler()
         app = create_app(
             sign_in_settings().settings,
+            TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             stores=stores,
@@ -432,6 +463,7 @@ def proxied_stack(sign_in_settings) -> ProxiedStack:
     stores = single_process_stores()
     app = create_app(
         sign_in_settings(trusted_proxies=TRUSTED_PROXY).settings,
+        TEST_REALM,
         page_build=fixture_page_build(),
         shared_stores=in_thread_stores(),
         stores=stores,
@@ -455,7 +487,9 @@ def proxied_client(proxied_stack) -> Callable[..., TestClient]:
 
 class TestRequestLine:
     def test_a_request_writes_one_json_line_with_its_route_and_without_its_path(self, sign_in_settings, capsys):
-        app = create_app(sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+        app = create_app(
+            sign_in_settings().settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores()
+        )
         probe = secrets.token_urlsafe(8)
 
         with configured("hopin"):

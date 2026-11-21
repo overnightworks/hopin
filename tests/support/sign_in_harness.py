@@ -8,12 +8,11 @@ from hopin.config.constants import (
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
     BACKCHANNEL_LOGOUT_PATH,
-    LOGIN_GROUP,
     LOGOUT_PATH,
 )
 from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER
 from tests.support.page_build import SOURCE_LANGUAGE_DIRECTORY
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, SignInSettings
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM, SignInSettings
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -59,7 +58,7 @@ class SignInHarness:
         browser: TestClient,
         *,
         subject: str = SUBJECT,
-        groups: list[str] | str | None = (LOGIN_GROUP,),
+        groups: list[str] | str | None = (TEST_REALM.login_group,),
         username: str = USERNAME,
         next_path: str | None = None,
     ) -> Response:

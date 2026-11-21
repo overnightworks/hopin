@@ -139,7 +139,7 @@ Every process reaches one Redis at `HOPIN_REDIS_URL`, holding the rate limit win
 
 ## 5. Crosscutting Concepts
 
-**Sign-in and sessions.** webauth runs the OIDC code flow against Keycloak and the gate admits the members of `/apps/hopin` (`src/hopin/auth/__init__.py`).
+**Sign-in and sessions.** webauth runs the OIDC code flow against Keycloak and the gate admits the members of the login group `REALM_LOGIN_GROUP` names (`src/hopin/auth/__init__.py`).
 
 **Limits.** Request budgets, the body cap and the origin check are webauth's, set in `config/web_policy.py`; Redis holds the windows.
 

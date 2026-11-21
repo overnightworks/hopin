@@ -1,3 +1,4 @@
+import json
 import secrets
 import traceback
 
@@ -7,8 +8,10 @@ from webauth.config import installed_web_auth_config
 from hopin.app import create_app
 from hopin.auth.sign_in import SignInConfigurationError, build_sign_in_configs
 from hopin.config.secret_files import StartRefusedError
+from hopin.config.settings import RealmSettings, ServerSettings
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
+from tests.support.sign_in_settings import TEST_REALM
 
 pytestmark = pytest.mark.integration
 
@@ -43,7 +46,7 @@ class TestSecretFiles:
 
         rate_limits = in_thread_stores().rate_limits
         with pytest.raises(StartRefusedError, match=setting.upper()) as refusal:
-            build_sign_in_configs(settings, (), rate_limits)
+            build_sign_in_configs(settings, TEST_REALM, (), rate_limits)
 
         error = refusal.value
         assert error.__cause__ is None
@@ -59,26 +62,40 @@ class TestSecretFiles:
         settings.session_secret_file.write_text(secrets.token_urlsafe(24)[:31])
         rate_limits = in_thread_stores().rate_limits
         with pytest.raises(SignInConfigurationError, match="HOPIN_SESSION_SECRET_FILE"):
-            build_sign_in_configs(settings, (), rate_limits)
+            build_sign_in_configs(settings, TEST_REALM, (), rate_limits)
 
     def test_a_session_secret_of_32_characters_is_accepted(self, sign_in_settings):
         settings = sign_in_settings().settings
         settings.session_secret_file.write_text(secrets.token_urlsafe(24)[:32])
-        build_sign_in_configs(settings, (), in_thread_stores().rate_limits)
+        build_sign_in_configs(settings, TEST_REALM, (), in_thread_stores().rate_limits)
 
     def test_the_client_asks_for_the_sign_in_scopes_alone_without_a_feature(self, sign_in_settings):
-        configs = build_sign_in_configs(sign_in_settings().settings, (), in_thread_stores().rate_limits)
+        configs = build_sign_in_configs(sign_in_settings().settings, TEST_REALM, (), in_thread_stores().rate_limits)
         assert configs.oidc_client.scopes == ("openid", "profile", "groups")
 
     def test_the_client_also_asks_for_the_scopes_a_feature_names(self, sign_in_settings):
         configs = build_sign_in_configs(
-            sign_in_settings().settings, ("feature-audience",), in_thread_stores().rate_limits
+            sign_in_settings().settings, TEST_REALM, ("feature-audience",), in_thread_stores().rate_limits
         )
         assert configs.oidc_client.scopes == ("openid", "profile", "groups", "feature-audience")
 
+    def test_a_server_variable_named_realm_changes_none_of_the_realm_names(self, sign_in_settings, monkeypatch):
+        for name, value in sign_in_settings().environment.items():
+            monkeypatch.setenv(name, value)
+        elsewhere = {name: f"/elsewhere/{name}" for name in RealmSettings.model_fields}
+        monkeypatch.setenv("HOPIN_REALM", json.dumps(elsewhere))
+
+        configs = build_sign_in_configs(ServerSettings(), RealmSettings(), (), in_thread_stores().rate_limits)
+
+        assert configs.oidc_client.client_id == TEST_REALM.client_id
+        assert (configs.groups.login_group, configs.groups.admin_group) == (
+            TEST_REALM.login_group,
+            TEST_REALM.admin_group,
+        )
+
     def test_each_secret_loses_one_trailing_newline(self, sign_in_settings):
         sign_in = sign_in_settings()
-        configs = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits)
+        configs = build_sign_in_configs(sign_in.settings, TEST_REALM, (), in_thread_stores().rate_limits)
         assert configs.oidc_client.client_secret.get_secret_value() == sign_in.client_secret
         assert configs.web_auth.session_secret.get_secret_value() == sign_in.session_secret
 
@@ -98,7 +115,7 @@ class TestSecretFiles:
         settings.oidc_client_secret_file.write_bytes((secret + ending).encode())
         settings.session_secret_file.write_bytes((secret + ending).encode())
 
-        configs = build_sign_in_configs(settings, (), in_thread_stores().rate_limits)
+        configs = build_sign_in_configs(settings, TEST_REALM, (), in_thread_stores().rate_limits)
 
         expected = secret + expected_ending
         assert configs.oidc_client.client_secret.get_secret_value() == expected
@@ -128,22 +145,22 @@ class TestRefusedUrls:
         settings = sign_in_settings(**{setting: value}).settings
         rate_limits = in_thread_stores().rate_limits
         with pytest.raises(SignInConfigurationError, match="HOPIN_OIDC_ISSUER and HOPIN_PUBLIC_ORIGIN") as refusal:
-            build_sign_in_configs(settings, (), rate_limits)
+            build_sign_in_configs(settings, TEST_REALM, (), rate_limits)
         assert value not in str(refusal.value)
 
 
 class TestBuiltConfigs:
     def test_the_client_registers_the_callback_and_the_post_logout_page_under_the_public_origin(self, sign_in_settings):
         sign_in = sign_in_settings()
-        client = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits).oidc_client
+        client = build_sign_in_configs(sign_in.settings, TEST_REALM, (), in_thread_stores().rate_limits).oidc_client
         origin = sign_in.settings.public_origin
         assert client.redirect_uri == f"{origin}/auth/callback"
         assert client.post_logout_redirect_uri == f"{origin}/login"
-        assert client.client_id == sign_in.settings.oidc_client_id
+        assert client.client_id == TEST_REALM.client_id
 
     def test_the_client_endpoints_derive_from_the_issuer(self, sign_in_settings):
         sign_in = sign_in_settings()
-        client = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits).oidc_client
+        client = build_sign_in_configs(sign_in.settings, TEST_REALM, (), in_thread_stores().rate_limits).oidc_client
         issuer = sign_in.settings.oidc_issuer
         assert client.issuer == issuer
         assert client.authorization_endpoint == f"{issuer}/protocol/openid-connect/auth"
@@ -153,7 +170,12 @@ class TestBuiltConfigs:
 
     def test_a_session_lasts_twelve_hours_in_a_secure_lax_cookie(self, sign_in_settings):
         web_auth = installed_web_auth_config(
-            create_app(sign_in_settings().settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+            create_app(
+                sign_in_settings().settings,
+                TEST_REALM,
+                page_build=fixture_page_build(),
+                shared_stores=in_thread_stores(),
+            )
         )
         assert web_auth.session_lifetime.idle_seconds == SESSION_LENGTH_SECONDS
         assert web_auth.session_lifetime.absolute_max_age_seconds == SESSION_LENGTH_SECONDS
@@ -163,6 +185,6 @@ class TestBuiltConfigs:
     def test_only_the_public_origins_host_is_admitted(self, sign_in_settings):
         settings = sign_in_settings(public_origin="https://HopIn.Test.invalid:8443").settings
         web_auth = installed_web_auth_config(
-            create_app(settings, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+            create_app(settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores())
         )
         assert web_auth.allowed_hosts_exact == frozenset({"hopin.test.invalid:8443"})

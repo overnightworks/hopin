@@ -57,7 +57,7 @@ if TYPE_CHECKING:
     from webauth.ports import SessionTransaction
     from webauth.single_process_stores import SingleProcessSessionStore
 
-    from hopin.config.settings import ServerSettings
+    from hopin.config.settings import RealmSettings, ServerSettings
     from hopin.signaling.features import TransitionFeature
     from hopin.stores.shared import SharedStores
     from hopin.web.ice_servers import TurnRelay
@@ -338,6 +338,7 @@ def _assemble_app(
 
 def create_app(
     settings: ServerSettings,
+    realm: RealmSettings,
     *,
     page_build: PageBuild,
     shared_stores: SharedStores,
@@ -351,6 +352,7 @@ def create_app(
 ) -> FastAPI:
     sign_in_configs = build_sign_in_configs(
         settings,
+        realm,
         tuple(scope for builder in call_features for scope in builder.sign_in_scopes),
         shared_stores.rate_limits,
         wall_clock,

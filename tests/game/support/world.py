@@ -2,7 +2,6 @@
 
 import asyncio
 import threading
-import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -11,12 +10,13 @@ from agents.config import AgentConfig, ChatGateway
 from starlette.requests import HTTPConnection
 from webauth.admission import AppRole
 from webauth.languages import AppLanguages
-from webauth.oidc import OidcRelyingParty
+from webauth.policies import SecurityHeadersPolicy, default_content_security_policy
 from webauth.ports import AccountKind
+from webauth.web_auth import WebAuthStores
 
 from hopin.agent.backend import QuizGameMaster, StarterPerson
 from hopin.agent.settings import AgentSettings
-from hopin.auth.sign_in import build_sign_in_configs
+from hopin.auth.sign_in import build_sign_in_configs, build_web_auth
 from hopin.game.quiz import QUIZ_TOPICS, Speaker, Turn, question_request
 from hopin.stores.session_transaction import session_transaction_of
 from hopin.web.page_build import APP_LANGUAGES
@@ -24,6 +24,8 @@ from hopin.web.request_language import RequestLanguage
 from tests.game.support.fake_agent_backend import FakeAgentBackend
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
+from tests.support.page_build import fixture_page_build
+from tests.support.sign_in_settings import TEST_REALM
 from tests.support.signed_in import cookie_header, seed_member
 from tests.support.stores import single_process_stores
 
@@ -105,17 +107,18 @@ def connection_with(cookie):
 
 def build_world(sign_in: SignInSettings, languages: AppLanguages = APP_LANGUAGES) -> World:
     issuer = FakeIssuer(sign_in)
-    configs = build_sign_in_configs(sign_in.settings, (), in_thread_stores().rate_limits)
+    configs = build_sign_in_configs(sign_in.settings, TEST_REALM, (), in_thread_stores().rate_limits)
     stores = single_process_stores()
     sessions = StoreSpy(stores.sessions)
-    relying_party = OidcRelyingParty(
-        configs.oidc_client,
-        post_token_request=issuer.transports.post_token_request,
-        fetch_key_set=issuer.transports.fetch_key_set,
-        wall_clock=configs.web_auth.wall_clock,
-        monotonic_clock=time.monotonic,
+    auth = build_web_auth(
+        configs,
+        WebAuthStores(sign_in=stores.transaction, sessions=session_transaction_of(sessions)),
+        fixture_page_build(languages),
+        lambda _request: languages.default,
+        SecurityHeadersPolicy(content_security_policy=default_content_security_policy()),
+        issuer.transports,
     )
-    return World(issuer, FakeAgentBackend(), stores, sessions, relying_party, configs.web_auth, languages)
+    return World(issuer, FakeAgentBackend(), stores, sessions, auth.relying_party, configs.web_auth, languages)
 
 
 async def wait_in_a_worker(event):

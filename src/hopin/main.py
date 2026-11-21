@@ -51,7 +51,7 @@ from hopin.agent.verdict_check import BackendOf, add_command, configured_agreeme
 from hopin.app import create_app
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.secret_files import StartRefusedError
-from hopin.config.settings import DatabaseSettings, ServerSettings
+from hopin.config.settings import DatabaseSettings, RealmSettings, ServerSettings
 from hopin.game.verdict_repeatability import passes, printed  # game
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.voice import VoiceStore
@@ -81,6 +81,7 @@ MODEL_VALIDATOR_MESSAGE_PREFIX = "Value error, "
 SETTINGS_FIELD_IN_MESSAGE = re.compile(r'error parsing value for field "([^"]+)"')
 
 SETTINGS_CLASSES: tuple[type[BaseSettings], ...] = (
+    RealmSettings,
     ServerSettings,
     AgentSettings,  # game
     ParticipationSettings,
@@ -122,6 +123,7 @@ def command_line_parser() -> argparse.ArgumentParser:
 
 def build_application(
     settings: ServerSettings,
+    realm: RealmSettings,
     page_build: PageBuild,
     shared_stores: SharedStores,
     *,
@@ -133,6 +135,7 @@ def build_application(
     voices = VoiceStore()
     return create_app(
         settings,
+        realm,
         page_build=page_build,
         shared_stores=shared_stores,
         stores=stores,
@@ -146,6 +149,7 @@ def build_application(
                 speaking=speech.speaking_service,
                 voices=voices,
                 redis=shared_stores.async_redis,
+                realm=realm,
                 subscription_wait_seconds=subscription_wait_seconds,
             ),
             *configured_stage_feature(settings.public_origin),  # stage
@@ -159,6 +163,7 @@ def run_uvicorn(application: FastAPI, options: UvicornOptions) -> None:
 
 def serve(
     settings: ServerSettings,
+    realm: RealmSettings,
     page_build: PageBuild,
     shared_stores: SharedStores,
     *,
@@ -170,6 +175,7 @@ def serve(
     logger.info("process.started")
     application = build_application(
         settings,
+        realm,
         page_build,
         shared_stores,
         stores=stores,
@@ -180,6 +186,7 @@ def serve(
 
 def serve_on_migrated_database(
     settings: ServerSettings,
+    realm: RealmSettings,
     page_build: PageBuild,
     *,
     subscription_wait_seconds: float = PLACE_SUBSCRIPTION_WAIT_SECONDS,
@@ -195,7 +202,14 @@ def serve_on_migrated_database(
 
     try:
         shared_stores = with_database_readiness(connect_shared_stores(str(settings.redis_url)), engine)
-        serve(settings, page_build, shared_stores, subscription_wait_seconds=subscription_wait_seconds, run=run_at_head)
+        serve(
+            settings,
+            realm,
+            page_build,
+            shared_stores,
+            subscription_wait_seconds=subscription_wait_seconds,
+            run=run_at_head,
+        )
     finally:
         engine.dispose()
 
@@ -270,7 +284,7 @@ def main(
         if parsed.command == "migrate":
             migrate_database(DatabaseSettings())
         else:
-            serve_on_migrated_database(ServerSettings(), PageBuild.load(build_directory))
+            serve_on_migrated_database(ServerSettings(), RealmSettings(), PageBuild.load(build_directory))
     except StartRefusedError as refused:
         parser.exit(1, f"{refused}\n")
 

@@ -24,7 +24,7 @@ from tests.e2e.support.page_assertions import (
 )
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS, PHONE, SMALL_PHONE_LANDSCAPE
 from tests.support.page_inventory import inventory_of
-from tests.support.sign_in_settings import END_SESSION_URL, TEST_ISSUER
+from tests.support.sign_in_settings import END_SESSION_URL, TEST_ISSUER, TEST_REALM
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -228,7 +228,7 @@ def test_log_out_ends_the_session_and_the_loop_stops_at_the_issuers_end_session_
     assert documents[1].response().status == 200
     assert documents[2].failure == ISSUER_NOT_REACHABLE
     assert parse_qs(documents[2].post_data) == {
-        "client_id": ["hopin"],
+        "client_id": [TEST_REALM.client_id],
         "post_logout_redirect_uri": [f"https://{urlsplit(e2e_server.base_url).netloc}{LOGIN_PATH}"],
         "id_token_hint": [id_token.get_secret_value()],
     }
