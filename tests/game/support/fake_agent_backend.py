@@ -85,6 +85,7 @@ class Succeeds:
     files: tuple[RunFile, ...] = ()
     said: tuple[str, ...] = ()
     verdicts: tuple[JsonObject, ...] | None = None
+    verdict_calls: int = 1
 
 
 @dataclass(frozen=True)
@@ -173,8 +174,8 @@ class FakeAgentBackend(AgentBackend):
 
 async def _events_of(answer: Answer) -> AsyncGenerator[TurnEvent]:
     match answer:
-        case Succeeds(text=text, files=files, said=said, verdicts=verdicts):
-            if verdicts is not None:
+        case Succeeds(text=text, files=files, said=said, verdicts=verdicts, verdict_calls=verdict_calls):
+            for _ in range(verdict_calls if verdicts is not None else 0):
                 yield ToolCallEvent(
                     tool_use_id="verdicts-1", name=VERDICT_TOOL_NAME, input={"verdicts": list(verdicts)}
                 )

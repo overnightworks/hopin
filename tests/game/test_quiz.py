@@ -1,11 +1,16 @@
+import json
+
 import pytest
 
 from hopin.game.quiz import (
     QUIZ_ROUNDS,
+    Judgement,
     PlayerAnswer,
     Quiz,
+    Score,
     Speaker,
     Turn,
+    Verdict,
     final_score_request,
     question_request,
 )
@@ -294,3 +299,75 @@ def test_every_question_request_of_a_quiz_names_a_different_topic():
 
     questions = [turn.text for turn in quiz.transcript if turn.speaker is Speaker.HOPIN and "Quizfrage" in turn.text]
     assert questions == [f"Stelle die nächste Quizfrage zum Thema {topic}." for topic in TOPICS]
+
+
+def answered_by_two():
+    return open_question().with_answer(STARTER, "Sam", "Tejo").with_answer(OTHER, "Otto", "Mondego")
+
+
+def judged(*judgements):
+    return tuple(Verdict(number, judgement) for number, judgement in enumerate(judgements, start=1))
+
+
+def test_the_scores_count_the_correct_verdicts_of_each_players_answers():
+    """GM-40: The scores count the correct verdicts of each player's answers."""
+    revealed = answered_by_two().revealing()
+
+    quiz = revealed.heard("Sam hat recht.", PLAYERS, judged(Judgement.CORRECT, Judgement.WRONG))
+
+    assert quiz.scores == (Score(STARTER, "Sam", 1), Score(OTHER, "Otto", 0))
+
+
+def test_the_scores_add_up_over_the_rounds_and_a_player_who_skips_a_round_keeps_theirs():
+    """GM-40: The scores add up over the rounds."""
+    first = answered_by_two().revealing().heard("A.", PLAYERS, judged(Judgement.CORRECT, Judgement.WRONG))
+    second = first.heard("Zweite Frage?", PLAYERS).with_answer(OTHER, "Otto", "Tejo").revealing()
+
+    quiz = second.heard("B.", PLAYERS, judged(Judgement.CORRECT))
+
+    assert quiz.scores == (Score(STARTER, "Sam", 1), Score(OTHER, "Otto", 1))
+
+
+def test_the_final_score_request_carries_the_counted_score_for_the_game_master_to_state():
+    """GM-40: The final score request carries the counted score."""
+    quiz = open_question().with_answer(STARTER, "Sam", "Tejo").revealing()
+    for _ in range(QUIZ_ROUNDS - 1):
+        quiz = quiz.heard("A.", PLAYERS, judged(Judgement.CORRECT)).heard("Frage?", PLAYERS)
+        quiz = quiz.with_answer(STARTER, "Sam", "Tejo").revealing()
+
+    quiz = quiz.heard("A.", PLAYERS, judged(Judgement.CORRECT))
+
+    assert quiz.transcript[-1] == Turn(Speaker.HOPIN, final_score_request((Score(STARTER, "Sam", QUIZ_ROUNDS),)))
+
+
+@pytest.mark.parametrize(
+    ("verdict_numbers", "judges"),
+    [
+        pytest.param((1, 2), True, id="each answer once"),
+        pytest.param((2, 1), True, id="in any order"),
+        pytest.param((1,), False, id="an answer missing"),
+        pytest.param((1, 1), False, id="an answer twice"),
+        pytest.param((1, 2, 3), False, id="an answer that was never given"),
+        pytest.param((0, 1), False, id="a number before the first"),
+        pytest.param((), False, id="none"),
+    ],
+)
+def test_the_verdicts_judge_a_reveal_only_when_they_name_each_given_answer_once(verdict_numbers, judges):
+    """GM-40: Verdicts that do not name each given answer once are not accepted."""
+    verdicts = tuple(Verdict(number, Judgement.CORRECT) for number in verdict_numbers)
+
+    assert answered_by_two().revealing().judges(verdicts) is judges
+
+
+def test_a_reveal_nobody_answered_is_judged_by_no_verdicts_and_adds_no_score():
+    quiz = open_question().revealing()
+
+    assert quiz.judges(())
+    assert quiz.heard("Niemand.", PLAYERS).scores == ()
+
+
+def test_the_reveal_request_numbers_the_given_answers_from_one_in_their_order():
+    """GM-40: The reveal request numbers the given answers from one, which the verdicts name."""
+    request = answered_by_two().revealing().transcript[-1].text
+
+    assert [answer["nr"] for answer in json.loads(request.split("\n")[1])] == [1, 2]

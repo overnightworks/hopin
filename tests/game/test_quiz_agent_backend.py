@@ -9,7 +9,7 @@ from logline import Outcome
 from webauth.admission import AppRole
 
 from hopin.agent.backend import QUIZ_AGENT_FILE, VERDICT_TOOL
-from hopin.game.quiz import Speaker, Turn
+from hopin.game.quiz import Judgement, Speaker, Turn, Verdict
 from hopin.game.table import Line, Refused
 from hopin.game.vocabulary import GameRefusal
 from tests.game.support.fake_agent_backend import (
@@ -19,6 +19,7 @@ from tests.game.support.fake_agent_backend import (
     Rejects,
     SaysThenStops,
     Succeeds,
+    correct,
 )
 from tests.game.support.world import (
     OFFERING_GERMAN_AND_ENGLISH,
@@ -289,6 +290,44 @@ class TestEndings:
 
         assert outcome == expected
         assert partial not in repr(outcome) + repr(logs)
+
+
+class TestTheVerdicts:
+    async def test_the_verdicts_of_the_tool_call_come_back_with_the_final_line(self, world):
+        """GM-40: The verdicts of the tool call come back with the final line."""
+        starter, _ = world.starter()
+        wrong = {"answer": 2, "judgement": Judgement.WRONG.value}
+        world.backend.answer_next(Succeeds("Sam hat recht.", verdicts=(*correct(1), wrong)))
+
+        outcome = await world.game_master.ask(starter, OPENING)
+
+        assert outcome == Line("Sam hat recht.", (Verdict(1, Judgement.CORRECT), Verdict(2, Judgement.WRONG)))
+
+    @pytest.mark.parametrize(
+        "verdicts",
+        [
+            pytest.param(({"answer": 1, "judgement": "maybe"},), id="a judgement outside the closed set"),
+            pytest.param(({"answer": "1", "judgement": "correct"},), id="an answer number as text"),
+            pytest.param(({"answer": 1, "judgement": "correct", "points": 5},), id="an extra field"),
+            pytest.param(({"judgement": "correct"},), id="no answer number"),
+        ],
+    )
+    async def test_a_malformed_verdict_is_unavailable_and_logged_by_a_code_never_scored(self, world, verdicts):
+        """GM-40: A malformed verdict makes the run unavailable and is logged by a code."""
+        starter, _ = world.starter()
+        world.backend.answer_next(Succeeds("Sam hat recht.", verdicts=verdicts))
+
+        with captured_lines() as logs:
+            outcome = await world.game_master.ask(starter, OPENING)
+
+        assert outcome == Refused(GameRefusal.UNAVAILABLE)
+        assert [log["reason"] for log in logs if log["event"] == TURN_ENDED] == ["malformed_verdicts"]
+
+    async def test_a_second_call_of_the_verdict_tool_is_malformed(self, world):
+        starter, _ = world.starter()
+        world.backend.answer_next(Succeeds("Sam hat recht.", verdicts=correct(1), verdict_calls=2))
+
+        assert await world.game_master.ask(starter, OPENING) == Refused(GameRefusal.UNAVAILABLE)
 
 
 class TestWhatLeaves:

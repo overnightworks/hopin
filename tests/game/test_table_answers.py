@@ -4,8 +4,11 @@ import pytest
 import structlog.testing
 
 from hopin.config.constants import ErrorReason, SignalType
+from hopin.game.quiz import Judgement, Verdict
+from hopin.game.table import Line
 from hopin.game.vocabulary import GAME_ANSWER_MAX_CHARACTERS, GameRefusal, GameSignal
 from tests.game.support.table_world import (
+    IDLE,
     REVEAL,
     START,
     answer,
@@ -17,6 +20,7 @@ from tests.game.support.table_world import (
     game_frames,
     hold_writes_from,
     let_every_task_run,
+    line,
     open_a_question,
     push_unsettled,
     question,
@@ -28,6 +32,7 @@ from tests.game.support.table_world import (
     sent,
     sent_count_to_all,
     sent_to_all,
+    thinking,
     wait_within_cap,
     yield_until,
 )
@@ -105,6 +110,48 @@ async def test_the_last_present_players_answer_runs_the_reveal_on_the_starters_s
         *revealed_into_question_two(guest, scores_of(("host", 1), ("guest", 1))),
     ]
     assert game_master.calls[1].starter is guest.socket
+
+
+async def test_a_wrong_verdict_gives_its_player_no_point_and_every_seat_sees_the_counted_score(link, game_master):
+    """GM-40: A wrong verdict gives its player no point and every seat sees the counted score."""
+    host, guest = await call_of(link, "host", "guest")
+    game_master.answer_next(
+        Line("Frage?"),
+        Line("Lissabon.", (Verdict(1, Judgement.CORRECT), Verdict(2, Judgement.WRONG))),
+        Line("Zweite?"),
+    )
+    await open_a_question([host, guest], guest)
+
+    await host.say(answer("Lissabon"))
+    await guest.say(answer("Porto"))
+    await sent_to_all([host, guest], answering(guest, 2))
+
+    for browser in (host, guest):
+        assert game_frames(browser)[-4] == line("Lissabon.", scores_of(("host", 1), ("guest", 0)))
+
+
+@pytest.mark.parametrize(
+    "verdicts",
+    [
+        pytest.param((Verdict(1, Judgement.CORRECT),), id="an answer without a verdict"),
+        pytest.param((Verdict(1, Judgement.CORRECT), Verdict(1, Judgement.WRONG)), id="an answer judged twice"),
+        pytest.param((Verdict(1, Judgement.CORRECT), Verdict(3, Judgement.WRONG)), id="a verdict for no answer"),
+    ],
+)
+async def test_verdicts_that_do_not_name_each_answer_once_end_the_quiz_without_a_line_or_a_score(
+    link, game_master, verdicts
+):
+    """GM-40: Verdicts that do not name each answer once end the quiz without a line or a score."""
+    host, guest = await call_of(link, "host", "guest")
+    game_master.answer_next(Line("Frage?"), Line("Lissabon.", verdicts))
+    await open_a_question([host, guest], guest)
+
+    await host.say(answer("Lissabon"))
+    await guest.say(answer("Porto"))
+    await sent_to_all([host, guest], IDLE)
+
+    assert game_frames(guest)[-3:] == [thinking(guest), refused(GameRefusal.UNAVAILABLE), IDLE]
+    assert "Lissabon." not in json.dumps([browser.socket.sent for browser in (host, guest)])
 
 
 async def test_the_starters_reveal_before_everyone_answered_runs_once_and_a_late_answer_is_refused_to_its_sender(
