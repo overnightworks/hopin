@@ -1,0 +1,8 @@
+claim_id = "145a29c1c6a5418d8f2c53764818ebb1"
+agent = "Claude 67aaab2c-9f94-4d9f-afe6-2b43deb759a9"
+role = "builder"
+base = "4ace98b054e229c8fb86bf2ede6e99c21fadc40b"
+branch = "claude/issue-1087-hopin-migrate"
+scope = [".aco/ahead-of-caller.toml", ".github/workflows/ci.yml", "Makefile", "README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/config", "src/hopin/main.py", "src/hopin/stores/__init__.py", "src/hopin/stores/migrations", "src/hopin/stores/postgres.py", "src/hopin/stores/redis.py", "src/hopin/stores/schema.py", "src/hopin/stores/shared.py", "tests/conftest.py", "tests/stores", "tests/support", "uv.lock"]
+opened_commit = "310f95bf22638d18bb9fff677b7fd89bd512133c"
+whole_reason = "One schema and its command: the migration, the settings, the engine and serve's head check have no effect without each other."
