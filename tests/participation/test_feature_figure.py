@@ -63,6 +63,11 @@ WAVE = "wave"
 
 
 @pytest.fixture
+def sources():
+    return [SOURCE_PREFIX]
+
+
+@pytest.fixture
 def adding_call_adders(adding_call_adders):
     return adding_call_adders | {SECOND_OWNER: ADDERS_GROUP}
 

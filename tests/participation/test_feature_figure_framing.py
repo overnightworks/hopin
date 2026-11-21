@@ -7,11 +7,17 @@ from agents.member import SET_FRAMING_TOOL
 from hopin.agent.tools import LEAVE_CALL
 from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.support.figure_scene import JOINED, accept_with, offered_tools
+from tests.participation.support.figures import SOURCE_PREFIX
 from tests.participation.support.tool_calls import call_in
 
 pytestmark = pytest.mark.integration
 
 FRAMED = ParticipationSignal.AGENT_FRAMING.value
+
+
+@pytest.fixture
+def sources():
+    return [SOURCE_PREFIX]
 
 
 class TestTheFramingTool:

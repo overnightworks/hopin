@@ -16,6 +16,7 @@ from hopin.agent.hearing import MemberHearingRecord
 from hopin.agent.speech_settings import SpeechService
 from hopin.participation.feature import Participation
 from hopin.participation.hearing import Hearing
+from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import ParticipationSignal
 from hopin.participation.voice import VoiceStore
 from hopin.signaling.handler import SignalingHandler
@@ -225,15 +226,21 @@ def adding_call_adders():
 
 
 @pytest.fixture
-def figure_sources():
-    """The figure sources the adding call allows; a module about figures names its own."""
-    return ()
+def sources():
+    """The figure sources the adding call allows, none unless a module about figures names its own."""
+    return []
 
 
 @pytest.fixture
-def figure_transport():
-    """The figures' source behind the transport port; a module about figures brings its own."""
-    return
+def figure_sources(sources):
+    """The figure sources as the settings read them from `sources`."""
+    return ParticipationSettings(figure_sources=sources).figure_sources
+
+
+@pytest.fixture
+def figure_transport(figure_origin):
+    """The figures' source behind the transport port: the `figure_origin`."""
+    return figure_origin
 
 
 @pytest.fixture
