@@ -111,14 +111,15 @@ function drawFigure(
         canvas.style.width = "100%";
         canvas.style.height = "100%";
         host.prepend(canvas);
-        const mounted = await mount(canvas, bytes, { onSignal: heard, gestures, framing });
+        const mountedIn = framing;
+        const mounted = await mount(canvas, bytes, { onSignal: heard, gestures, framing: mountedIn });
         if (hasEnded()) {
             mounted.dispose();
             return;
         }
         handle = mounted;
-        // The figure drops a call for the framing it is in, so a framing taken while it loaded costs nothing when unchanged.
-        if (framing !== undefined) handle.frame(framing);
+        // A framing taken while the figure mounted is shown now.
+        if (framing !== undefined && framing !== mountedIn) handle.frame(framing);
         if (speaker !== null) handle.listen(speaker);
         if (sentence !== null) speakTo(handle, sentence);
         if (thinking) handle.think(true);
