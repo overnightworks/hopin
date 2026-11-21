@@ -329,6 +329,12 @@ class Participation(TransitionFeature):
                 await logger.ainfo(
                     "agent_figure.refused", room_ref=room_reference(room_id), reason=verdict.refusal.value
                 )
+            if verdict.persona_room_refusal is not None:
+                await logger.ainfo(
+                    "agent_persona_room.refused",
+                    room_ref=room_reference(room_id),
+                    reason=verdict.persona_room_refusal.value,
+                )
             for gesture, clip_refusal in verdict.clip_refusals.items():
                 await logger.ainfo(
                     "agent_clip.refused", room_ref=room_reference(room_id), gesture=gesture, reason=clip_refusal.value

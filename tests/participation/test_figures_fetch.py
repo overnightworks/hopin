@@ -2,11 +2,10 @@
 
 import pytest
 
-from hopin.participation.figures import Figure, FigureSource, fetch_figure
+from hopin.participation.figures import Figure, fetch_figure
 from hopin.participation.vocabulary import FIGURE_FETCH_SECONDS, FIGURE_MAX_BYTES, FigureRefusal
 from tests.participation.support.figures import (
     GLB_HEADER,
-    SOURCE_HOST,
     Answer,
     FakeClock,
     FigureOrigin,
@@ -19,6 +18,7 @@ from tests.participation.support.figures import (
 
 FILE = glb()
 MIRROR = "https://mirror.example.test/figures/mozart.glb"
+RELEASE_ASSETS = "https://release-assets.example.test/personas/mozart.glb"
 
 
 @pytest.fixture
@@ -153,23 +153,18 @@ class TestAFetchThatIsRefused:
 
         assert (fetched(origin, clock), origin.requested) == (FigureRefusal.SECOND_REDIRECT, [figure_url(), MIRROR])
 
-    def test_a_redirect_outside_the_given_sources_is_refused_and_not_followed(self, origin, clock):
-        origin.serve(figure_url(), redirect(MIRROR))
-        origin.serve(MIRROR, ok(FILE))
-        sources = [FigureSource(SOURCE_HOST, "/personas/")]
-
-        assert (fetched(origin, clock, redirect_sources=sources), origin.requested) == (
-            FigureRefusal.OTHER_HOST,
-            [figure_url()],
-        )
-
-    def test_a_redirect_inside_the_given_sources_is_followed(self, origin, clock):
-        target = figure_url("moved.glb")
+    def test_a_redirect_to_another_host_with_a_signed_query_is_followed_with_the_query_unchanged(self, origin, clock):
+        target = f"{RELEASE_ASSETS}?sp=r&sv=2018-11-09&se=2026-11-21T10%3A00%3A00Z&sig=a%2Bb"
         origin.serve(figure_url(), redirect(target))
         origin.serve(target, ok(FILE))
-        sources = [FigureSource(SOURCE_HOST, "/personas/")]
 
-        assert (fetched(origin, clock, redirect_sources=sources), origin.requested) == (FILE, [figure_url(), target])
+        assert (fetched(origin, clock), origin.requested) == (FILE, [figure_url(), target])
+
+    def test_a_redirect_target_that_serves_other_bytes_is_a_mismatch_and_nothing_is_returned(self, origin, clock):
+        origin.serve(figure_url(), redirect(RELEASE_ASSETS))
+        origin.serve(RELEASE_ASSETS, ok(glb(b"another")))
+
+        assert fetched(origin, clock) == FigureRefusal.MISMATCH
 
     @pytest.mark.parametrize(
         ("location", "refusal"),

@@ -33,10 +33,12 @@ from agents.member import (
     DeclineInvitationRefusal,
     DeclineInvitationRefused,
     DroppedSpeaking,
+    FigureLook,
     FigureRef,
     GestureArguments,
     GestureRefusal,
     GestureRefused,
+    HttpsFileRef,
     PlaceRef,
     Relayed,
     SetFramingArguments,
@@ -63,7 +65,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from hopin.agent.speaking import LanguageUnavailableError, StyleUnavailableError, known_voices
 from hopin.config.constants import LINE_LIMITS
-from hopin.participation.figures import Clip, Figure
+from hopin.participation.figures import Clip, Figure, PersonaRoom
 from hopin.participation.participants import Caller, DialedAgent
 from hopin.participation.text import one_line
 from hopin.participation.vocabulary import (
@@ -386,16 +388,25 @@ def _text_of(arguments: JsonObject, name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
-def _figure_of(ref: FigureRef) -> Figure:
+def _figure_of(accepted: AcceptInvitationArguments) -> Figure | None:
+    """The figure hopin shows: the first figure look of `looks`, which skips a video look as hopin draws none; the old
+    `figure` only while `looks` is absent, and it carries no room."""
+    if accepted.looks is None:
+        return None if accepted.figure is None else _figure_with(accepted.figure, None)
+    look = next((look for look in accepted.looks if isinstance(look, FigureLook)), None)
+    return None if look is None else _figure_with(look, look.room)
+
+
+def _figure_with(ref: FigureRef, room: HttpsFileRef | None) -> Figure:
     clips = tuple(Clip(gesture.value, clip.url, clip.sha256) for gesture, clip in ref.gestures.items())
-    return Figure(ref.url, ref.sha256, clips)
+    return Figure(ref.url, ref.sha256, clips, None if room is None else PersonaRoom(room.url, room.sha256))
 
 
 async def _accepted(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
     accepted = member_arguments(AcceptInvitationArguments, arguments)
     if accepted.place.kind != CALL_KIND:
         return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
-    figure = None if accepted.figure is None else _figure_of(accepted.figure)
+    figure = _figure_of(accepted)
     voices = known_voices(accepted.voices)
     outcome = await participation.accept(
         caller.person, accepted.place.id, accepted.invitation, accepted.epoch, figure, voices

@@ -29,11 +29,14 @@ from hopin.rooms.reference import room_reference
 from tests.participation.support.figure_scene import (
     FILE,
     JOINED,
+    REFUSED_EVENT,
     accept_invitation,
     accept_with,
     figure_of,
     joined_with,
     offered_tools,
+    read_figure,
+    refusals_in,
 )
 from tests.participation.support.figures import (
     SOURCE_PREFIX,
@@ -47,7 +50,6 @@ from tests.participation.support.figures import (
 from tests.participation.support.tool_calls import call_in
 from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.dialed_call import LISTEN_TIMEOUT_SECONDS, RESOURCE_UPDATED, TOOLS_LIST_CHANGED
-from tests.support.signed_in import cookie_header
 
 pytestmark = pytest.mark.integration
 
@@ -57,9 +59,9 @@ THINKING = ParticipationSignal.AGENT_THINKING.value
 TURN_STATE = ParticipationSignal.AGENT_TURN_STATE.value
 SECOND_OWNER = "subject-second-owner"
 CLIP = glb(b"wave" * 8)
-REFUSED_EVENT = "agent_figure.refused"
 CLIP_REFUSED_EVENT = "agent_clip.refused"
 WAVE = "wave"
+RELEASE_ASSETS = "https://release-assets.example.test/personas/wave.vrma"
 
 
 @pytest.fixture
@@ -70,15 +72,6 @@ def sources():
 @pytest.fixture
 def adding_call_adders(adding_call_adders):
     return adding_call_adders | {SECOND_OWNER: ADDERS_GROUP}
-
-
-def read_figure(scene, path, method="GET", **headers):
-    cookie = {"cookie": cookie_header(scene.member_login.set_cookie_headers)}
-    return scene.call.client.request(method, path, headers=cookie | headers)
-
-
-def refusals_in(logs, event=REFUSED_EVENT):
-    return [entry for entry in logs if entry["event"] == event]
 
 
 def clip_of_wave():
@@ -407,15 +400,14 @@ class TestThePersonasClips:
 
         assert ("figure" in joined, "gestures" in joined) == (False, False)
 
-    def test_a_clip_that_redirects_outside_the_allowed_sources_is_a_bad_gateway_and_the_other_host_is_not_asked(
-        self, scene, figure_origin
-    ):
-        elsewhere = figure_url("wave.vrma").replace("figures.", "other.")
+    def test_a_clip_whose_source_redirects_the_way_github_does_is_served(self, scene, figure_origin):
+        released = f"{RELEASE_ASSETS}?sp=r&sig=a%2Bb"
+        figure_origin.serve(released, ok(CLIP))
 
-        clip_path = joined_with_clip(scene, figure_origin, answer=redirect(elsewhere))
-        served = read_figure(scene, clip_path)
+        path = joined_with_clip(scene, figure_origin, answer=redirect(released))
+        served = read_figure(scene, path)
 
-        assert (served.status_code, figure_origin.requested.count(elsewhere)) == (502, 0)
+        assert (served.status_code, served.content) == (200, CLIP)
 
     @pytest.mark.parametrize(
         ("clip", "answer"),

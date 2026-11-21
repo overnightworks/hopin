@@ -1,5 +1,5 @@
-"""An agent's figure: the allowlist its URL meets at accept, the one fetch that verifies its bytes, and the store the
-route serves them from.
+"""An agent's figure, with its clips and persona room: the allowlist each URL meets at accept, the one fetch that
+verifies its bytes, and the store the route serves them from.
 
 The figure is kept on the joined place only when its URL lies under a prefix of `HOPIN_FIGURE_SOURCES`; otherwise the
 tile keeps its symbol and a closed code is logged. `agent_joined` then carries the route's path for its digest, which
@@ -32,6 +32,7 @@ from hopin.participation.vocabulary import (
     FIGURE_MAX_BYTES,
     FIGURE_PATH,
     FIGURE_REDIRECTS,
+    PERSONA_ROOM_PATH,
     FigureRefusal,
 )
 from hopin.rooms.reference import room_reference
@@ -62,12 +63,22 @@ class Clip:
 
 
 @dataclass(frozen=True)
+class PersonaRoom:
+    """A persona's room as its accept names it: the URL and the sha256 its bytes must have."""
+
+    url: str
+    sha256: str
+
+
+@dataclass(frozen=True)
 class Figure:
-    """An agent's figure as its accept names it: the URL and the sha256 its bytes must have, and the clips it brings."""
+    """An agent's figure as its accept names it: the URL and the sha256 its bytes must have, the clips it brings and
+    the persona room it is seen in."""
 
     url: str
     sha256: str
     clips: tuple[Clip, ...] = ()
+    persona_room: PersonaRoom | None = None
 
 
 @dataclass(frozen=True)
@@ -118,6 +129,11 @@ def figure_path(sha256: str) -> str:
 def clip_path(sha256: str) -> str:
     """Where the browser reads the clip of this digest."""
     return f"{CLIP_PATH}/{sha256}"
+
+
+def persona_room_path(sha256: str) -> str:
+    """Where the browser reads the persona room of this digest."""
+    return f"{PERSONA_ROOM_PATH}/{sha256}"
 
 
 def path_refusal(path: str) -> FigureRefusal | None:
@@ -175,16 +191,18 @@ def figure_refusal(sources: Collection[FigureSource], url: str) -> FigureRefusal
 
 @dataclass(frozen=True)
 class FigureVerdict:
-    """What an accept's figure comes to: the figure to show, with the clips an allowed source holds, or none; why the
-    figure is refused, and why each dropped clip's gesture is."""
+    """What an accept's figure comes to: the figure to show, with the clips and the persona room an allowed source
+    holds, or none; why the figure is refused, why each dropped clip's gesture is, and why the persona room is."""
 
     shown: Figure | None
     refusal: FigureRefusal | None
     clip_refusals: dict[str, FigureRefusal]
+    persona_room_refusal: FigureRefusal | None = None
 
 
 def judge_figure(sources: Collection[FigureSource], figure: Figure | None) -> FigureVerdict:
-    """A refused figure takes its clips with it; a refused clip leaves its gesture to figure's own."""
+    """A refused figure takes its clips and its persona room with it; a refused clip leaves its gesture to figure's
+    own, and a refused persona room leaves the figure."""
     if figure is None:
         return FigureVerdict(None, None, {})
     refusal = figure_refusal(sources, figure.url)
@@ -192,7 +210,10 @@ def judge_figure(sources: Collection[FigureSource], figure: Figure | None) -> Fi
         return FigureVerdict(None, refusal, {})
     clip_refusals = {clip.gesture: why for clip in figure.clips if (why := figure_refusal(sources, clip.url))}
     allowed = tuple(clip for clip in figure.clips if clip.gesture not in clip_refusals)
-    return FigureVerdict(Figure(figure.url, figure.sha256, allowed), None, clip_refusals)
+    room = figure.persona_room
+    room_refusal = None if room is None else figure_refusal(sources, room.url)
+    shown = Figure(figure.url, figure.sha256, allowed, room if room_refusal is None else None)
+    return FigureVerdict(shown, None, clip_refusals, room_refusal)
 
 
 @dataclass(frozen=True)
@@ -206,11 +227,10 @@ def fetch_figure(
     *,
     monotonic: Callable[[], float],
     max_bytes: int = FIGURE_MAX_BYTES,
-    redirect_sources: Collection[FigureSource] | None = None,
 ) -> bytes | FigureRefusal:
-    """The verified bytes of the file the figure's URL and digest name (a clip is fetched alike, within its own
-    `max_bytes`), or why there are none. One deadline spans the whole fetch, and at most one redirect to https is
-    followed; given `redirect_sources`, the redirect's target must also be allowed by one of them."""
+    """The verified bytes of the file the figure's URL and digest name (a clip or a persona room is fetched alike,
+    within its own `max_bytes`), or why there are none. One deadline spans the whole fetch, and at most one redirect to
+    https is followed: the source that holds the file decides where it goes, and only bytes with the digest are kept."""
     deadline = monotonic() + FIGURE_FETCH_SECONDS
     url, redirects = figure.url, 0
     while True:
@@ -228,8 +248,6 @@ def fetch_figure(
             return FigureRefusal.MALFORMED_URL
         if urlsplit(url).scheme != HTTPS_SCHEME:
             return FigureRefusal.REDIRECT_NOT_HTTPS
-        if redirect_sources is not None and (refusal := figure_refusal(redirect_sources, url)) is not None:
-            return refusal
 
 
 def _get_once(
@@ -271,9 +289,9 @@ def _verified(body: bytes, sha256: str) -> bytes | FigureRefusal:
 
 
 class FigureStore:
-    """The verified files of one kind by digest (figures, or clips), least recently used first, within `cache_bytes`. A
-    digest has one fetch at a time, and fetches run on two workers of their own, so stalled ones cannot starve the
-    loop's default executor. Each fetch writes a `step_event` line."""
+    """The verified files of one kind by digest (figures, clips or persona rooms), least recently used first, within
+    `cache_bytes`. A digest has one fetch at a time, and fetches run on two workers of their own, so stalled ones cannot
+    starve the loop's default executor. Each fetch writes a `step_event` line."""
 
     def __init__(
         self,

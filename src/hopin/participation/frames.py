@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, get_args
 
-from hopin.participation.figures import clip_path, figure_path
+from hopin.participation.figures import clip_path, figure_path, persona_room_path
 from hopin.participation.vocabulary import (
     AgentRefusal,
     FigureFraming,
@@ -38,6 +38,7 @@ class AgentJoinedFrame(WireFrame):
     sponsor_id: str
     figure: str | None = None
     gestures: dict[str, str] | None = None
+    room: str | None = None
     framing: FigureFraming | None = None
 
 
@@ -208,5 +209,6 @@ def joined_frame(agent: DialedAgent, sponsor_name: str, framing: FigureFraming |
         sponsor_id=agent.sponsor,
         figure=None if figure is None else figure_path(figure.sha256),
         gestures={clip.gesture: clip_path(clip.sha256) for clip in figure.clips} if figure and figure.clips else None,
+        room=None if figure is None or figure.persona_room is None else persona_room_path(figure.persona_room.sha256),
         framing=framing,
     )

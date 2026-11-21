@@ -113,6 +113,7 @@ export type AgentJoinedFrame = {
     sponsor_id: string;
     figure?: string;
     gestures?: Record<string, string>;
+    room?: string;
     framing?: FIGURE_FRAMING;
 };
 
