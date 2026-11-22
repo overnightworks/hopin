@@ -13,7 +13,7 @@ from agents.member import (
 )
 
 from hopin.agent.tools import LEAVE_CALL, SAY
-from hopin.config.constants import CALL_FEATURES_PATH
+from hopin.config.constants import CALL_FEATURES_PATH, IMMUTABLE_ASSET_CACHE_CONTROL
 from hopin.participation.figures import figure_refusal
 from hopin.participation.vocabulary import (
     CLIP_MAX_BYTES,
@@ -223,7 +223,7 @@ class TestTheRoute:
             served.headers["content-type"],
             served.headers["x-content-type-options"],
             served.headers["cache-control"],
-        ) == ("model/gltf-binary", "nosniff", "private, max-age=31536000, immutable")
+        ) == ("model/gltf-binary", "nosniff", IMMUTABLE_ASSET_CACHE_CONTROL)
 
     def test_a_head_answers_the_headers_without_the_body(self, scene, figure_origin):
         path = joined_with(scene, figure_origin.serve(figure_url(), ok(FILE)))
@@ -356,7 +356,7 @@ class TestThePersonasClips:
             served.headers["content-type"],
             served.headers["x-content-type-options"],
             served.headers["cache-control"],
-        ) == ("model/gltf-binary", "nosniff", "private, max-age=31536000, immutable")
+        ) == ("model/gltf-binary", "nosniff", IMMUTABLE_ASSET_CACHE_CONTROL)
 
     def test_a_clip_is_fetched_once_for_every_read(self, scene, figure_origin):
         path = joined_with_clip(scene, figure_origin)
