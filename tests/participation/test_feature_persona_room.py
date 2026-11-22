@@ -5,6 +5,7 @@ import pytest
 import structlog.testing
 
 from hopin.agent.tools import LEAVE_CALL
+from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL
 from hopin.participation.vocabulary import (
     CLIP_MAX_BYTES,
     CLIP_PATH,
@@ -82,7 +83,7 @@ class TestTheRoomAtAccept:
             "model/gltf-binary",
             "nosniff",
         )
-        assert served.headers["cache-control"] == "private, max-age=31536000, immutable"
+        assert served.headers["cache-control"] == IMMUTABLE_ASSET_CACHE_CONTROL
 
     def test_call_80_a_figure_look_without_a_room_is_told_no_room(self, scene, figure_origin):
         figure_origin.serve(figure_url(), ok(FILE))
