@@ -84,7 +84,7 @@ INVITATION_CLOSED_EVENT: Final = "agent_invitation.closed"
 
 
 class Participation(TransitionFeature):
-    """The agents in calls: dialed in by a person's own agent or added by a member of the owner's adders group,
+    """The agents in calls: dialed in by a person's own agent or added by a member of the realm group of agent adders,
     whichever seat sponsors them; each takes a place of the call like a person."""
 
     def __init__(
@@ -95,7 +95,6 @@ class Participation(TransitionFeature):
         on_changed: Callable[[Person], None],
         on_window_changed: Callable[[Person, str], None],
         wall_clock: Callable[[], float],
-        adders: Mapping[str, str],
         groups_of: GroupsOf,
         listens_to_standing: Callable[[Person], bool],
         figure_sources: Collection[FigureSource],
@@ -116,7 +115,7 @@ class Participation(TransitionFeature):
         self._hearing = hearing
         self._places = Places()
         self._seat_views = SeatViews()
-        self._offers = Offers(self._places, adders, listens_to_standing, self._is_working, self._seat_views)
+        self._offers = Offers(self._places, listens_to_standing, self._is_working, self._seat_views)
         self.speech = SpeechInWindows(self._places, hearing, self._name_of, on_window_changed, deadlines)
         self.figures = ShownFigures(self._places, deadlines, self._active_agent, self._tell, self._recipients)
         self._agent_speech = AgentSpeech(

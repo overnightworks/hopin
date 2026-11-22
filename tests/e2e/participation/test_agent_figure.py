@@ -16,13 +16,12 @@ from hopin.agent.tools import CALL_KIND
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import CLIP_PATH, FIGURE_MODULE, VOICE_PATH, FigureMood
 from tests.e2e.support.client_manifest import entry_of, urls_of_the_chunks_of
-from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT, room_of_link
+from tests.e2e.support.dialed_agent import AGENT_TILE, room_of_link
 from tests.e2e.support.media import LOUD, SILENCE, SPEAK_ON_DEMAND
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.e2e.support.speaker import SPEAKING_TILE, Speaker
 from tests.participation.support.figures import SOURCE_PREFIX, Answer, FigureOrigin, digest_of, figure_url, glb, ok
-from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.loopback_origin import Origin
 from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, offering, silent_wav, speaking
 
@@ -87,7 +86,6 @@ def figure_server(
         participation=True,
         speaks=True,
         speech=SpeechService(speech_origin.base_url, VoiceId.THORSTEN, AUDIENCE_SCOPE),
-        agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
         figure_sources=ParticipationSettings(figure_sources=[SOURCE_PREFIX]).figure_sources,
         figure_transport=figure_origin,
     ) as server:

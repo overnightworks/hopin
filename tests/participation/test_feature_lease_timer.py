@@ -60,7 +60,6 @@ def _participation(deadlines, changed):
         on_changed=changed.append,
         on_window_changed=lambda person, room_id: None,
         wall_clock=lambda: 0.0,
-        adders={},
         groups_of=groups_never_read,
         listens_to_standing=lambda person: False,
         figure_sources=(),

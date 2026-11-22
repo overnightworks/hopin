@@ -16,6 +16,7 @@ from hopin.agent.hearing import MemberHearingRecord
 from hopin.agent.speech_settings import SpeechService
 from hopin.participation.feature import Participation
 from hopin.participation.hearing import Hearing
+from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import ParticipationSignal
 from hopin.participation.voice import VoiceStore
@@ -27,7 +28,6 @@ from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS, GroupRe
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking_scene import SOUND
 from tests.signaling.support.browsers import Link, host_and_guest
-from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.agent_speak import speak
 from tests.support.dialed_call import accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
@@ -68,12 +68,6 @@ def changes():
 def window_changes():
     """The (person, room) each `on_window_changed` call named, in order."""
     return []
-
-
-@pytest.fixture
-def adders():
-    """The owner's subject mapped to the group that may add the owner's agent; a module that adds overrides it."""
-    return {}
 
 
 @pytest.fixture
@@ -145,7 +139,6 @@ def handler(
     deadlines,
     changes,
     window_changes,
-    adders,
     groups_of_seat,
     group_reads,
     listeners,
@@ -157,7 +150,7 @@ def handler(
         groups = groups_of_seat.get(connection.account.name, frozenset())
         if isinstance(groups, asyncio.Event):
             await groups.wait()
-            return frozenset(adders.values())
+            return frozenset({AGENT_ADDERS_GROUP})
         return groups
 
     handler = SignalingHandler(
@@ -173,7 +166,6 @@ def handler(
                 on_changed=changes,
                 on_window_changed=lambda person, room_id: window_changes.append((person, room_id)),
                 wall_clock=lambda: WALL_CLOCK_SECONDS,
-                adders=adders,
                 groups_of=groups_of,
                 figure_sources=(),
                 listens_to_standing=lambda person: person in listeners,
@@ -217,12 +209,6 @@ class SeatChangeWitness(RecordingFeature):
 def seat_changes():
     """Set whenever the call core announces a change of a seat; the test clears it before it causes one."""
     return threading.Event()
-
-
-@pytest.fixture
-def adding_call_adders():
-    """The owners of the adding call mapped to their adders group; a module that adds another owner extends it."""
-    return {OWNER_SUBJECT: ADDERS_GROUP}
 
 
 @pytest.fixture
@@ -289,18 +275,16 @@ def adding_call(
     issuer_clock,
     sign_in_settings,
     seat_changes,
-    adding_call_adders,
     figure_sources,
     figure_transport,
     hearing_service,
     speaking_service,
 ):
-    """HopIn whose adders group is mapped to the owner `OWNER_SUBJECT`."""
+    """HopIn with participation wired into its calls."""
     sign_in = sign_in_settings()
     with serving_dialed_call(
         sign_in,
         FakeIssuer(sign_in),
-        adding_call_adders,
         more_call_features=(WitnessFeatureBuilder(SeatChangeWitness(announced=seat_changes)),),
         figure_sources=figure_sources,
         figure_transport=figure_transport,
@@ -320,9 +304,9 @@ class Scene:
     agent_username = "agent-subject-username"
     owner_subject = OWNER_SUBJECT
 
-    def __init__(self, call, *, member_groups=(ADDERS_GROUP,)):
+    def __init__(self, call, *, member_groups=(AGENT_ADDERS_GROUP,)):
         self.call = call
-        self.owner_account, self.owner_login = call.member(subject=OWNER_SUBJECT, groups=(ADDERS_GROUP,))
+        self.owner_account, self.owner_login = call.member(subject=OWNER_SUBJECT, groups=(AGENT_ADDERS_GROUP,))
         self.owner = call.seat(self.owner_login)
         self.member_account, self.member_login = call.member(groups=member_groups)
         self.member = call.seat(self.member_login, self.owner.room_id)
