@@ -1,8 +1,0 @@
-claim_id = "adba3e23090d44518340c88ad854afe7"
-agent = "Claude 5eca3dc5-5b7a-45af-9170-3abc97d73816"
-role = "builder"
-base = "d195789c329a3021325686c745957c910d705214"
-branch = "claude/issue-1105-agent-adders-group"
-scope = ["README.md", "docs/call.md", "src/hopin/agent/__init__.py", "src/hopin/agent/mcp.py", "src/hopin/main.py", "src/hopin/participation/__init__.py", "src/hopin/participation/feature.py", "src/hopin/participation/memberships.py", "src/hopin/participation/offers.py", "src/hopin/participation/settings.py", "tests/e2e/participation", "tests/e2e/support", "tests/participation", "tests/stores/test_redis_agent_place_signals.py", "tests/stores/test_redis_standing_listeners.py", "tests/support"]
-opened_commit = "e1a5e42e94bb6133519a1ee1df699e3227c1beef"
-whole_reason = "Dropping the per-owner map changes the one membership check that the offers, the control's display and the add share, and every test that starts a server passes the map, so the setting cannot go in parts."
