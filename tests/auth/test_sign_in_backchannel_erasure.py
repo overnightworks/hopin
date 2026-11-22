@@ -36,17 +36,17 @@ from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import cookie_header, handshake_headers, new_id_token, seed_member
+from tests.support.stores import single_process_stores
 
 ABNORMAL_CLOSE_CODE = 4999
 FOUND_ELSEWHERE = 302
 UNAUTHENTICATED = 401
 
-pytestmark = pytest.mark.shared_stores
 
-
-@pytest.fixture
-def stores(postgres_stores):
-    return postgres_stores
+@pytest.fixture(params=["in-thread", pytest.param("postgres", marks=pytest.mark.shared_stores)])
+def stores(request):
+    """The erasure runs over webauth's single-process stores and, in the Shared stores job, over production's."""
+    return single_process_stores() if request.param == "in-thread" else request.getfixturevalue("postgres_stores")
 
 
 @pytest.fixture
