@@ -1,10 +1,8 @@
-import types
 from dataclasses import dataclass
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 import pytest
-import webauth.rate_limit
 from fastapi.testclient import TestClient
 
 from hopin.app import create_app
@@ -46,7 +44,7 @@ FORM_POST = {"content-type": "application/x-www-form-urlencoded"}
 
 
 class LimiterClock:
-    """Stands in for the `time` binding of the webauth limiter, the only clock it reads."""
+    """The clock the webauth limiter reads."""
 
     def __init__(self) -> None:
         self.now = 1000.0
@@ -79,7 +77,7 @@ class Deployment:
         start = self.client("192.0.2.200").get(AUTH_START_PATH)
         return [
             self.issuer.authorize(
-                start.headers["location"], subject="anna", groups=[TEST_REALM.login_group], username="anna"
+                start.headers["location"], subject="anna", groups=[str(TEST_REALM.login_group)], username="anna"
             )
             for _ in range(count)
         ]
@@ -89,7 +87,7 @@ class Deployment:
         start = browser.get(AUTH_START_PATH)
         assert start.status_code == HTTPStatus.SEE_OTHER
         query = self.issuer.authorize(
-            start.headers["location"], subject="anna", groups=[TEST_REALM.login_group], username="anna"
+            start.headers["location"], subject="anna", groups=[str(TEST_REALM.login_group)], username="anna"
         )
         callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         assert callback.headers["location"] != NO_ACCESS_PATH
@@ -102,9 +100,8 @@ class Deployment:
 
 
 @pytest.fixture
-def make_deployment(sign_in_settings: Callable[..., SignInSettings], monkeypatch) -> Callable[..., Deployment]:
+def make_deployment(sign_in_settings: Callable[..., SignInSettings]) -> Callable[..., Deployment]:
     clock = LimiterClock()
-    monkeypatch.setattr(webauth.rate_limit, "time", types.SimpleNamespace(monotonic=clock.monotonic))
 
     def make(**overrides: str) -> Deployment:
         sign_in = sign_in_settings(**overrides)
@@ -114,7 +111,7 @@ def make_deployment(sign_in_settings: Callable[..., SignInSettings], monkeypatch
                 sign_in.settings,
                 TEST_REALM,
                 page_build=fixture_page_build(),
-                shared_stores=in_thread_stores(),
+                shared_stores=in_thread_stores(clock.monotonic),
                 issuer_transports=issuer.transports,
                 identity=single_process_stores(),
             ),

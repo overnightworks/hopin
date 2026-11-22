@@ -58,7 +58,7 @@ class SignInHarness:
         browser: TestClient,
         *,
         subject: str = SUBJECT,
-        groups: list[str] | str | None = (TEST_REALM.login_group,),
+        groups: list[str] | str | None = (str(TEST_REALM.login_group),),
         username: str = USERNAME,
         next_path: str | None = None,
     ) -> Response:

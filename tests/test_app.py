@@ -157,7 +157,7 @@ class TestCreateApp:
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
         query = issuer.authorize(
-            start.headers["location"], subject="subject", groups=[TEST_REALM.login_group], username="alice"
+            start.headers["location"], subject="subject", groups=[str(TEST_REALM.login_group)], username="alice"
         )
         callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         assert start.headers["location"].startswith(sign_in.settings.oidc_issuer)
@@ -178,7 +178,7 @@ class TestCreateApp:
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
         query = issuer.authorize(
-            start.headers["location"], subject="subject", groups=[TEST_REALM.login_group], username="alice"
+            start.headers["location"], subject="subject", groups=[str(TEST_REALM.login_group)], username="alice"
         )
         browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
 
@@ -201,7 +201,7 @@ class TestCreateApp:
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
         query = issuer.authorize(
-            start.headers["location"], subject="subject", groups=[TEST_REALM.login_group], username="alice"
+            start.headers["location"], subject="subject", groups=[str(TEST_REALM.login_group)], username="alice"
         )
         browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         cookie = f"{SESSION_COOKIE}={browser.cookies[SESSION_COOKIE]}"
@@ -228,7 +228,7 @@ class TestCreateApp:
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
         query = issuer.authorize(
-            start.headers["location"], subject="subject", groups=[TEST_REALM.login_group], username="alice"
+            start.headers["location"], subject="subject", groups=[str(TEST_REALM.login_group)], username="alice"
         )
         callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         handshake = {"origin": TEST_PUBLIC_ORIGIN, "cookie": cookie_header(callback.headers.get_list("set-cookie"))}
