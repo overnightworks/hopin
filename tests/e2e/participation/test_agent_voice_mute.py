@@ -30,9 +30,9 @@ def e2e_server(voicing_server: RunningServer) -> RunningServer:
 
 
 LABEL_IS_WHOLE_OR_HIDDEN = """
-(switch) => {
-    const label = switch.querySelector(".label");
-    return switch.classList.contains("compact") || label.scrollWidth <= label.clientWidth;
+(chip) => {
+    const label = chip.querySelector(".label");
+    return chip.classList.contains("compact") || label.scrollWidth <= label.clientWidth;
 }
 """
 
