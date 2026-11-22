@@ -4,7 +4,6 @@ and the route that serves the verified file while a joined agent names it as its
 import pytest
 import structlog.testing
 
-from hopin.agent.tools import LEAVE_CALL
 from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL
 from hopin.participation.vocabulary import (
     CLIP_MAX_BYTES,
@@ -13,7 +12,6 @@ from hopin.participation.vocabulary import (
     PERSONA_ROOM_MAX_BYTES,
     PERSONA_ROOM_PATH,
     FigureRefusal,
-    ParticipationSignal,
 )
 from hopin.rooms.reference import room_reference
 from tests.participation.support.figure_scene import (
@@ -23,8 +21,10 @@ from tests.participation.support.figure_scene import (
     accept_with,
     figure_look,
     read_figure,
+    reads_and_origin_fetches,
     refusals_in,
     room_of,
+    status_of_a_served_file_once_the_agent_has_left,
 )
 from tests.participation.support.figures import (
     SOURCE_PREFIX,
@@ -135,9 +135,7 @@ class TestTheRoute:
     def test_call_80_a_room_is_fetched_once_for_every_read(self, scene, figure_origin):
         path = joined_with_room(scene, figure_origin)
 
-        reads = [read_figure(scene, path).content for _ in range(2)]
-
-        assert (reads, figure_origin.requested.count(room_url())) == ([ROOM] * 2, 1)
+        assert reads_and_origin_fetches(scene, figure_origin, path, room_url()) == ([ROOM] * 2, 1)
 
     def test_call_80_a_room_whose_source_redirects_the_way_github_does_is_served(self, scene, figure_origin):
         released = f"{RELEASE_ASSETS}?sp=r&sig=a%2Bb"
@@ -200,12 +198,8 @@ class TestTheRoute:
         self, scene, figure_origin
     ):
         path = joined_with_room(scene, figure_origin)
-        assert read_figure(scene, path).status_code == 200
 
-        scene.call.call(scene.token, LEAVE_CALL, {"room": scene.owner.room_id})
-        scene.member.frame_of_type(ParticipationSignal.AGENT_LEFT.value)
-
-        assert read_figure(scene, path).status_code == 404
+        assert status_of_a_served_file_once_the_agent_has_left(scene, path) == 404
 
     def test_call_80_a_read_of_a_room_without_a_session_is_refused_by_the_gate(self, scene, figure_origin):
         path = joined_with_room(scene, figure_origin)

@@ -36,7 +36,9 @@ from tests.participation.support.figure_scene import (
     joined_with,
     offered_tools,
     read_figure,
+    reads_and_origin_fetches,
     refusals_in,
+    status_of_a_served_file_once_the_agent_has_left,
 )
 from tests.participation.support.figures import (
     SOURCE_PREFIX,
@@ -361,9 +363,7 @@ class TestThePersonasClips:
     def test_a_clip_is_fetched_once_for_every_read(self, scene, figure_origin):
         path = joined_with_clip(scene, figure_origin)
 
-        reads = [read_figure(scene, path).content for _ in range(2)]
-
-        assert (reads, figure_origin.requested.count(clip_of_wave())) == ([CLIP] * 2, 1)
+        assert reads_and_origin_fetches(scene, figure_origin, path, clip_of_wave()) == ([CLIP] * 2, 1)
 
     @pytest.mark.parametrize(
         ("url", "code"),
@@ -448,12 +448,8 @@ class TestThePersonasClips:
 
     def test_once_the_agent_has_gone_its_clip_is_not_found_though_the_cache_holds_it(self, scene, figure_origin):
         path = joined_with_clip(scene, figure_origin)
-        assert read_figure(scene, path).status_code == 200
 
-        scene.call.call(scene.token, LEAVE_CALL, {"room": scene.owner.room_id})
-        scene.member.frame_of_type(ParticipationSignal.AGENT_LEFT.value)
-
-        assert read_figure(scene, path).status_code == 404
+        assert status_of_a_served_file_once_the_agent_has_left(scene, path) == 404
 
     def test_a_read_of_a_clip_without_a_session_is_refused_by_the_gate(self, scene, figure_origin):
         path = joined_with_clip(scene, figure_origin)

@@ -3,6 +3,7 @@ one, and the agent joined with a shown figure."""
 
 from agents.member import ACCEPT_INVITATION_TOOL
 
+from hopin.agent.tools import LEAVE_CALL
 from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.support.figures import digest_of, glb
 from tests.support.dialed_call import accept_arguments
@@ -74,6 +75,20 @@ def read_figure(scene, path, method="GET", **headers):
     """The file at the path, read as the member of the scene reads it."""
     cookie = {"cookie": cookie_header(scene.member_login.set_cookie_headers)}
     return scene.call.client.request(method, path, headers=cookie | headers)
+
+
+def reads_and_origin_fetches(scene, figure_origin, path, source_url):
+    """The contents of two reads of the path, and how often the origin was asked for the source."""
+    reads = [read_figure(scene, path).content for _ in range(2)]
+    return reads, figure_origin.requested.count(source_url)
+
+
+def status_of_a_served_file_once_the_agent_has_left(scene, path):
+    """The path is served while the agent is in the call; its status after the agent has left."""
+    assert read_figure(scene, path).status_code == 200
+    scene.call.call(scene.token, LEAVE_CALL, {"room": scene.owner.room_id})
+    scene.member.frame_of_type(ParticipationSignal.AGENT_LEFT.value)
+    return read_figure(scene, path).status_code
 
 
 def refusals_in(logs, event=REFUSED_EVENT):
