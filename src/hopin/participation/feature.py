@@ -39,6 +39,7 @@ from hopin.participation.vocabulary import (
     AGENT_ID_BYTES,
     FEATURE_NAME,
     FIGURE_MODULE,
+    OUTCOME_OF_REFUSED_ACCEPT,
     SIGNAL_TYPES,
     AgentRefusal,
     FigureMood,
@@ -323,7 +324,9 @@ class Participation(TransitionFeature):
         outcome = await self._transitions.apply(
             room_id, partial(self._accept, person, invitation_id, epoch, verdict, voices)
         )
-        if not isinstance(outcome, AgentRefusal):
+        if outcome in OUTCOME_OF_REFUSED_ACCEPT:
+            await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_reference(room_id), reason="refused")
+        elif not isinstance(outcome, AgentRefusal):
             await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_reference(room_id), reason="accepted")
             if verdict.refusal is not None:
                 await logger.ainfo(
@@ -362,9 +365,16 @@ class Participation(TransitionFeature):
         if live is None or room_id is None or invitation is None:
             return AgentRefusal.STALE_INVITATION
         if view.seats_in(live.owner_subject) != (invitation.sponsor,):
-            return AgentRefusal.TWO_SEATS
-        if view.is_parked(invitation.sponsor):
-            return AgentRefusal.SPONSOR_AWAY
+            refusal = AgentRefusal.TWO_SEATS
+        elif view.is_parked(invitation.sponsor):
+            refusal = AgentRefusal.SPONSOR_AWAY
+        elif not view.has_free_place:
+            refusal = AgentRefusal.BUSY
+        else:
+            refusal = None
+        if refusal is not None:
+            self._end_invitation(view, person, invitation, OUTCOME_OF_REFUSED_ACCEPT[refusal], transition)
+            return refusal
         agent = DialedAgent(
             secrets.token_hex(AGENT_ID_BYTES),
             live.name,
@@ -374,8 +384,6 @@ class Participation(TransitionFeature):
             verdict.shown,
             voices,
         )
-        if not view.has_free_place:
-            return AgentRefusal.BUSY
         self._deadlines.cancel(DeadlineKind.INVITATION, invitation_key(person, room_id))
         self._seat(view, agent, transition, brought_by_sponsor=invitation.adder == invitation.sponsor)
         return agent
