@@ -3,12 +3,16 @@ from contextlib import nullcontext
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from webauth.single_process_stores import SingleProcessStores
+from webauth.single_process_stores import (
+    SingleProcessAccountStore,
+    SingleProcessSessionStore,
+    SingleProcessSignInTransaction,
+)
 
 from hopin.auth.sign_in import LoggingAuditSink
 from hopin.participation.voice import StoredVoice, VoiceStore
 from hopin.stores.accounts import AccountRecord
-from hopin.stores.identity import PersonRecords, SessionTimes
+from hopin.stores.identity import ErasedIdentity, PersonRecords, SessionTimes
 
 if TYPE_CHECKING:
     from contextlib import AbstractContextManager
@@ -22,6 +26,14 @@ def session_transaction_of(sessions: SessionRecordStore) -> SessionTransaction:
     return lambda: nullcontext(sessions)
 
 
+class ErasableAccountStore(SingleProcessAccountStore):
+    """webauth's single-process accounts with the delete HopIn's Postgres accounts have, which the port lacks."""
+
+    def delete(self, user_id: str) -> bool:
+        with self._tables.guard:
+            return self._tables.accounts.pop(user_id, None) is not None
+
+
 class InThreadIdentity:
     """webauth's single-process stores behind `IdentityStores`, for the tests that run the app in one process.
 
@@ -29,10 +41,9 @@ class InThreadIdentity:
     """
 
     def __init__(self, audit: AuditSink) -> None:
-        stores = SingleProcessStores(audit=audit)
-        self.accounts = stores.accounts
-        self.sessions = stores.sessions
-        self.transaction = stores.transaction
+        self.accounts = ErasableAccountStore()
+        self.sessions = SingleProcessSessionStore(self.accounts)
+        self.transaction = SingleProcessSignInTransaction(self.sessions, audit=audit)
 
     def sign_in_transaction(self) -> AbstractContextManager[SignInStores]:
         return self.transaction()
@@ -57,6 +68,12 @@ class InThreadIdentity:
                 for session in records.sessions
             ),
         )
+
+    def erase(self, subject: str) -> ErasedIdentity:
+        """In one sign-in entry, like production, which holds the guard against every other entry."""
+        with self.transaction() as stores:
+            ended = stores.sessions.delete_for_user(subject)
+            return ErasedIdentity(accounts=int(self.accounts.delete(subject)), sessions=ended)
 
     def delete_expired(self, at: datetime) -> int:
         return self.sessions.delete_expired(at)

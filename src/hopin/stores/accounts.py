@@ -4,7 +4,7 @@ the caller's transaction, which begins and commits it."""
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from sqlalchemy import insert, select, update
+from sqlalchemy import delete, insert, select, update
 from webauth.ports import AccountKind
 
 from hopin.stores.schema import accounts
@@ -49,6 +49,10 @@ class PostgresSubjectUserStore:
 
     def set_kind(self, user_id: str, kind: AccountKind) -> AccountRecord:
         return self._changed(user_id, kind=kind.value)
+
+    def delete(self, user_id: str) -> bool:
+        """Removes the account and says whether it existed; its sessions go first, as the foreign key demands."""
+        return self._connection.execute(delete(accounts).where(accounts.c.id == user_id)).rowcount == 1
 
     def _changed(self, user_id: str, **values: str) -> AccountRecord:
         row = self._connection.execute(
