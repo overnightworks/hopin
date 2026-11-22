@@ -30,7 +30,7 @@ class RoomManager:
         return self._rooms.get(room_id)
 
     def hosted_by(self, account_id: str) -> tuple[Room, ...]:
-        return tuple(room for room in self._rooms.values() if room.host.id == account_id)
+        return tuple(room for room in self._rooms.values() if room.is_hosted_by_account_id(account_id))
 
     def get_room(self, room_id: str) -> Room:
         room = self.find_room(room_id)

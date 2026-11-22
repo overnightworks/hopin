@@ -39,7 +39,10 @@ class Room:
         return bool(self.agent_ids) or any(not self.is_hosted_by(p.account) for p in self.participants.values())
 
     def is_hosted_by(self, account: Account) -> bool:
-        return account.id == self.host.id
+        return self.is_hosted_by_account_id(account.id)
+
+    def is_hosted_by_account_id(self, account_id: str) -> bool:
+        return account_id == self.host.id
 
     def has_free_seat_for(self, account: Account, seat_limit: int) -> bool:
         return self._has_free_place(host_place_reserved=not self.is_hosted_by(account), place_limit=seat_limit)
