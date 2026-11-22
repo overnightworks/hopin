@@ -44,12 +44,7 @@ CLOCK_LEAD_MILLISECONDS = 5_000
 SCREENSHOT_ATTEMPTS = 3
 SCREENSHOT_TIMEOUT_MILLISECONDS = 5_000
 
-# Whether the page has the server's answer to a room request; the room is looked for only once that is in.
-ROOM_ANSWERED = """
-(path) => performance.getEntriesByType("resource").some(
-    (entry) => new URL(entry.name).pathname.startsWith(path) && entry.responseStatus > 0
-)
-"""
+ROOM_ANSWER_POLL_MILLISECONDS = 250
 
 # The number of pixels of the canvas as the page shows it in the room's colour: pure magenta, which the figure's own
 # pink is far from.
@@ -153,6 +148,16 @@ def room_is_seen(person: Page) -> bool:
     return False
 
 
+def wait_for_the_room_answer(person: Page, room_answers: dict[Page, list[int]]) -> None:
+    """Returns once the page has the server's answer to a room request; the room is looked for only once that is in. The
+    page's clock is faked, so its own timers and frames do not run; the answers are read from the recorded responses."""
+    deadline = time.monotonic() + WAIT_FOR_THE_ROOM_SECONDS
+    while not room_answers[person]:
+        if time.monotonic() > deadline:
+            raise AssertionError("the server did not answer the room request")
+        person.wait_for_timeout(ROOM_ANSWER_POLL_MILLISECONDS)
+
+
 def figure_state(person: Page) -> tuple[str | None, str | None]:
     vid = person.locator(AGENT_TILE).locator(".vid")
     return vid.get_attribute("data-figure"), vid.get_attribute("data-figure-end")
@@ -220,7 +225,7 @@ def test_a_room_that_cannot_be_shown_leaves_no_room_and_the_figure_drawn(
 
     everyone = with_the_figure_drawn(scene, figure_look_with(room_url, declared))
     for person in everyone:
-        person.wait_for_function(ROOM_ANSWERED, arg=PERSONA_ROOM_PATH, timeout=WAIT_FOR_THE_ROOM_SECONDS * 1000)
+        wait_for_the_room_answer(person, room_answers)
     pixels = [magenta_pixels(person) for person in everyone]
 
     assert [room_answers[person] for person in everyone] == [[answer]] * len(everyone)
