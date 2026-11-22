@@ -1,5 +1,5 @@
 from enum import IntEnum, StrEnum
-from typing import ClassVar
+from typing import ClassVar, Final
 
 FEATURE_NAME = "participation"
 # The page installs this browser module beside the feature's own when agents may show figures.
@@ -96,6 +96,14 @@ class InvitationOutcome(StrEnum):
     NO_ANSWER = "no_answer"
     BUSY = "busy"
     OWNER_ABSENT = "owner_absent"
+
+
+# An accept refused for the call ends the invitation as a decline does; a stale one changes nothing.
+OUTCOME_OF_REFUSED_ACCEPT: Final = {
+    AgentRefusal.TWO_SEATS: InvitationOutcome.BUSY,
+    AgentRefusal.BUSY: InvitationOutcome.BUSY,
+    AgentRefusal.SPONSOR_AWAY: InvitationOutcome.OWNER_ABSENT,
+}
 
 
 class FigureGesture(StrEnum):
