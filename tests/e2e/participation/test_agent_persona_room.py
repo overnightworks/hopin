@@ -46,6 +46,26 @@ SCREENSHOT_TIMEOUT_MILLISECONDS = 5_000
 
 ROOM_ANSWER_POLL_MILLISECONDS = 250
 
+# Whether the page's fetch of a room has finished, and the tasks that read its body have run: the load of a fetch is
+# entered in the page's resource timing once its response is in, and a message through a channel is a task behind the
+# tasks already queued. Neither needs the page's faked clock.
+ROOM_BYTES_READ = """
+async (roomPath) => {
+    const loaded = performance
+        .getEntriesByType("resource")
+        .filter((entry) => new URL(entry.name).pathname.startsWith(roomPath));
+    if (loaded.length === 0 || loaded.some((entry) => entry.responseEnd === 0)) return false;
+    for (let turn = 0; turn < 3; turn++) {
+        await new Promise((resolve) => {
+            const channel = new MessageChannel();
+            channel.port1.onmessage = resolve;
+            channel.port2.postMessage(null);
+        });
+    }
+    return true;
+}
+"""
+
 # The number of pixels of the canvas as the page shows it in the room's colour: pure magenta, which the figure's own
 # pink is far from.
 MAGENTA_PIXELS = """
@@ -153,16 +173,15 @@ def room_statuses(person: Page, room_answers: dict[Page, list[Response]]) -> lis
 
 
 def wait_for_the_room_answer(person: Page, room_answers: dict[Page, list[Response]]) -> None:
-    """Returns once the page has the server's answer to a room request and its bytes are all in, so figure's own check
-    of the room runs on the frames the next picture draws. The page's clock is faked, so its own timers and frames do
-    not run; the answers are read from the recorded responses."""
+    """Returns once the page has read the room's bytes, so the figure has been handed them. The wait ends when the bytes
+    are in; figure's own check and parse of the room finish on their own, without the page clock. The page's clock is
+    faked, so its own timers and frames do not run; the answers are read from the recorded responses and the page from
+    here."""
     deadline = time.monotonic() + WAIT_FOR_THE_ROOM_SECONDS
-    while not room_answers[person]:
+    while not (room_answers[person] and person.evaluate(ROOM_BYTES_READ, PERSONA_ROOM_PATH)):
         if time.monotonic() > deadline:
-            raise AssertionError("the server did not answer the room request")
+            raise AssertionError("the page did not read the room's bytes")
         person.wait_for_timeout(ROOM_ANSWER_POLL_MILLISECONDS)
-    for answer in room_answers[person]:
-        answer.finished()
 
 
 def figure_state(person: Page) -> tuple[str | None, str | None]:
@@ -238,3 +257,4 @@ def test_a_room_that_cannot_be_shown_leaves_no_room_and_the_figure_drawn(
 
     assert [room_statuses(person, room_answers) for person in everyone] == [[answer]] * len(everyone)
     assert pixels == [0] * len(everyone)
+    assert [figure_state(person) for person in everyone] == [("drawn", None)] * len(everyone)
