@@ -38,7 +38,7 @@ from hopin.config.constants import (
 )
 from hopin.config.secret_files import StartRefusedError, read_secret_file
 from hopin.stores.accounts import PostgresSubjectUserStore
-from hopin.stores.identity import PersonRecords, SessionTimes
+from hopin.stores.identity import ErasedIdentity, PersonRecords, SessionTimes
 from hopin.stores.schema import sessions
 from hopin.stores.shared import SharedStores
 
@@ -157,18 +157,25 @@ class PostgresIdentity:
 
     @contextmanager
     def sign_in_transaction(self) -> Iterator[SignInStores]:
+        with self._entry() as (_, stores):
+            yield stores
+
+    @contextmanager
+    def _entry(self) -> Iterator[tuple[PostgresSubjectUserStore, SignInStores]]:
+        """One sign-in entry with its account store, which holds the delete webauth's port lacks."""
         with (
             database_errors_as_store_errors(),
             self.engine.begin() as connection,
-            sign_in_entry(
+        ):
+            accounts = PostgresSubjectUserStore(connection)
+            with sign_in_entry(
                 connection,
                 advisory_lock_key=SIGN_IN_LOCK_KEY,
-                accounts=PostgresSubjectUserStore(connection),
+                accounts=accounts,
                 audit=self.audit,
                 sessions_table=sessions,
-            ) as stores,
-        ):
-            yield stores
+            ) as stores:
+                yield accounts, stores
 
     @contextmanager
     def session_transaction(self) -> Iterator[SessionRecordStore]:
@@ -193,6 +200,13 @@ class PostgresIdentity:
             account=account,
             sessions=tuple(SessionTimes(*row) for row in rows),
         )
+
+    def erase(self, subject: str) -> ErasedIdentity:
+        """The subject's sessions and then the account go in one entry, so every sign-in, logout and bearer admission
+        of every process waits for the commit and a failure deletes nothing."""
+        with self._entry() as (accounts, stores):
+            ended = stores.sessions.delete_for_user(subject)
+            return ErasedIdentity(accounts=int(accounts.delete(subject)), sessions=ended)
 
     def delete_expired(self, at: datetime) -> int:
         with database_errors_as_store_errors(), self.engine.begin() as connection:

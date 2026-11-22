@@ -43,14 +43,18 @@ class Pod:
     process: subprocess.Popen[bytes]
     log: Path
 
-    def status(self, path: str, *, method: str = "GET", headers: Mapping[str, str] | None = None) -> int:
-        """The status of a request from this machine's address, redirects unfollowed."""
+    def answer(self, path: str, *, method: str = "GET", headers: Mapping[str, str] | None = None) -> tuple[int, bytes]:
+        """The status and body of a request from this machine's address, redirects unfollowed."""
         connection = http.client.HTTPConnection(LOCALHOST, self.port, timeout=REQUEST_WAIT_SECONDS)
         try:
             connection.request(method, path, headers={"Host": urlsplit(TEST_PUBLIC_ORIGIN).netloc, **(headers or {})})
-            return connection.getresponse().status
+            response = connection.getresponse()
+            return response.status, response.read()
         finally:
             connection.close()
+
+    def status(self, path: str, *, method: str = "GET", headers: Mapping[str, str] | None = None) -> int:
+        return self.answer(path, method=method, headers=headers)[0]
 
     def wait_until_serving(self, health_path: str) -> None:
         deadline = time.monotonic() + START_WAIT_SECONDS

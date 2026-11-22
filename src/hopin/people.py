@@ -1,21 +1,33 @@
 import io
 import zipfile
+from dataclasses import asdict
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+import structlog
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 from webauth.config import web_auth_config
 from webauth.middleware import admitted_admin
 
-from hopin.config.constants import EXPORT_APP_NAME, PEOPLE_EXPORT_VERSION, PERSON_EXPORT_PATH, READ_METHODS
+from hopin.config.constants import (
+    EXPORT_APP_NAME,
+    PEOPLE_ERASURE_VERSION,
+    PEOPLE_EXPORT_VERSION,
+    PERSON_EXPORT_PATH,
+    PERSON_PATH,
+    READ_METHODS,
+)
+from hopin.stores.identity import ErasedIdentity
 
 if TYPE_CHECKING:
-    from hopin.signaling.handler import SignalingHandler
+    from hopin.signaling.handler import PersonReach, SignalingHandler
     from hopin.signaling.seats import SeatSnapshot
     from hopin.stores.identity import IdentityStores, PersonRecords
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 EXPORT_MEMBER_NAME = "export.json"
 EXPORT_DISPOSITION = 'attachment; filename="hopin-person-export.zip"'
@@ -114,6 +126,56 @@ def build_export(
     )
 
 
+class ErasedKind(StrEnum):
+    ACCOUNT = "account"
+    SESSION = "session"
+    SEAT = "seat"
+
+
+class AffectedKind(StrEnum):
+    CALL = "call"
+
+
+class AffectedAction(StrEnum):
+    END = "end"
+
+
+class KindCount(BaseModel):
+    kind: ErasedKind
+    count: int
+
+
+class AffectedCount(BaseModel):
+    kind: AffectedKind
+    count: int
+    action: AffectedAction
+
+
+class PersonErasure(BaseModel):
+    people_erasure: int
+    app: str
+    subject: str
+    dry_run: bool
+    kinds: list[KindCount]
+    affects_others: list[AffectedCount]
+
+
+def build_erasure(subject: str, *, dry_run: bool, identity: ErasedIdentity, reach: PersonReach) -> PersonErasure:
+    """Every kind is listed, zero counts included, so the shape never varies."""
+    return PersonErasure(
+        people_erasure=PEOPLE_ERASURE_VERSION,
+        app=EXPORT_APP_NAME,
+        subject=subject,
+        dry_run=dry_run,
+        kinds=[
+            KindCount(kind=ErasedKind.ACCOUNT, count=identity.accounts),
+            KindCount(kind=ErasedKind.SESSION, count=identity.sessions),
+            KindCount(kind=ErasedKind.SEAT, count=reach.seats),
+        ],
+        affects_others=[AffectedCount(kind=AffectedKind.CALL, count=reach.calls, action=AffectedAction.END)],
+    )
+
+
 def zip_of(export: PersonExport) -> bytes:
     buffer = io.BytesIO()
     member = zipfile.ZipInfo(EXPORT_MEMBER_NAME, date_time=export.exported_at.timetuple()[:6])
@@ -138,5 +200,21 @@ def create_people_router(identity: IdentityStores, signaling_handler: SignalingH
             media_type=ARCHIVE_MEDIA_TYPE,
             headers={"content-disposition": EXPORT_DISPOSITION},
         )
+
+    @router.delete(PERSON_PATH, dependencies=[Depends(admitted_admin)])
+    async def erase_person(subject: str, *, dry_run: bool = False) -> PersonErasure:
+        if dry_run:
+            # Reads only: no lock, no wait, no change. The store is read on a worker thread, the seats on the loop.
+            stored = await run_in_threadpool(identity.records_of, subject)
+            held = ErasedIdentity(accounts=int(stored.account is not None), sessions=len(stored.sessions))
+            reach = signaling_handler.reach_of(subject)
+        else:
+            # The rows go first: a seat ended while its session lives is re-opened by the page's reconnect.
+            held = await run_in_threadpool(identity.erase, subject)
+            reach = await signaling_handler.end_all_of(subject)
+        await logger.ainfo(
+            "person.erased", dry_run=dry_run, accounts=held.accounts, sessions=held.sessions, **asdict(reach)
+        )
+        return build_erasure(subject, dry_run=dry_run, identity=held, reach=reach)
 
     return router

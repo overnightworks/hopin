@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, assert_never
 
@@ -44,6 +45,14 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Deadlines, Scheduler, TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+
+@dataclass(frozen=True)
+class PersonReach:
+    """What an account holds in this process: its seats, and the calls it hosts that others take part in."""
+
+    seats: int
+    calls: int
 
 
 class SignalingHandler:
@@ -99,6 +108,24 @@ class SignalingHandler:
     def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:
         """The seats an account holds, parked ones included; synchronous so no coroutine changes a seat meanwhile."""
         return tuple(self._snapshot_of(peer_id, peer) for peer_id, peer in self._seats.held_by(account_id))
+
+    def reach_of(self, account_id: str) -> PersonReach:
+        """Synchronous like `seats_of`, so the count is of one instant. A call the account hosts counts when another
+        seat or an agent is in it; a host alone in its grace changes nothing for others."""
+        hosted = self._room_manager.hosted_by(account_id)
+        return PersonReach(seats=len(self._seats.held_by(account_id)), calls=sum(room.has_guests for room in hosted))
+
+    async def end_all_of(self, account_id: str) -> PersonReach:
+        """Ends the calls the account hosts at once for everyone, unnamed, then closes every seat it still holds as a
+        session end does, a parked one included, and answers what was there when it began."""
+        reach = self.reach_of(account_id)
+        # Each pass reads again, because a call or a seat can end on its own while an earlier one is being closed.
+        while hosted := self._room_manager.hosted_by(account_id):
+            await self._routing.end_room_unnamed(hosted[0].room_id)
+        while held := self._seats.held_by(account_id):
+            peer_id, peer = held[0]
+            await self._end_seat(peer_id, peer.websocket, SESSION_ENDED_CLOSE_CODE)
+        return reach
 
     def _snapshot_of(self, peer_id: PeerId, peer: Peer) -> SeatSnapshot:
         room_id = self._routing.room_of(peer_id)
@@ -188,12 +215,14 @@ class SignalingHandler:
         # A check can be suspended across a drop or a takeover; the seat then belongs to someone else.
         if not self._serves_seat(connection):
             return
-        peer_id = connection.peer_id
         connection.ended = True
+        await self._end_seat(connection.peer_id, connection.websocket, close_code)
+
+    async def _end_seat(self, peer_id: PeerId, websocket: WebSocket, close_code: int) -> None:
         # The seat leaves before anything awaits, so a drop or a resume read meanwhile finds no seat; the room
         # hears of it only after the close, so another participant's slow socket cannot hold this one open.
         departure = self._routing.leave(peer_id)
-        await self._seats.close_socket(connection.websocket, close_code)
+        await self._seats.close_socket(websocket, close_code)
         await self._routing.announce(departure)
         await logger.ainfo("session.expired", peer_id=peer_id)
 

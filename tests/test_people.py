@@ -12,26 +12,32 @@ import pytest
 import structlog.testing
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
+from starlette.websockets import WebSocketDisconnect
 from webauth.admission import AppRole
 from webauth.config import installed_web_auth_config
 from webauth.oidc_login import new_session_id
 from webauth.ports import AccountKind
 
+from hopin.agent.tools import JOIN_CALL
 from hopin.app import create_app
 from hopin.config.constants import (
+    ACCOUNT_PATH,
     AUTH_CALLBACK_PATH,
     AUTH_START_PATH,
     HEALTH_PATH,
     HOME_PATH,
     NO_ACCESS_PATH,
+    SESSION_ENDED_CLOSE_CODE,
     WEBSOCKET_PATH,
+    RoomClosedReason,
     SignalType,
 )
 from hopin.config.web_policy import RETURN_TO_QUERY_PARAMETER
+from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
-from tests.support.people_export import ask, export_path, read_archive, withheld_counts
+from tests.support.people_export import ask, erase, export_path, read_archive, withheld_counts
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signed_in import handshake_headers, new_id_token, seed_member
 from tests.support.stores import single_process_stores
@@ -354,9 +360,14 @@ class TestWhoMayExport:
             assert location.path == AUTH_START_PATH
             assert parse_qs(location.query)[RETURN_TO_QUERY_PARAMETER] == [export_path("anna")]
 
-    @pytest.mark.parametrize("method", ["POST", "DELETE"])
-    @pytest.mark.parametrize("subject_path", [export_path("anna"), "/api/admin/people/anna"])
-    def test_offers_no_way_to_change_a_person(self, client, admin, scene, stores, method, subject_path):
+    @pytest.mark.parametrize(
+        ("method", "subject_path"),
+        [("POST", export_path("anna")), ("DELETE", export_path("anna")), ("POST", "/api/admin/people/anna")],
+        ids=["POST on the export", "DELETE on the export", "POST on the person"],
+    )
+    def test_offers_no_way_to_change_a_person_but_by_erasing_one(
+        self, client, admin, scene, stores, method, subject_path
+    ):
         before = stored_state_of_anna(stores, scene)
 
         answer = client.request(
@@ -368,6 +379,203 @@ class TestWhoMayExport:
         assert answer.status_code in {404, 405}
         assert stored_state_of_anna(stores, scene) == before
         assert len(before[2]) == 2
+
+
+def erasure_body(subject, *, dry_run=False, account=0, sessions=0, seats=0, calls=0):
+    return {
+        "people_erasure": 1,
+        "app": "hopin",
+        "subject": subject,
+        "dry_run": dry_run,
+        "kinds": [
+            {"kind": "account", "count": account},
+            {"kind": "session", "count": sessions},
+            {"kind": "seat", "count": seats},
+        ],
+        "affects_others": [{"kind": "call", "count": calls, "action": "end"}],
+    }
+
+
+def api_call_status(client, member):
+    return client.get(
+        ACCOUNT_PATH, headers={**handshake_headers(member, origin=None), "accept": "application/json"}
+    ).status_code
+
+
+@pytest.fixture
+def two_sessions(stores, person):
+    """Anna with an account and two sessions, and no seat."""
+    anna = person("anna")
+    an_older_session(stores, anna, secrets.token_urlsafe(), new_id_token())
+    return anna
+
+
+@pytest.fixture
+def open_sockets():
+    with ExitStack() as sockets:
+        yield sockets
+
+
+@pytest.fixture
+def call_of(client, open_sockets):
+    """Seats the host and then the guest in one call, with every frame of the joining read; returns both sockets."""
+
+    def seat(host, guest):
+        host_socket = open_sockets.enter_context(
+            client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(host))
+        )
+        host_socket.send_json({"type": SignalType.JOIN.value})
+        room_id = host_socket.receive_json()["room_id"]
+        guest_socket = open_sockets.enter_context(
+            client.websocket_connect(WEBSOCKET_PATH, headers=handshake_headers(guest))
+        )
+        guest_socket.send_json({"type": SignalType.JOIN.value, "room_id": room_id})
+        guest_socket.receive_json()
+        host_socket.receive_json()
+        return host_socket, guest_socket
+
+    return seat
+
+
+class TestErasureOfAPerson:
+    def test_a_real_run_answers_what_it_removed_and_the_cookie_is_refused_after(
+        self, client, admin, stores, two_sessions
+    ):
+        assert api_call_status(client, two_sessions) == 200
+
+        answer = erase(client, "anna", admin)
+
+        assert answer.status_code == 200
+        assert answer.headers["cache-control"] == "no-store"
+        assert answer.json() == erasure_body("anna", account=1, sessions=2)
+        assert (stores.accounts.get("anna"), stores.sessions.records_of("anna").sessions) == (None, ())
+        assert api_call_status(client, two_sessions) == 401
+
+    def test_a_dry_run_answers_the_same_counts_and_changes_nothing(self, client, admin, stores, two_sessions):
+        answer = erase(client, "anna", admin, dry_run=True)
+
+        assert answer.status_code == 200
+        assert answer.headers["cache-control"] == "no-store"
+        assert answer.json() == erasure_body("anna", dry_run=True, account=1, sessions=2)
+        assert stores.accounts.get("anna") is not None
+        assert len(stores.sessions.records_of("anna").sessions) == 2
+        assert api_call_status(client, two_sessions) == 200
+
+    def test_an_unknown_subject_answers_zeros_and_creates_nothing(self, client, admin, stores):
+        with structlog.testing.capture_logs() as logs:
+            answer = erase(client, "ghost", admin)
+
+        assert (answer.status_code, answer.json()) == (200, erasure_body("ghost"))
+        assert stores.accounts.get("ghost") is None
+        assert "ghost" not in json.dumps(logs)
+
+    def test_a_second_run_answers_zeros(self, client, admin, two_sessions):
+        erase(client, "anna", admin)
+
+        assert erase(client, "anna", admin).json() == erasure_body("anna")
+
+    def test_leaves_another_persons_rows_alone(self, client, admin, stores, two_sessions, person):
+        person("ben")
+
+        erase(client, "anna", admin)
+
+        assert stores.accounts.get("ben") is not None
+        assert len(stores.sessions.records_of("ben").sessions) == 1
+
+    def test_the_export_after_a_real_run_is_empty(self, client, admin, two_sessions):
+        erase(client, "anna", admin)
+
+        _, export = read_archive(ask(client, "anna", admin).content)
+
+        assert export["data"] == {"account": None, "sessions": [], "seats": []}
+
+    def test_logs_one_line_with_the_counts_and_never_the_subject(self, client, admin, two_sessions):
+        with structlog.testing.capture_logs() as logs:
+            erase(client, "anna", admin)
+
+        [erased] = [line for line in logs if line["event"] == "person.erased"]
+        assert (erased["dry_run"], erased["accounts"], erased["sessions"]) == (False, 1, 2)
+        assert "anna" not in json.dumps(logs)
+
+    def test_a_guest_seat_is_closed_as_a_session_end_and_the_call_hears_it_left(self, client, admin, person, call_of):
+        host_socket, guest_socket = call_of(person("ben"), person("anna"))
+
+        answer = erase(client, "anna", admin)
+
+        assert answer.json() == erasure_body("anna", account=1, sessions=1, seats=1)
+        assert host_socket.receive_json()["type"] == SignalType.PARTICIPANT_LEFT.value
+        with pytest.raises(WebSocketDisconnect) as closed:
+            guest_socket.receive_json()
+        assert closed.value.code == SESSION_ENDED_CLOSE_CODE
+
+    def test_a_hosted_call_ends_at_once_for_everyone_without_the_hosts_name(self, client, admin, person, call_of):
+        _, guest_socket = call_of(person("anna"), person("ben"))
+
+        answer = erase(client, "anna", admin)
+
+        assert answer.json() == erasure_body("anna", account=1, sessions=1, seats=1, calls=1)
+        closed = guest_socket.receive_json()
+        assert (closed["type"], closed["reason"], closed["host_name"]) == (
+            SignalType.ROOM_CLOSED.value,
+            RoomClosedReason.ENDED.value,
+            "",
+        )
+
+    def test_a_dry_run_counts_the_seat_and_the_call_and_leaves_both_running(self, client, admin, person, call_of):
+        host_socket, guest_socket = call_of(person("anna"), person("ben"))
+
+        answer = erase(client, "anna", admin, dry_run=True)
+        host_socket.send_json({"type": SignalType.MEDIA_STATE.value, "audio": True, "video": False, "seq": 1})
+
+        assert answer.json() == erasure_body("anna", dry_run=True, account=1, sessions=1, seats=1, calls=1)
+        assert guest_socket.receive_json()["type"] == SignalType.MEDIA_STATE.value
+
+    def test_the_own_mcp_token_of_an_erased_person_is_refused(self, dialed_call):
+        account, _, seat = dialed_call.seated()
+        _, olga = dialed_call.member(role=AppRole.ADMIN)
+        token = dialed_call.token(account)
+        assert dialed_call.call(token, JOIN_CALL, join_arguments(seat)).status == 200
+
+        erased = erase(dialed_call.client, account.id, olga)
+
+        assert erased.status_code == 200
+        assert dialed_call.call(token, JOIN_CALL, join_arguments(seat)).status == 403
+
+
+class TestWhoMayErase:
+    @pytest.mark.parametrize(
+        ("caller", "status"),
+        [
+            pytest.param(lambda client, person, scene: erase(client, "anna", person("mallory")), 403, id="a member"),
+            pytest.param(
+                lambda client, person, scene: erase(client, "anna", headers={"accept": "application/json"}),
+                401,
+                id="no session for an api call",
+            ),
+            pytest.param(
+                lambda client, person, scene: erase(client, "anna", headers={"accept": "text/html"}),
+                302,
+                id="no session for a navigation",
+            ),
+            pytest.param(
+                lambda client, person, scene: erase(
+                    client, "anna", person("olga", role=AppRole.ADMIN), origin="https://page.test.invalid"
+                ),
+                403,
+                id="a page of another site",
+            ),
+        ],
+    )
+    def test_a_refused_caller_changes_nothing_and_is_told_nothing(self, client, person, scene, stores, caller, status):
+        before = stored_state_of_anna(stores, scene)
+
+        answer = caller(client, person, scene)
+
+        assert answer.status_code == status
+        assert "anna" not in answer.text
+        assert "people_erasure" not in answer.text
+        assert stored_state_of_anna(stores, scene) == before
+        assert answer.headers["cache-control"] == "no-store"
 
 
 class TestCaching:
