@@ -21,7 +21,8 @@ CALL_FEATURES_PATH = "/api/call-features"
 ACCOUNT_PATH = "/api/account"
 ACCOUNT_CONSOLE_PATH = "/account"
 PEOPLE_PATH = "/api/admin/people"
-PERSON_EXPORT_PATH = f"{PEOPLE_PATH}/{{subject}}/export"
+PERSON_PATH = f"{PEOPLE_PATH}/{{subject}}"
+PERSON_EXPORT_PATH = f"{PERSON_PATH}/export"
 AUTH_START_PATH = "/auth/start"
 AUTH_CALLBACK_PATH = "/auth/callback"
 LOGIN_PATH = "/login"
@@ -35,6 +36,7 @@ IMMUTABLE_ASSET_CACHE_CONTROL = "private, max-age=31536000, immutable"
 PERMISSIONS_POLICY = "camera=(self), microphone=(self), display-capture=(self), geolocation=()"
 
 PEOPLE_EXPORT_VERSION = 1
+PEOPLE_ERASURE_VERSION = 1
 EXPORT_APP_NAME = "hopin"
 OIDC_SCOPES = ("openid", "profile", "groups")
 OIDC_LEEWAY_SECONDS = 30

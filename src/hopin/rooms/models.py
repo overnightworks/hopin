@@ -33,6 +33,11 @@ class Room:
     def host_present(self) -> bool:
         return any(self.is_hosted_by(participant.account) for participant in self.participants.values())
 
+    @property
+    def has_guests(self) -> bool:
+        """Whether the call holds a seat other than the host's or a joined agent."""
+        return bool(self.agent_ids) or any(not self.is_hosted_by(p.account) for p in self.participants.values())
+
     def is_hosted_by(self, account: Account) -> bool:
         return account.id == self.host.id
 

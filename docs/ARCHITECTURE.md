@@ -64,7 +64,7 @@ Caption: what each part may import, from the `layers` contract in `pyproject.tom
 | `signaling` | the WebSocket: identity, frames, seats, replay, timers, the feature port |
 | `web` | the page build, the request's language, health, the ICE server list |
 | `auth` | sign-in against Keycloak through webauth, built once by `WebAuth.build` before the routes and installed by `auth.install` after the last, and the session gate |
-| `people` | the admin download of what HopIn holds about one person |
+| `people` | the admin export and erasure of what HopIn holds about one person |
 | `game` | optional: one quiz per call |
 | `participation` | optional: the agents a person dials in, with no AI in it |
 | `stage` | optional: the table of a registered app that a call shows, and its start link `/c/new`, which sends a member to the open call showing a table or starts one |
@@ -145,7 +145,7 @@ Every process reaches one Redis at `HOPIN_REDIS_URL`, holding the rate limit win
 
 **Headers.** webauth's Content-Security-Policy with the build's script and style hashes, a Permissions-Policy and the build's cache rules (`web/page_build.py`).
 
-**Persistence.** Nothing outlasts a restart except Redis's rate limit windows and the connector's place records. The README's A Person's Data says what HopIn holds about a person.
+**Persistence.** Only the accounts and sessions in Postgres, Redis's rate limit windows and the connector's place records outlast a restart; rooms, seats and replay logs live in process memory. The README's A Person's Data says what HopIn holds about a person.
 
 **Deadlines.** Every timer that outlives a connection is a named deadline behind the `Deadlines` port (`signaling/scheduler.py`). **Logging.** Conventions are in the docstring of `src/hopin/main.py`.
 

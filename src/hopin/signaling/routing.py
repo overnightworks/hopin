@@ -149,6 +149,11 @@ class RoomRouting:
         else:
             await logger.ainfo("room.unlocked", room_ref=room_reference(room.room_id), peer_id=peer_id)
 
+    async def end_room_unnamed(self, room_id: str) -> None:
+        """Ends the call at once for everyone as its host's end does, but without the host's name, so no new copy of
+        it leaves."""
+        await self._end_room(room_id, RoomClosedReason.ENDED, names_host=False)
+
     async def handle_end_room(self, peer_id: PeerId) -> None:
         room_id = self._peer_rooms.get(peer_id)
         if not room_id:
@@ -252,10 +257,10 @@ class RoomRouting:
     async def _expire_grace(self, room_id: str) -> None:
         await self._end_room(room_id, RoomClosedReason.HOST_GONE)
 
-    async def _end_room(self, room_id: str, reason: RoomClosedReason) -> None:
+    async def _end_room(self, room_id: str, reason: RoomClosedReason, *, names_host: bool = True) -> None:
         room = self._room_manager.get_room(room_id)
         recipients = room.participant_ids
-        host_name = room.host.name
+        host_name = room.host.name if names_host else ""
         for peer_id in recipients:
             self._peer_rooms.pop(peer_id, None)
         self._cancel_grace(room_id)
