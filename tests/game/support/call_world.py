@@ -24,13 +24,12 @@ from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signaling_fakes import ManualScheduler
 from tests.support.signed_in import cookie_header, handshake_headers, seed_member
-from tests.support.stores import single_process_stores
+from tests.support.stores import InThreadIdentity, single_process_stores
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from agents.backend import AgentBackend
-    from webauth.single_process_stores import SingleProcessStores
 
     from hopin.agent.speech_settings import SpeechSettings
     from tests.support.fake_issuer import FakeIssuer
@@ -89,7 +88,7 @@ class Call:
 
     issuer: FakeIssuer
     backend: AgentBackend
-    stores: SingleProcessStores
+    stores: InThreadIdentity
     client: TestClient
     sockets: ExitStack
     offers_agents: bool
@@ -149,7 +148,7 @@ def serving_call(
         page_build=fixture_page_build(),
         shared_stores=shared_stores,
         issuer_transports=issuer.transports,
-        stores=stores,
+        identity=stores,
         scheduler=ManualScheduler(),
         call_features=(
             (GameFeature(backend, voices),)

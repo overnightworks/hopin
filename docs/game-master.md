@@ -21,7 +21,7 @@ Ruled by the operator:
 - GM-17: Until the reveal, a person can overwrite their own answer; the reveal starts the moment everyone present has answered, and a later overwrite is refused as closed to its sender alone.
 - GM-18: The quiz works with 1 to 6 people.
 - GM-19: Only members of the AI API group can start a quiz; HopIn adds no group, admin switch or check of its own.
-- GM-20: HopIn holds the refresh token per sign-in session in memory only, never on disk or in a log, and uses it only for the game master.
+- GM-20: HopIn holds the refresh token per sign-in session in the session's row in its own Postgres, in plain text, never in a log, and uses it only for three reads and grants: the starter's groups before a game master run, the starter's access token for the speech service, and the agent adders' group read.
 - GM-21: Only game text (system text, questions, answers), people's display names and a fingerprint of the starter's identity leave the call for the AI; chat, audio and video never do, and no name, mail, `sub` or token goes in the identity field. For the voice (GM-32), the line's text and the starter's access token go to the operator's own speech service, which needs the token to admit the starter; HopIn's own workload token goes with it; nothing else leaves the call for it.
 - GM-22: Each round takes two AI runs, the reveal and then the next question, so a quiz of 5 questions takes up to 11 runs; HopIn never splits AI text.
 - GM-23: A run refused mid-quiz ends the quiz for everyone; only the person who started it sees the reason.

@@ -14,6 +14,7 @@ from hopin.main import main  # noqa: E402
 from hopin.rooms.manager import RoomManager  # noqa: E402
 from hopin.signaling.handler import SignalingHandler  # noqa: E402
 from hopin.signaling.scheduler import InMemoryDeadlines  # noqa: E402
+from tests.stores.support.postgres_identity import empty_database, postgres_stores, postgres_stores_with  # noqa: E402, F401
 from tests.support.dialed_call import serving_dialed_call  # noqa: E402
 from tests.support.fake_issuer import FakeIssuer  # noqa: E402
 from tests.support.game_environment import set_game_environment  # noqa: E402  # game

@@ -81,6 +81,7 @@ select = [
     "RET",    # flake8-return
     "SLF",    # flake8-self
     "PT",     # flake8-pytest-style
+    "TID",    # flake8-tidy-imports
 ]
 ignore = []
 # quality owns S and T20; its noqa lines would read as unused here
@@ -89,10 +90,17 @@ external = ["S", "T20"]
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-decorators = ["fastapi.APIRouter.api_route", "fastapi.APIRouter.get"]
 
+# Every process admits the same session only because the accounts and sessions live in Postgres; webauth's
+# single-process stores keep them in one process's memory, so only the tests build them. import-linter takes no
+# submodule of an external package, so this rule guards production (`src`) instead.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"webauth.single_process_stores".msg = "Production builds the accounts and sessions over Postgres (hopin.stores.postgres.PostgresIdentity)"
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
     "ANN",     # relax annotations in tests
     "ARG",     # allow unused arguments in fixtures
+    "TID251",  # the in-thread tests build webauth's single-process stores
 ]
 # design-catalogs writes this module; its lines are as long as the sentences they carry.
 "src/hopin/words.py" = ["E501"]

@@ -5,9 +5,14 @@ The URL names no password and the password file holds only it; neither value rea
 engine hides statement parameters and never sets `echo`, which keeps `sqlalchemy.engine` at SQLAlchemy's default WARNING
 (its INFO lines print statements and its DEBUG lines rows), and a failure of the database is reported by what failed,
 never by the driver's text, which quotes the host and the parameters.
+
+The accounts and sessions are `PostgresIdentity`: each entry is one transaction on the engine, so a sign-in survives a
+restart and every process admits the same session. A failure of the database in an entry is webauth's
+`SessionStoreError`, which carries no statement, parameter or address.
 """
 
 from contextlib import contextmanager
+from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -17,9 +22,10 @@ from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import Engine, create_engine, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
+from webauth.postgres import PostgresSessionStore, database_errors_as_store_errors, delete_expired, sign_in_entry
 
 from hopin.config.constants import (
     DATABASE_CONNECT_TIMEOUT_SECONDS,
@@ -28,14 +34,20 @@ from hopin.config.constants import (
     DATABASE_POOL_TIMEOUT_SECONDS,
     MIGRATION_LOCK_KEY,
     POSTGRES_DRIVER,
+    SIGN_IN_LOCK_KEY,
 )
 from hopin.config.secret_files import StartRefusedError, read_secret_file
+from hopin.stores.accounts import PostgresSubjectUserStore
+from hopin.stores.identity import PersonRecords, SessionTimes
+from hopin.stores.schema import sessions
 from hopin.stores.shared import SharedStores
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from datetime import datetime
 
     from sqlalchemy import Connection
+    from webauth.ports import AuditSink, SessionRecordStore, SignInStores
 
     from hopin.config.settings import DatabaseSettings
 
@@ -129,3 +141,59 @@ def with_database_readiness(shared_stores: SharedStores, engine: Engine) -> Shar
         answers=lambda: shared_stores.answers() and _database_answers(engine),
         async_redis=shared_stores.async_redis,
     )
+
+
+@dataclass(frozen=True)
+class PostgresIdentity:
+    """The accounts and sessions over the engine, as `IdentityStores`.
+
+    Each entry is `database_errors_as_store_errors()` around `engine.begin()`, so a connection that cannot open and a
+    commit that fails raise `SessionStoreError` like a failed statement. A sign-in entry takes the advisory lock of
+    every process first; the audit events of a block that ends without an exception reach the sink before the commit.
+    """
+
+    engine: Engine
+    audit: AuditSink
+
+    @contextmanager
+    def sign_in_transaction(self) -> Iterator[SignInStores]:
+        with (
+            database_errors_as_store_errors(),
+            self.engine.begin() as connection,
+            sign_in_entry(
+                connection,
+                advisory_lock_key=SIGN_IN_LOCK_KEY,
+                accounts=PostgresSubjectUserStore(connection),
+                audit=self.audit,
+                sessions_table=sessions,
+            ) as stores,
+        ):
+            yield stores
+
+    @contextmanager
+    def session_transaction(self) -> Iterator[SessionRecordStore]:
+        with database_errors_as_store_errors(), self.engine.begin() as connection:
+            yield PostgresSessionStore(connection, PostgresSubjectUserStore(connection), sessions)
+
+    def records_of(self, subject: str) -> PersonRecords:
+        """The account and, per session, its start, its expiry and whether it holds each token; never a token or id."""
+        with database_errors_as_store_errors(), self.engine.begin() as connection:
+            account = PostgresSubjectUserStore(connection).get(subject)
+            rows = connection.execute(
+                select(
+                    sessions.c.created_at,
+                    sessions.c.expires_at,
+                    sessions.c.refresh_token.is_not(None),
+                    sessions.c.id_token.is_not(None),
+                )
+                .where(sessions.c.account_id == subject)
+                .order_by(sessions.c.created_at)
+            ).all()
+        return PersonRecords(
+            account=account,
+            sessions=tuple(SessionTimes(*row) for row in rows),
+        )
+
+    def delete_expired(self, at: datetime) -> int:
+        with database_errors_as_store_errors(), self.engine.begin() as connection:
+            return delete_expired(connection, sessions, at)

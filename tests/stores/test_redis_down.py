@@ -12,6 +12,7 @@ from hopin.config.constants import HEALTH_PATH, LOGIN_PATH
 from hopin.stores.redis import connect_shared_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
+from tests.support.stores import single_process_stores
 
 pytestmark = pytest.mark.integration
 
@@ -34,6 +35,7 @@ def served_without_redis(sign_in_settings, unreachable_redis_url) -> TestClient:
         TEST_REALM,
         page_build=fixture_page_build(),
         shared_stores=connect_shared_stores(unreachable_redis_url),
+        identity=single_process_stores(),
     )
     return TestClient(app, base_url=TEST_PUBLIC_ORIGIN, raise_server_exceptions=False)
 
@@ -56,6 +58,7 @@ def started_without_subscription(sign_in_settings, unreachable_redis_url) -> Tes
                 subscription_wait_seconds=SHORT_SUBSCRIPTION_WAIT_SECONDS,
             ),
         ),
+        identity=single_process_stores(),
     )
     return TestClient(app, base_url=TEST_PUBLIC_ORIGIN)
 

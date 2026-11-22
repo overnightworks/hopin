@@ -125,6 +125,7 @@ class TestServerSettings:
             ("database_password_file", "relative/database-password"),
             ("database_url", "mysql://hopin@postgres.test.invalid/hopin"),
             ("database_url", "postgresql://hopin@postgres.test.invalid:not-a-port/hopin"),
+            ("database_url", "postgresql://hopin@postgres.test.invalid:/hopin"),
             ("database_url", "postgresql://postgres.test.invalid/hopin"),
             ("database_url", "postgresql://hopin@postgres.test.invalid"),
             ("database_url", "postgresql://hopin:sentinel-password@postgres.test.invalid/hopin"),

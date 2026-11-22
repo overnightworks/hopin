@@ -33,7 +33,7 @@ def test_the_served_app_offers_a_member_the_game_as_the_calls_feature(
         RealmSettings(),
         fixture_page_build(),
         in_thread_stores(),
-        stores=stores,
+        stores,
         run=lambda application, _options: served.append(application),
     )
     (served_app,) = served

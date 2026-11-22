@@ -8,7 +8,6 @@ from redis import Redis
 from hopin.config.constants import HEALTH_PATH
 from hopin.main import main
 from tests.stores.support.pod_pair import serving_pod_pair
-from tests.stores.support.scratch_database import ScratchDatabase, scratch_database
 from tests.stores.support.service_gate import ServiceGate
 
 if TYPE_CHECKING:
@@ -16,10 +15,10 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from tests.stores.support.pod_pair import Pod
+    from tests.stores.support.scratch_database import ScratchDatabase
     from tests.support.sign_in_settings import SignInSettings
 
 REDIS_URL_VARIABLE = "HOPIN_TEST_REDIS_URL"
-POSTGRES_URL_VARIABLE = "HOPIN_TEST_POSTGRES_URL"
 REDIS_DEFAULT_DATABASE_COUNT = 16
 
 
@@ -45,18 +44,6 @@ def redis_gate(redis_url: str) -> Iterator[ServiceGate]:
     gate = ServiceGate(redis_url)
     yield gate
     gate.close()
-
-
-@pytest.fixture
-def empty_database(worker_id: str, tmp_path: Path) -> Iterator[ScratchDatabase]:
-    """A database of this test's own on the Postgres the job provides, with no table in it."""
-    server_url = os.environ.get(POSTGRES_URL_VARIABLE)
-    if server_url is None:
-        pytest.fail(
-            f"{POSTGRES_URL_VARIABLE} names the Postgres these tests run against (the Shared stores job sets it)"
-        )
-    with scratch_database(server_url, worker_id, tmp_path) as database:
-        yield database
 
 
 @pytest.fixture

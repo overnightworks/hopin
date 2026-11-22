@@ -56,7 +56,7 @@ class World:
             TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
-            stores=self.stores,
+            identity=self.stores,
             call_features=call_features,
         )
         config = installed_web_auth_config(self.app)

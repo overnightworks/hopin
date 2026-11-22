@@ -19,6 +19,7 @@ from tests.support.dialed_call import METADATA_PATH
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
 from tests.support.sign_in_settings import TEST_DATABASE_URL, TEST_PUBLIC_ORIGIN, TEST_REALM
+from tests.support.stores import single_process_stores
 
 
 def all_subclasses(base: type) -> set[type]:
@@ -42,6 +43,7 @@ def serve_over_test_stores(sign_in_settings, monkeypatch):
             RealmSettings(),
             fixture_page_build(),
             in_thread_stores(),
+            single_process_stores(),
             run=lambda _application, options: started.append(options),
         )
         (options,) = started
@@ -76,7 +78,9 @@ class TestMain:
             monkeypatch.setenv("HOPIN_HOST", "127.0.0.1")
             monkeypatch.setenv("HOPIN_PORT", str(taken.getsockname()[1]))
             settings = ServerSettings()
-            application = build_application(settings, TEST_REALM, fixture_page_build(), in_thread_stores())
+            application = build_application(
+                settings, TEST_REALM, fixture_page_build(), in_thread_stores(), single_process_stores()
+            )
 
             with pytest.raises(SystemExit) as refusal:
                 run_uvicorn(application, uvicorn_options(settings))
@@ -93,7 +97,9 @@ class TestMain:
         for name, value in sign_in_settings().environment.items():
             monkeypatch.setenv(name, value)
         served = TestClient(
-            build_application(ServerSettings(), RealmSettings(), fixture_page_build(), in_thread_stores()),
+            build_application(
+                ServerSettings(), RealmSettings(), fixture_page_build(), in_thread_stores(), single_process_stores()
+            ),
             base_url=TEST_PUBLIC_ORIGIN,
         )
 
@@ -112,7 +118,9 @@ class TestMain:
         monkeypatch.setenv("HOPIN_SPEECH__AUDIENCE_SCOPE", "scenario-audience")
         monkeypatch.setenv("HOPIN_SPEECH__HEARING", hearing)
         served = TestClient(
-            build_application(ServerSettings(), RealmSettings(), fixture_page_build(), in_thread_stores()),
+            build_application(
+                ServerSettings(), RealmSettings(), fixture_page_build(), in_thread_stores(), single_process_stores()
+            ),
             base_url=TEST_PUBLIC_ORIGIN,
         )
 
@@ -133,7 +141,7 @@ class TestMain:
         settings = ServerSettings()
 
         with pytest.raises(ValidationError):
-            build_application(settings, TEST_REALM, page_build, shared_stores)
+            build_application(settings, TEST_REALM, page_build, shared_stores, single_process_stores())
 
     @pytest.mark.parametrize(
         ("setting", "value", "expected_line"),

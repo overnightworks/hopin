@@ -13,10 +13,9 @@ from webauth.middleware import admitted_admin
 from hopin.config.constants import EXPORT_APP_NAME, PEOPLE_EXPORT_VERSION, PERSON_EXPORT_PATH, READ_METHODS
 
 if TYPE_CHECKING:
-    from webauth.single_process_stores import SingleProcessSessionStore, SubjectRecords
-
     from hopin.signaling.handler import SignalingHandler
     from hopin.signaling.seats import SeatSnapshot
+    from hopin.stores.identity import IdentityStores, PersonRecords
 
 EXPORT_MEMBER_NAME = "export.json"
 EXPORT_DISPOSITION = 'attachment; filename="hopin-person-export.zip"'
@@ -81,7 +80,7 @@ class PersonExport(BaseModel):
 
 
 def build_export(
-    subject: str, exported_at: datetime, records: SubjectRecords, seats: tuple[SeatSnapshot, ...]
+    subject: str, exported_at: datetime, records: PersonRecords, seats: tuple[SeatSnapshot, ...]
 ) -> PersonExport:
     account = records.account
     holds_nothing = account is None and not records.sessions and not seats
@@ -123,15 +122,15 @@ def zip_of(export: PersonExport) -> bytes:
     return buffer.getvalue()
 
 
-def create_people_router(sessions: SingleProcessSessionStore, signaling_handler: SignalingHandler) -> APIRouter:
+def create_people_router(identity: IdentityStores, signaling_handler: SignalingHandler) -> APIRouter:
     router = APIRouter()
 
     @router.api_route(PERSON_EXPORT_PATH, methods=READ_METHODS, dependencies=[Depends(admitted_admin)])
     async def export_person(request: Request, subject: str) -> Response:
         config = web_auth_config(request)
-        # The session store takes a threading lock, so it is read in a worker; the handler's seats are
-        # read here on the event loop, where no signaling coroutine can change them meanwhile.
-        records = await run_in_threadpool(sessions.records_of, subject)
+        # The store is read on a worker thread; the handler's seats are read here on the event loop, where no
+        # signaling coroutine can change them meanwhile.
+        records = await run_in_threadpool(identity.records_of, subject)
         seats = signaling_handler.seats_of(subject)
         exported_at = datetime.fromtimestamp(int(config.wall_clock()), UTC)
         return Response(
