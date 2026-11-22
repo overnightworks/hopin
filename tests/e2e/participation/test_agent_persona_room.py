@@ -17,7 +17,7 @@ from tests.participation.support.figures import FigureOrigin, digest_of, figure_
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from playwright.sync_api import Page
+    from playwright.sync_api import Page, Response
 
     from tests.e2e.support.participation_scene import Scene
     from tests.e2e.support.server import RunningServer
@@ -74,7 +74,7 @@ def figure_origin() -> FigureOrigin:
     origin = FigureOrigin()
     origin.serve(DRAWABLE_URL, ok(DRAWABLE))
     origin.serve(ROOM_URL, ok(MAGENTA_ROOM))
-    origin.serve(SWAPPED_ROOM_URL, ok(glb(b"another room")))
+    origin.serve(SWAPPED_ROOM_URL, ok(MAGENTA_ROOM))
     origin.serve(REFUSED_ROOM_URL, ok(REFUSED_ROOM))
     return origin
 
@@ -85,13 +85,13 @@ def e2e_server(figure_server: RunningServer) -> RunningServer:
 
 
 @pytest.fixture
-def room_answers() -> dict[Page, list[int]]:
-    """The statuses each page got for the rooms it asked the server for."""
+def room_answers() -> dict[Page, list[Response]]:
+    """The answers each page got for the rooms it asked the server for."""
     return {}
 
 
 @pytest.fixture
-def open_person(open_person: Callable[..., Page], room_answers: dict[Page, list[int]]) -> Callable[..., Page]:
+def open_person(open_person: Callable[..., Page], room_answers: dict[Page, list[Response]]) -> Callable[..., Page]:
     """Opens each page recording its room answers and with its clock faked from its first load, so a test holds the
     clock once the figure is drawn: a figure that draws on in real time ends as too slow when a loaded machine draws
     every browser's figure at once. The faked clock runs with real time until then."""
@@ -103,7 +103,7 @@ def open_person(open_person: Callable[..., Page], room_answers: dict[Page, list[
         page.on(
             "response",
             lambda response: (
-                answers.append(response.status) if urlsplit(response.url).path.startswith(PERSONA_ROOM_PATH) else None
+                answers.append(response) if urlsplit(response.url).path.startswith(PERSONA_ROOM_PATH) else None
             ),
         )
         return page
@@ -148,14 +148,21 @@ def room_is_seen(person: Page) -> bool:
     return False
 
 
-def wait_for_the_room_answer(person: Page, room_answers: dict[Page, list[int]]) -> None:
-    """Returns once the page has the server's answer to a room request; the room is looked for only once that is in. The
-    page's clock is faked, so its own timers and frames do not run; the answers are read from the recorded responses."""
+def room_statuses(person: Page, room_answers: dict[Page, list[Response]]) -> list[int]:
+    return [answer.status for answer in room_answers[person]]
+
+
+def wait_for_the_room_answer(person: Page, room_answers: dict[Page, list[Response]]) -> None:
+    """Returns once the page has the server's answer to a room request and its bytes are all in, so figure's own check
+    of the room runs on the frames the next picture draws. The page's clock is faked, so its own timers and frames do
+    not run; the answers are read from the recorded responses."""
     deadline = time.monotonic() + WAIT_FOR_THE_ROOM_SECONDS
     while not room_answers[person]:
         if time.monotonic() > deadline:
             raise AssertionError("the server did not answer the room request")
         person.wait_for_timeout(ROOM_ANSWER_POLL_MILLISECONDS)
+    for answer in room_answers[person]:
+        answer.finished()
 
 
 def figure_state(person: Page) -> tuple[str | None, str | None]:
@@ -187,7 +194,7 @@ def with_the_figure_drawn(scene: Scene, look: dict[str, Any]) -> list[Page]:
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_a_personas_room_shows_beside_its_figure_in_every_browser_the_late_joiner_included(
-    scene_of: Callable[..., Scene], room_answers: dict[Page, list[int]], form_factor: dict[str, Any]
+    scene_of: Callable[..., Scene], room_answers: dict[Page, list[Response]], form_factor: dict[str, Any]
 ) -> None:
     """CALL-80: The room a persona's figure look names shows behind its figure on its tile in every browser of the call,
     late joiners included."""
@@ -198,9 +205,9 @@ def test_a_personas_room_shows_beside_its_figure_in_every_browser_the_late_joine
     seen = [room_is_seen(person) for person in everyone]
     assert seen == [True] * len(everyone), (
         [figure_state(person) for person in everyone],
-        [room_answers[person] for person in everyone],
+        [room_statuses(person, room_answers) for person in everyone],
     )
-    assert [room_answers[person] for person in everyone] == [[200]] * len(everyone)
+    assert [room_statuses(person, room_answers) for person in everyone] == [[200]] * len(everyone)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -213,14 +220,15 @@ def test_a_personas_room_shows_beside_its_figure_in_every_browser_the_late_joine
 )
 def test_a_room_that_cannot_be_shown_leaves_no_room_and_the_figure_drawn(
     scene_of: Callable[..., Scene],
-    room_answers: dict[Page, list[int]],
+    room_answers: dict[Page, list[Response]],
     form_factor: dict[str, Any],
     room_url: str,
     declared: bytes,
     answer: int,
 ) -> None:
     """CALL-80: A room whose bytes do not match its digest, or that figure's check refuses, shows no room and the
-    figure is drawn all the same."""
+    figure is drawn all the same. What is observed is the route's answer and the figure's drawn state; the swapped room
+    is the magenta one, so a server that ignored the digest would show it."""
     scene = scene_of(form_factor)
 
     everyone = with_the_figure_drawn(scene, figure_look_with(room_url, declared))
@@ -228,5 +236,5 @@ def test_a_room_that_cannot_be_shown_leaves_no_room_and_the_figure_drawn(
         wait_for_the_room_answer(person, room_answers)
     pixels = [magenta_pixels(person) for person in everyone]
 
-    assert [room_answers[person] for person in everyone] == [[answer]] * len(everyone)
+    assert [room_statuses(person, room_answers) for person in everyone] == [[answer]] * len(everyone)
     assert pixels == [0] * len(everyone)
