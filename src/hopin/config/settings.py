@@ -2,8 +2,9 @@ from pathlib import Path
 from typing import Annotated, Self
 from urllib.parse import urlsplit
 
-from pydantic import AfterValidator, Field, RedisDsn, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import AfterValidator, BeforeValidator, Field, RedisDsn, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from webauth.admission import GroupPath
 
 from hopin.config.constants import (
     DEFAULT_HOST,
@@ -71,6 +72,14 @@ class DatabaseSettings(BaseSettings):
     database_password_file: AbsolutePath = Field(repr=False)
 
 
+def _group_path(value: object) -> object:
+    return GroupPath(value) if isinstance(value, str) else value
+
+
+# NoDecode, because pydantic-settings counts a dataclass as complex and would JSON-decode the value first.
+RealmGroup = Annotated[GroupPath, NoDecode, BeforeValidator(_group_path)]
+
+
 class RealmSettings(BaseSettings):
     """The names of HopIn's objects in the Keycloak realm, which the platform's Deployment hands every app under the
     same `REALM_` keys; none has a default, and an empty value counts as missing."""
@@ -80,14 +89,20 @@ class RealmSettings(BaseSettings):
     # The client HopIn signs people in as.
     client_id: str = Field(min_length=1)
     # The group whose members sign in, and the group of those who administer.
-    login_group: str = Field(min_length=1)
-    admin_group: str = Field(min_length=1)
+    login_group: RealmGroup
+    admin_group: RealmGroup
     # The group whose members' agents may reach the MCP endpoint, and the scope and audience their token carries.
-    mcp_group: str = Field(min_length=1)
+    mcp_group: RealmGroup
     mcp_scope: str = Field(min_length=1)
     # The group of agents' own accounts, admitted from any client, and the public client an agent signs in through.
-    agent_group: str = Field(min_length=1)
+    agent_group: RealmGroup
     mcp_client_id: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _require_the_admin_group_below_the_login_group(self) -> Self:
+        if not self.admin_group.lies_below(self.login_group):
+            raise ValueError("REALM_ADMIN_GROUP must lie below REALM_LOGIN_GROUP")
+        return self
 
 
 class ServerSettings(DatabaseSettings):

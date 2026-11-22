@@ -89,11 +89,11 @@ The bearer is accepted on this one path and nowhere else. webauth's gate admits 
 | `HOPIN_SESSION_SECRET_FILE` | required | Absolute path of the file holding the session signing key, at least 32 characters |
 | `HOPIN_TRUSTED_PROXIES` | empty | Comma-separated addresses and CIDR blocks of the proxies whose `X-Forwarded-For` names the person's address for the rate limits and the request log; empty trusts none, so every request counts against its direct peer |
 | `REALM_CLIENT_ID` | required | The Keycloak client HopIn signs in as |
-| `REALM_LOGIN_GROUP` | required | The Keycloak group whose members sign in, compared exactly; a group below it admits too |
-| `REALM_ADMIN_GROUP` | required | The Keycloak group whose members administer, a group below it included |
-| `REALM_MCP_GROUP` | required | The Keycloak group whose members' agents may reach `/mcp`, compared exactly |
+| `REALM_LOGIN_GROUP` | required | The Keycloak group path whose members sign in, such as `/apps/hopin`, compared exactly; a group below it admits too |
+| `REALM_ADMIN_GROUP` | required | The Keycloak group path whose members administer, a group below it included; it lies below `REALM_LOGIN_GROUP` |
+| `REALM_MCP_GROUP` | required | The Keycloak group path whose members' agents may reach `/mcp`, compared exactly |
 | `REALM_MCP_SCOPE` | required | The Keycloak scope a token for `/mcp` carries |
-| `REALM_AGENT_GROUP` | required | The Keycloak group of agents' own accounts, which `/mcp` admits from any client |
+| `REALM_AGENT_GROUP` | required | The Keycloak group path of agents' own accounts, which `/mcp` admits from any client |
 | `REALM_MCP_CLIENT_ID` | required | The public Keycloak client a person's own agent signs in through |
 | `HOPIN_REDIS_URL` | required | The `redis://` or `rediss://` URL of the Redis that every HopIn process shares. The per-address request budgets live there, so a budget spent through one process is refused through the others, and so do the signals that wake an agent's open listen. HopIn refuses to start without it and has no in-memory fallback; with Redis down `/health` is not ready and every budgeted route answers 503 |
 | `HOPIN_DATABASE_URL` | required | The `postgresql://user@host:port/database` URL of the Postgres that every HopIn process shares; no password and no query parameter, which HopIn refuses. `hopin migrate` and `hopin serve` read it; the schema holds the accounts and the sessions, which every process reads and writes; an empty port (`host:/database`) is refused. With the database down `/health` is not ready |
@@ -112,7 +112,7 @@ The bearer is accepted on this one path and nowhere else. webauth's gate admits 
 
 The `HOPIN_AGENT__` settings are read by the connector's `AgentSettings`, the `HOPIN_SPEECH__` ones by its `SpeechSettings` (which stays when the game is removed), and `HOPIN_FIGURE_SOURCES` by participation's `ParticipationSettings`; a missing or malformed one stops the start and echoes no input.
 
-Agents dial in through `POST /mcp` with a bearer token and need no setting: the endpoint's audience is `HOPIN_PUBLIC_ORIGIN` + `/mcp`, and the realm decides who may use it (see "A person's own agent"). HopIn refuses to start without the required `HOPIN_` settings, any of the seven `REALM_` keys or the required `HOPIN_AGENT__` settings, without the page build (`make frontend` writes it), when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
+Agents dial in through `POST /mcp` with a bearer token and need no setting: the endpoint's audience is `HOPIN_PUBLIC_ORIGIN` + `/mcp`, and the realm decides who may use it (see "A person's own agent"). HopIn refuses to start without the required `HOPIN_` settings, any of the seven `REALM_` keys (a group key that is no group path included), or the required `HOPIN_AGENT__` settings, without the page build (`make frontend` writes it), when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
 
 ## Development
 
