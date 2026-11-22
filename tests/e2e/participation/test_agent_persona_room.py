@@ -220,7 +220,7 @@ def test_a_room_that_cannot_be_shown_leaves_no_room_and_the_figure_drawn(
 
     everyone = with_the_figure_drawn(scene, figure_look_with(room_url, declared))
     for person in everyone:
-        person.wait_for_function(ROOM_ANSWERED, PERSONA_ROOM_PATH, timeout=WAIT_FOR_THE_ROOM_SECONDS * 1000)
+        person.wait_for_function(ROOM_ANSWERED, arg=PERSONA_ROOM_PATH, timeout=WAIT_FOR_THE_ROOM_SECONDS * 1000)
     pixels = [magenta_pixels(person) for person in everyone]
 
     assert [room_answers[person] for person in everyone] == [[answer]] * len(everyone)
