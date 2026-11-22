@@ -13,6 +13,7 @@ from hopin.agent.tools import CALL_KIND
 from hopin.config.constants import ErrorReason, SignalType
 from hopin.participation.chat_window import LINES_PER_WINDOW, LineKind, WindowLine
 from hopin.participation.hearing import Hearing, HearingHandle
+from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from hopin.participation.vocabulary import HearingRefusal, ParticipationSignal
 from tests.participation.support.ends import (
     end_by_the_host,
@@ -31,7 +32,6 @@ from tests.participation.support.own_accounts import (
 )
 from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import host_and_guest
-from tests.support.agent_adders import ADDERS_GROUP
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -44,14 +44,9 @@ def hears():
     return True
 
 
-@pytest.fixture
-def adders():
-    return {OWNER: ADDERS_GROUP}
-
-
 @pytest.fixture(autouse=True)
 def members(groups_of_seat):
-    groups_of_seat[OWNER] = groups_of_seat["guest"] = frozenset({ADDERS_GROUP})
+    groups_of_seat[OWNER] = groups_of_seat["guest"] = frozenset({AGENT_ADDERS_GROUP})
 
 
 def switch(agent_id, *, on):

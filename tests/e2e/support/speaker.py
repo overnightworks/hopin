@@ -11,9 +11,8 @@ from speech_client.wire import SPEECH_PATH, RefusalCode, VoiceId
 
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND, LEAVE_CALL
-from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT, REQUEST_SECONDS, OwnAccountAgent, room_of_link
+from tests.e2e.support.dialed_agent import AGENT_TILE, REQUEST_SECONDS, OwnAccountAgent, room_of_link
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
-from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.dialed_call import window_uri
 from tests.support.speech_origin import (
     AUDIENCE_SCOPE,
@@ -96,7 +95,6 @@ def speaking_hopin(
         hears=hears,
         speaks=True,
         speech=SpeechService(speech_base_url, VoiceId.THORSTEN, AUDIENCE_SCOPE),
-        agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
     ) as server:
         yield server
 

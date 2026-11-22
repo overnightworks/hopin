@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from speech_client.wire import VoiceId
 
+from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from tests.e2e.support.dialed_agent import (
     AGENT_NAME,
     OWNER_SUBJECT,
@@ -16,7 +17,6 @@ from tests.e2e.support.mesh_pair import ConnectedPair, pair_connector
 from tests.e2e.support.participation_scene import Scene
 from tests.e2e.support.server import UNREACHABLE_HEARING, RunningServer, loopback_sign_in, running_hopin
 from tests.e2e.support.speaker import Speaker, speaking_hopin
-from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.fake_speech import FakeSpeech
 from tests.support.loopback_origin import Origin
 from tests.support.speech_origin import offering
@@ -29,13 +29,12 @@ if TYPE_CHECKING:
 
 @pytest.fixture(scope="session")
 def participation_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServer]:
-    """HopIn with participation wired into its calls, the adders group mapped to the owner `OWNER_SUBJECT`."""
+    """HopIn with participation wired into its calls."""
     loopback = loopback_sign_in(tmp_path_factory.mktemp("participation-sign-in"))
     with running_hopin(
         loopback,
         tmp_path_factory.mktemp("participation-tls"),
         participation=True,
-        agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
     ) as server:
         yield server
 
@@ -49,7 +48,6 @@ def hearing_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Running
         tmp_path_factory.mktemp("hearing-tls"),
         participation=True,
         hears=True,
-        agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
     ) as server:
         yield server
 
@@ -73,7 +71,6 @@ def speaking_server(tmp_path_factory: pytest.TempPathFactory, fake_speech: FakeS
         participation=True,
         hears=True,
         speech=replace(UNREACHABLE_HEARING, origin=fake_speech.origin),
-        agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
     ) as server:
         yield server
 
@@ -104,7 +101,7 @@ def grant_adders(e2e_server: RunningServer) -> Callable[[str], None]:
     """Make the issuer hold the adders group for the subject."""
 
     def grant(subject: str) -> None:
-        e2e_server.issuer.grant_groups(subject, (ADDERS_GROUP,))
+        e2e_server.issuer.grant_groups(subject, (AGENT_ADDERS_GROUP,))
 
     return grant
 

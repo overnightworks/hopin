@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     from collections.abc import Collection
@@ -8,6 +8,9 @@ if TYPE_CHECKING:
     from hopin.participation.frames import Offer
     from hopin.participation.line_budget import LineBudget
     from hopin.signaling.frames import PeerId
+
+AGENT_ADDERS_GROUP: Final = "/agent-adders"
+"""The realm group whose members may call any owner's agent into a call."""
 
 
 class Membership(StrEnum):

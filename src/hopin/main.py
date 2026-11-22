@@ -150,7 +150,6 @@ def build_application(
             configured_game_feature(voices),  # game
             ParticipationFeature(
                 settings.public_origin,
-                participation.agent_adders,
                 participation.figure_sources,
                 hearing=speech.hearing_service,
                 speaking=speech.speaking_service,

@@ -9,10 +9,10 @@ import pytest
 from agents.member import STANDING_URI
 
 from hopin.agent.mcp import LISTENERS_READ_FAILED_EVENT
+from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from hopin.participation.vocabulary import ParticipationSignal
 from hopin.stores.redis import connect_shared_stores
 from tests.stores.support.service_gate import ServiceGate
-from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.dialed_call import DialedCall, Seat, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.log_lines import captured_lines
@@ -54,11 +54,10 @@ def processes(sign_in_settings, redis_url, agent_subject):
                 serving_dialed_call(
                     sign_in,
                     FakeIssuer(sign_in),
-                    {OWNER_SUBJECT: ADDERS_GROUP},
                     shared_stores=connect_shared_stores(gate.url),
                 )
             )
-            _, login = call.member(subject=OWNER_SUBJECT, groups=(ADDERS_GROUP,))
+            _, login = call.member(subject=OWNER_SUBJECT, groups=(AGENT_ADDERS_GROUP,))
             token = call.agent_token(owner=OWNER_SUBJECT, subject=agent_subject, agent_name=AGENT_NAME)
             call.standing(token)
             started.append(Process(call, gate, call.seat(login), token))

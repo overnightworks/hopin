@@ -11,8 +11,8 @@ An agent with an account of its own is live while it calls, on a lease of the co
 admitted call renews; the lease's expiry, or a change of owner, ends its places and signals its standing
 (`live_agents.py`).
 
-Who may add: a member of the adders group (`HOPIN_AGENT_ADDERS`, `settings.py`) is offered the owner's live agent in
-More while the owner's one seat is in the call, and the call's host and each such member are shown that control even
+Who may add: a member of the realm group `/agent-adders` (`memberships.py`) is offered any owner's live agent in
+More while that owner's one seat is in the call, and the call's host and each such member are shown that control even
 with no agent listed. `offers.py` keeps the seats' memberships and decides the offers and an add's refusals; the add
 reads the adder's groups fresh and opens the invitation.
 

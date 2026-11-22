@@ -6,8 +6,8 @@ person's own agents reach a call. Optional, and in a layer above the game and pa
 - `speaking.py`: speech rendered to a WAV. It stays when the game is removed.
 - `hearing_route.py`: the hearing socket of a seat.
 
-The starter's check (for the game) and the adders check (for participation) both read a signed-in session's current
-groups by one refresh grant, through webauth's `SessionGroups`.
+The starter's check (for the game) and the agent adders check (for participation) both read a signed-in session's
+current groups by one refresh grant, through webauth's `SessionGroups`.
 
 For the game: `settings.py` (`AgentSettings`, with the client's `AgentConfig` as `agent`), `backend.py` (the starter's
 verified identity and current groups, one quiz run on the client's `GatewayBackend`, turned into a line or a refusal)

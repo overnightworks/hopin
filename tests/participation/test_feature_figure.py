@@ -15,6 +15,7 @@ from agents.member import (
 from hopin.agent.tools import LEAVE_CALL, SAY
 from hopin.config.constants import CALL_FEATURES_PATH
 from hopin.participation.figures import figure_refusal
+from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from hopin.participation.vocabulary import (
     CLIP_MAX_BYTES,
     CLIP_PATH,
@@ -45,7 +46,6 @@ from tests.participation.support.figures import (
     redirect,
 )
 from tests.participation.support.tool_calls import call_in
-from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.dialed_call import LISTEN_TIMEOUT_SECONDS, RESOURCE_UPDATED, TOOLS_LIST_CHANGED
 from tests.support.signed_in import cookie_header
 
@@ -65,11 +65,6 @@ WAVE = "wave"
 @pytest.fixture
 def sources():
     return [SOURCE_PREFIX]
-
-
-@pytest.fixture
-def adding_call_adders(adding_call_adders):
-    return adding_call_adders | {SECOND_OWNER: ADDERS_GROUP}
 
 
 def read_figure(scene, path, method="GET", **headers):
@@ -322,7 +317,7 @@ class TestTheRoute:
         good = figure_origin.serve(figure_url("good.glb"), ok(FILE))
         first, second_url = (failing, good) if failing_first else (good, failing)
         path = joined_with(scene, first)
-        _, second_owner_login = scene.call.member(subject=SECOND_OWNER, groups=(ADDERS_GROUP,))
+        _, second_owner_login = scene.call.member(subject=SECOND_OWNER, groups=(AGENT_ADDERS_GROUP,))
         scene.call.seat(second_owner_login, scene.owner.room_id)
         second = scene.call.agent_token(owner=SECOND_OWNER, subject="second-agent", agent_name="Haydn")
         scene.call.standing(second)
