@@ -1,8 +1,0 @@
-claim_id = "93106906c7c5468f915d44bc18a99b3c"
-agent = "Claude 5eca3dc5-5b7a-45af-9170-3abc97d73816"
-role = "builder"
-base = "d195789c329a3021325686c745957c910d705214"
-branch = "claude/issue-1102-listen-chip-compact"
-scope = ["docs/call.md", "frontend/src/lib/assets/hopin.css", "frontend/src/lib/ui", "tests/e2e/participation/test_agent_voice_mute.py"]
-opened_commit = "5b7a6b71373d8e01b52fa683022175e52a69ee46"
-whole_reason = "The compact rule, its page style, its CALL-79 line and its browser proof are one behaviour: the chip, the stylesheet, the rule and its test change together."
