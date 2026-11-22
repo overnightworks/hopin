@@ -1,0 +1,8 @@
+claim_id = "58ff3dc41dae4d46b0659c55d3166094"
+agent = "Claude 5eca3dc5-5b7a-45af-9170-3abc97d73816"
+role = "builder"
+base = "c18e771584631dca98bef1b8a4987339180deee1"
+branch = "claude/issue-1093-hopin-erases-a-person-through-the-people"
+scope = ["README.md", "docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/config/constants.py", "src/hopin/people.py", "src/hopin/rooms/manager.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/routing.py", "src/hopin/stores/__init__.py", "src/hopin/stores/accounts.py", "src/hopin/stores/identity.py", "src/hopin/stores/postgres.py", "tests/stores/test_identity_in_two_processes.py", "tests/stores/test_identity_outage.py", "tests/stores/test_postgres_identity.py", "tests/support/people_export.py", "tests/support/stores.py", "tests/test_people.py"]
+opened_commit = "1e470a8d842bef5b24d4252b357733ed9a6132eb"
+whole_reason = "One route whose rows, seats and docs must land together: a route that deletes the account but leaves the seats, or a store method without its route, would answer counts that lie."
