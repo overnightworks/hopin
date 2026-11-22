@@ -1,0 +1,8 @@
+claim_id = "b3170287a36e4079ac56de7f1f187c60"
+agent = "Claude d102189c-9f27-4985-8ccc-1652f4bd968e"
+role = "builder"
+base = "d195789c329a3021325686c745957c910d705214"
+branch = "claude/issue-1103-realm-group-paths"
+scope = ["README.md", "pyproject.toml", "src/hopin/agent/mcp.py", "src/hopin/auth/sign_in.py", "src/hopin/config/settings.py", "src/hopin/main.py", "tests/auth", "tests/game/test_table_feature_activation.py", "tests/stores/support", "tests/support", "tests/test_config.py", "tests/test_main.py", "tests/test_main_logging.py", "tests/test_people.py", "uv.lock"]
+opened_commit = "d5ece9b5bed5815af4068128e4f1d63e282faa19"
+whole_reason = "The webauth pin and the GroupPath fields go together: v0.44.0 refuses a str group, so every place that builds RealmSettings or passes a group moves in the same change."
