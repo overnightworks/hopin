@@ -1,16 +1,16 @@
 """What each seat of a call may add: the agents it is offered, whether its control shows, and the refusals an add
-meets, all decided by the seats' memberships in the owners' adders groups as reads of their groups found them."""
+meets, all decided by the seats' membership in the realm group of agent adders as a read of their groups found it."""
 
 from typing import TYPE_CHECKING, cast
 
 from hopin.participation.frames import AgentOffersFrame, Offer
 from hopin.participation.group_reads import GroupReads
-from hopin.participation.memberships import Membership, membership_in
+from hopin.participation.memberships import AGENT_ADDERS_GROUP, Membership, membership_in
 from hopin.participation.places import Invited
 from hopin.participation.vocabulary import AgentRefusal
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Callable, Sequence
 
     from hopin.participation.group_reads import GroupsRead
     from hopin.participation.live_agents import LiveAgent, LiveAgents
@@ -22,34 +22,27 @@ if TYPE_CHECKING:
 
 
 class Offers:
-    """The seats' memberships in the adders groups and the offers each seat was last sent, kept in their seat views."""
+    """The seats' membership in the agent adders group and the offers each seat was last sent, kept in their seat
+    views."""
 
     def __init__(
         self,
         places: Places,
-        adders: Mapping[str, str],
         listens_to_standing: Callable[[Person], bool],
         is_working: Callable[[str], bool],
         seat_views: SeatViews,
     ) -> None:
         self._places = places
-        self._adders = adders
         self._listens_to_standing = listens_to_standing
         self._is_working = is_working
         self._seat_views = seat_views
         self.group_reads = GroupReads()
 
     def keep(self, read: GroupsRead, groups: frozenset[str] | None, room_id: str) -> Membership | None:
-        """Keep the memberships a read found: in every adders group for a read for the offers, which answers nothing;
-        in the group of the adding agent's owner for an add, which it answers."""
+        """Keep the membership a read found; an add's read answers it, a read for the offers answers nothing."""
         memberships = self._seat_views.of(read.seat, room_id).memberships
-        if read.adding is None:
-            for group in set(self._adders.values()):
-                memberships[group] = membership_in(groups, group)
-            return None
-        group = self._adders[read.adding.agent.owner_subject]
-        memberships[group] = membership_in(groups, group)
-        return memberships[group]
+        memberships[AGENT_ADDERS_GROUP] = membership_in(groups, AGENT_ADDERS_GROUP)
+        return None if read.adding is None else memberships[AGENT_ADDERS_GROUP]
 
     def send(self, view: RoomView, transition: Transition, agents: LiveAgents, *, read: bool = True) -> None:
         """Send each seat the agents it may add, whether its control shows and whether no place is free for an agent,
@@ -92,10 +85,9 @@ class Offers:
             return sponsor
         if view.is_parked(sponsor):
             return AgentRefusal.SPONSOR_AWAY
-        group = self._adders.get(live.owner_subject)
-        if group is None or (
+        if (
             membership_is_fresh
-            and self._seat_views.of(peer_id, room_id).memberships.get(group) is Membership.NOT_MEMBER
+            and self._seat_views.of(peer_id, room_id).memberships.get(AGENT_ADDERS_GROUP) is Membership.NOT_MEMBER
         ):
             return AgentRefusal.NOT_ADDER
         if self._places.get(live.person, room_id) is not None:
@@ -105,43 +97,36 @@ class Offers:
         return None
 
     def _read_groups(self, view: RoomView, transition: Transition) -> None:
-        """Read the groups of each seat whose membership in an adders group is unknown or failed to read, unless a
-        read of them runs."""
-        groups = set(self._adders.values())
+        """Read the groups of each seat whose membership in the agent adders group is unknown or failed to read, unless
+        a read of them runs."""
         for peer_id in view.members:
             memberships = self._seat_views.of(peer_id, cast("str", view.room_id)).memberships
             read = self.group_reads.for_offers(peer_id)
             if (
-                any(memberships.get(group, Membership.FAILED) is Membership.FAILED for group in groups)
+                memberships.get(AGENT_ADDERS_GROUP, Membership.FAILED) is Membership.FAILED
                 and not self._is_working(read.key)
                 and read not in transition.dispatched
             ):
                 transition.dispatch(read)
 
     def _control_shown_to(self, view: RoomView, peer_id: PeerId, offers: Sequence[Offer]) -> bool:
-        """The control shows to a seat with an offer, to the call's host and to a member of an adders group, even with
-        no agent to list; it never waits on a fresh read."""
+        """The control shows to a seat with an offer, to the call's host and to a member of the agent adders group, even
+        with no agent to list; it never waits on a fresh read."""
         if offers:
             return True
         memberships = self._seat_views.of(peer_id, cast("str", view.room_id)).memberships
-        return view.is_host(peer_id) or any(
-            memberships.get(group) is Membership.MEMBER for group in self._adders.values()
-        )
+        return view.is_host(peer_id) or memberships.get(AGENT_ADDERS_GROUP) is Membership.MEMBER
 
     def _offers_for(self, view: RoomView, peer_id: PeerId, agents: LiveAgents) -> tuple[Offer, ...]:
         """The agents a seat may add: each with a lease that runs and a listen on its standing that is open, or ended
         within its allowance."""
         room_id = cast("str", view.room_id)
-        memberships = self._seat_views.of(peer_id, room_id).memberships
+        if self._seat_views.of(peer_id, room_id).memberships.get(AGENT_ADDERS_GROUP) is not Membership.MEMBER:
+            return ()
         offers = []
         for live in agents.by_person.values():
-            group = self._adders.get(live.owner_subject)
-            sponsor = _sole_seat(view, live.owner_subject)
-            if (
-                group is None
-                or isinstance(sponsor, AgentRefusal)
-                or memberships.get(group) is not Membership.MEMBER
-                or not self._listens_to_standing(live.person)
+            if isinstance(_sole_seat(view, live.owner_subject), AgentRefusal) or not self._listens_to_standing(
+                live.person
             ):
                 continue
             place = self._places.get(live.person, room_id)

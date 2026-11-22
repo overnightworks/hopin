@@ -1,6 +1,7 @@
 import pytest
 
 from hopin.config.constants import ErrorReason, SignalType
+from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
 from tests.participation.support.own_accounts import (
     AGENT,
@@ -17,21 +18,15 @@ from tests.participation.support.own_accounts import (
 )
 from tests.participation.support.people import person_named
 from tests.signaling.support.browsers import clear_sent
-from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.signaling_fakes import ROOM_LIMIT
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 
 @pytest.fixture
-def adders():
-    return {OWNER: ADDERS_GROUP}
-
-
-@pytest.fixture
 def members(groups_of_seat):
     """The seat of `guest` belongs to the adders group, the seat of `stranger` does not."""
-    groups_of_seat["guest"] = frozenset({ADDERS_GROUP})
+    groups_of_seat["guest"] = frozenset({AGENT_ADDERS_GROUP})
     groups_of_seat["stranger"] = frozenset({"/apps/hopin"})
 
 
@@ -85,7 +80,7 @@ class TestWhoIsOfferedTheAgent:
         self, link, participation, listeners, groups_of_seat
     ):
         """CALL-51: A listen that ends without a next one drops the offer on every seat that showed it."""
-        groups_of_seat["second"] = frozenset({ADDERS_GROUP})
+        groups_of_seat["second"] = frozenset({AGENT_ADDERS_GROUP})
         owner = await link.join(OWNER)
         first = await link.join("guest", owner.room_id)
         second = await link.join("second", owner.room_id)
@@ -129,18 +124,6 @@ class TestWhoIsOfferedTheAgent:
         assert offers_sent_to(member) == []
 
     @pytest.mark.usefixtures("members")
-    async def test_the_agent_is_offered_to_no_seat_when_no_group_is_configured(
-        self, link, participation, adders, group_reads, listeners
-    ):
-        adders.clear()
-        _owner, member = await owner_and_member(link)
-
-        await agent_calls_and_listens(participation, listeners)
-        await let_reads_finish()
-
-        assert (offers_sent_to(member), group_reads) == (None, [])
-
-    @pytest.mark.usefixtures("members")
     async def test_a_member_of_the_adders_group_and_the_host_are_shown_the_control_while_no_agent_is_listed(self, link):
         """CALL-51: A member of the adders group and the call's host are shown the control with no agent listed."""
         owner = await link.join("host")
@@ -150,14 +133,6 @@ class TestWhoIsOfferedTheAgent:
 
         assert [control_shown_to(seat) for seat in (owner, member, stranger)] == [True, True, None]
         assert [offers_sent_to(seat) for seat in (owner, member)] == [[], []]
-
-    async def test_the_host_is_shown_the_control_when_no_group_is_configured(self, link, adders):
-        """CALL-51: The call's host is shown the control even when no group may add an agent."""
-        adders.clear()
-        owner = await link.join("host")
-        await let_reads_finish()
-
-        assert control_shown_to(owner) is True
 
     @pytest.mark.usefixtures("members")
     async def test_a_group_read_that_fails_offers_nothing_and_asks_again_at_the_next_offer_trigger(
@@ -170,7 +145,7 @@ class TestWhoIsOfferedTheAgent:
         reads_before = group_reads.count("guest")
         offers_before = offers_sent_to(member)
 
-        groups_of_seat["guest"] = frozenset({ADDERS_GROUP})
+        groups_of_seat["guest"] = frozenset({AGENT_ADDERS_GROUP})
         await agent_calls_and_listens(participation, listeners)
         await let_reads_finish()
 
@@ -201,7 +176,7 @@ class TestAnAdd:
         await agent_calls_and_listens(participation, listeners)
         await let_reads_finish()
         [offer] = offers_sent_to(member)
-        groups_of_seat["stranger"] = frozenset({ADDERS_GROUP})
+        groups_of_seat["stranger"] = frozenset({AGENT_ADDERS_GROUP})
 
         await add(stranger, offer["agent_key"])
 
@@ -227,7 +202,7 @@ class TestAnAdd:
     async def test_an_add_opens_an_invitation_the_adder_sees_pending_and_no_other_member_is_offered(
         self, link, participation, groups_of_seat, listeners
     ):
-        groups_of_seat["second"] = frozenset({ADDERS_GROUP})
+        groups_of_seat["second"] = frozenset({AGENT_ADDERS_GROUP})
         owner, member = await owner_and_member(link)
         second = await link.join("second", owner.room_id)
         await agent_calls_and_listens(participation, listeners)

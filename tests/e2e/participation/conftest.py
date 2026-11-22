@@ -6,6 +6,7 @@ import pytest
 from speech_client.wire import VoiceId
 
 from hopin.agent.speech_settings import SpeechService
+from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from hopin.participation.settings import ParticipationSettings
 from tests.e2e.support.dialed_agent import (
     AGENT_NAME,
@@ -19,7 +20,6 @@ from tests.e2e.support.participation_scene import Scene
 from tests.e2e.support.server import UNREACHABLE_HEARING, RunningServer, loopback_sign_in, running_hopin
 from tests.e2e.support.speaker import Speaker, speaking_hopin
 from tests.participation.support.figures import SOURCE_PREFIX, FigureOrigin
-from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.fake_speech import FakeSpeech
 from tests.support.loopback_origin import Origin
 from tests.support.speech_origin import AUDIENCE_SCOPE, offering
@@ -32,13 +32,12 @@ if TYPE_CHECKING:
 
 @pytest.fixture(scope="session")
 def participation_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RunningServer]:
-    """HopIn with participation wired into its calls, the adders group mapped to the owner `OWNER_SUBJECT`."""
+    """HopIn with participation wired into its calls."""
     loopback = loopback_sign_in(tmp_path_factory.mktemp("participation-sign-in"))
     with running_hopin(
         loopback,
         tmp_path_factory.mktemp("participation-tls"),
         participation=True,
-        agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
     ) as server:
         yield server
 
@@ -52,7 +51,6 @@ def hearing_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Running
         tmp_path_factory.mktemp("hearing-tls"),
         participation=True,
         hears=True,
-        agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
     ) as server:
         yield server
 
@@ -76,7 +74,6 @@ def speaking_server(tmp_path_factory: pytest.TempPathFactory, fake_speech: FakeS
         participation=True,
         hears=True,
         speech=replace(UNREACHABLE_HEARING, origin=fake_speech.origin),
-        agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
     ) as server:
         yield server
 
@@ -107,7 +104,7 @@ def grant_adders(e2e_server: RunningServer) -> Callable[[str], None]:
     """Make the issuer hold the adders group for the subject."""
 
     def grant(subject: str) -> None:
-        e2e_server.issuer.grant_groups(subject, (ADDERS_GROUP,))
+        e2e_server.issuer.grant_groups(subject, (AGENT_ADDERS_GROUP,))
 
     return grant
 
@@ -155,7 +152,6 @@ def figure_server(
         participation=True,
         speaks=True,
         speech=SpeechService(speech_origin.base_url, VoiceId.THORSTEN, AUDIENCE_SCOPE),
-        agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
         figure_sources=ParticipationSettings(figure_sources=[SOURCE_PREFIX]).figure_sources,
         figure_transport=figure_origin,
     ) as server:

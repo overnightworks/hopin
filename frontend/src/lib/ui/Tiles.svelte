@@ -17,6 +17,9 @@
     // into the tile's corners and the see chip shrinks to its track.
     // A tile not yet measured has no width, and Number(undefined) is NaN, which is never narrow.
     const NARROW_TILE_WIDTH = 131;
+    // From this width the listen chip's whole label fits beside the remove button (the chip may take the tile's width
+    // less 64px); a tile not yet measured is not spacious, so its chip starts compact.
+    const SPACIOUS_TILE_WIDTH = 340;
 
     let kitWords = $state<KitWords>();
     let agentTileWidths = $state<Record<string, number>>({});
@@ -65,6 +68,7 @@
     {@const chips = compactChips({
         figured: agent.figure !== undefined,
         narrow,
+        spacious: Number(agentTileWidths[key]) >= SPACIOUS_TILE_WIDTH,
         seeing: agent.seeing !== undefined,
     })}
     <div

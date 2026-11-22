@@ -10,8 +10,8 @@ from agents.member import STANDING_URI
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from hopin.agent.mcp import LISTENERS_READ_FAILED_EVENT
+from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from hopin.participation.vocabulary import ParticipationSignal
-from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.log_lines import captured_lines
 
 pytestmark = pytest.mark.integration
@@ -86,7 +86,7 @@ SEEN_WITHIN_SECONDS = 10
 
 
 def offers_to_a_new_seat(scene):
-    _, login = scene.call.member(groups=(ADDERS_GROUP,))
+    _, login = scene.call.member(groups=(AGENT_ADDERS_GROUP,))
     return scene.call.seat(login, scene.owner.room_id).frame_of_type(ParticipationSignal.AGENT_OFFERS.value)["offers"]
 
 

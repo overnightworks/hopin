@@ -34,7 +34,7 @@ from tests.support.signed_in import cookie_header, handshake_headers, seed_membe
 from tests.support.stores import InThreadIdentity, WatchedSessions, WatchedVoices, single_process_stores
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
+    from collections.abc import Iterator
 
     from webauth.single_process_stores import StoredAccount
 
@@ -471,7 +471,6 @@ def admin_groups():
 def serving_dialed_call(
     sign_in: SignInSettings,
     issuer: FakeIssuer,
-    agent_adders: Mapping[str, str] | None = None,
     *,
     more_call_features=(),
     figure_sources=(),
@@ -493,7 +492,6 @@ def serving_dialed_call(
     participation = _ParticipationBuilt(
         ParticipationFeature(
             sign_in.settings.public_origin,
-            agent_adders or {},
             figure_sources,
             figure_transport or _no_figure_source,
             hearing=hearing,

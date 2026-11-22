@@ -80,7 +80,7 @@ from hopin.participation.voice import VoiceStore, voice_endpoint
 from hopin.signaling.identity import SessionIdentityResolver
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Coroutine, Mapping
+    from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Coroutine
 
     from fastapi import FastAPI
     from redis.asyncio import Redis as AsyncRedis
@@ -122,7 +122,6 @@ class _BuiltParticipation:
 
     deadlines: Deadlines
     wall_clock: Callable[[], float]
-    adders: Mapping[str, str]
     groups: SessionGroups
     figure_sources: tuple[FigureSource, ...]
     hears: bool
@@ -146,7 +145,6 @@ class _BuiltParticipation:
             self._tell_changed,
             self._tell_window_changed,
             self.wall_clock,
-            self.adders,
             self._groups_of,
             self._listens_to_standing,
             self.figure_sources,
@@ -437,7 +435,6 @@ class ParticipationFeature:
     redis: AsyncRedis = field(kw_only=True)
     # The realm's names for the MCP path.
     realm: RealmSettings = field(kw_only=True)
-    agent_adders: Mapping[str, str] = field(default_factory=dict)
     figure_sources: tuple[FigureSource, ...] = ()
     figure_transport: FigureTransport = get_figure_over_https
     hearing: SpeechService | None = None
@@ -470,7 +467,6 @@ class ParticipationFeature:
         built = _BuiltParticipation(
             deadlines,
             auth_config.wall_clock,
-            self.agent_adders,
             SessionGroups(relying_party, session_transaction, auth_config),
             self.figure_sources,
             hears=self.hearing is not None,

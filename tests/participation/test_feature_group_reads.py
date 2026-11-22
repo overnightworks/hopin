@@ -4,6 +4,7 @@ import pytest
 from agents.member import LEASE_SECONDS
 
 from hopin.config.constants import SignalType
+from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
 from tests.participation.support.own_accounts import (
     AGENT,
@@ -14,15 +15,9 @@ from tests.participation.support.own_accounts import (
     offers_sent_to,
 )
 from tests.signaling.support.browsers import Browser
-from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.signaling_fakes import account_named, text_frame
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
-
-
-@pytest.fixture
-def adders():
-    return {OWNER: ADDERS_GROUP}
 
 
 class TestAGroupReadThatIsStillRunning:
@@ -60,7 +55,7 @@ class TestAGroupReadThatIsStillRunning:
 class TestAnAddWhoseFreshReadIsStillRunning:
     async def add_with_a_held_read(self, link, participation, groups_of_seat, group_reads, listeners):
         owner = await link.join(OWNER)
-        groups_of_seat["guest"] = frozenset({ADDERS_GROUP})
+        groups_of_seat["guest"] = frozenset({AGENT_ADDERS_GROUP})
         member = await link.join("guest", owner.room_id)
         await agent_calls_and_listens(participation, listeners)
         await let_reads_finish()

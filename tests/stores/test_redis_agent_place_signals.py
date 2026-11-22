@@ -10,10 +10,10 @@ from redis import Redis
 
 from hopin.agent.mcp import PLACE_SIGNAL_FAILED_EVENT
 from hopin.config.constants import HEALTH_PATH
+from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from hopin.stores.redis import connect_shared_stores
 from tests.stores.support.pod_pair import LOCALHOST, starting_pod
 from tests.stores.support.service_gate import ServiceGate
-from tests.support.agent_adders import ADDERS_GROUP
 from tests.support.dialed_call import RESOURCE_UPDATED, accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.log_lines import captured_lines
@@ -43,7 +43,6 @@ def agent_call(sign_in_settings, redis_gate, agent_subject):
     with serving_dialed_call(
         sign_in,
         FakeIssuer(sign_in),
-        {OWNER_SUBJECT: ADDERS_GROUP},
         shared_stores=connect_shared_stores(redis_gate.url),
     ) as call:
         token = call.agent_token(owner=OWNER_SUBJECT, subject=agent_subject)
@@ -54,7 +53,7 @@ def agent_call(sign_in_settings, redis_gate, agent_subject):
 def join_the_agent(call, token):
     """The owner adds the agent from its seat, once the agent's listen on its standing has offered it, and the agent
     accepts, so that it holds a joined place in the owner's call."""
-    _, login = call.member(subject=OWNER_SUBJECT, groups=(ADDERS_GROUP,))
+    _, login = call.member(subject=OWNER_SUBJECT, groups=(AGENT_ADDERS_GROUP,))
     owner = call.seat(login)
     call.listen(token, [STANDING_URI])
     owner.adds_the_offered_agent()

@@ -32,7 +32,7 @@ from tests.support.sign_in_settings import TEST_REALM, build_sign_in_settings
 from tests.support.stores import InThreadIdentity, single_process_stores
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
+    from collections.abc import Awaitable, Callable, Iterator, Sequence
     from pathlib import Path
 
     from fastapi import FastAPI
@@ -177,7 +177,6 @@ def loopback_sign_in(directory: Path, public_host: str = LOOPBACK_HOST) -> Loopb
 
 def participation_feature(
     loopback: LoopbackSignIn,
-    agent_adders: Mapping[str, str] | None,
     figure_sources: tuple[FigureSource, ...],
     figure_transport: FigureTransport,
     speech: SpeechService,
@@ -189,7 +188,6 @@ def participation_feature(
     through it only when `speaks`."""
     return ParticipationFeature(
         loopback.sign_in.settings.public_origin,
-        agent_adders or {},
         figure_sources,
         figure_transport,
         hearing=speech if hears else None,
@@ -218,7 +216,6 @@ def running_hopin(
     hears: bool = False,
     speaks: bool = False,
     speech: SpeechService = UNREACHABLE_HEARING,
-    agent_adders: Mapping[str, str] | None = None,
     certificate: tuple[Path, Path] | None = None,
     more_call_features: Sequence[CallFeatureBuilder] = (),
     figure_sources: tuple[FigureSource, ...] = (),
@@ -227,7 +224,6 @@ def running_hopin(
 ) -> Iterator[RunningServer]:
     """Serve HopIn over https on `loopback`, with the call's feature and participation only when asked for, and with
     the setting that lets agents hear on when `hears` and the one that lets them speak when `speaks`, through `speech`;
-    `agent_adders` maps an owner's subject to the group whose members may add that owner's agent,
     `figure_sources` are where participation may fetch an agent's figure from, through `figure_transport`, and
     `more_call_features` wires further features beside `call_feature`, and `voices` is the store the game's voices
     and participation's route share.
@@ -247,11 +243,7 @@ def running_hopin(
             *(() if call_feature is None else (call_feature,)),
             *more_call_features,
             *(
-                (
-                    participation_feature(
-                        loopback, agent_adders, figure_sources, figure_transport, speech, hears, speaks, voices
-                    ),
-                )
+                (participation_feature(loopback, figure_sources, figure_transport, speech, hears, speaks, voices),)
                 if participation
                 else ()
             ),
