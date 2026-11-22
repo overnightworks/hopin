@@ -1,7 +1,0 @@
-claim_id = "6969cb5db2ba4ec0ac512bf88d4a9474"
-agent = "Claude 5eca3dc5-5b7a-45af-9170-3abc97d73816"
-role = "builder"
-base = "e4491606ce37ac07dc7f2715b6eac788aaff648e"
-branch = "claude/issue-1120-in-thread-fake-own-accounts"
-scope = ["tests/support/stores.py"]
-opened_commit = "ef2eed4fd7c91ca709142aca99831a20c9847bed"
