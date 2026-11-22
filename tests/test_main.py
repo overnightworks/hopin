@@ -288,6 +288,16 @@ class TestMain:
     def test_refuses_a_missing_or_empty_realm_key_in_one_line_naming_it(self, serve_refusal, key, value):
         serve_refusal(key, value, f"{key} is missing")
 
+    @pytest.mark.parametrize(
+        "key", [f"REALM_{name.upper()}" for name in ("login_group", "admin_group", "mcp_group", "agent_group")]
+    )
+    @pytest.mark.parametrize("value", ["sentinel-group", "/sentinel/", " /sentinel", "/sentinel /group"])
+    def test_refuses_a_realm_group_that_is_no_group_path_in_one_line_naming_its_key(self, serve_refusal, key, value):
+        serve_refusal(key, value, f"{key} is malformed")
+
+    def test_refuses_an_admin_group_outside_the_login_group_in_one_line_naming_both_keys(self, serve_refusal):
+        serve_refusal("REALM_ADMIN_GROUP", "/sentinel-elsewhere", "REALM_ADMIN_GROUP must lie below REALM_LOGIN_GROUP")
+
     def test_names_the_faulty_settings_of_every_class_in_one_refusal(self, sign_in_settings, monkeypatch, capsys):
         for name, value in sign_in_settings().environment.items():
             monkeypatch.setenv(name, value)
