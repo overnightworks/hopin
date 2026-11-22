@@ -1,0 +1,8 @@
+claim_id = "45e4cf6b80b84584a5d8684eb9fa8e86"
+agent = "Claude 5eca3dc5-5b7a-45af-9170-3abc97d73816"
+role = "builder"
+base = "d195789c329a3021325686c745957c910d705214"
+branch = "claude/issue-1107-a-refused-accept-ends-the-invitation-as"
+scope = ["docs/call.md", "src/hopin/participation", "src/hopin/participation/feature.py", "tests/participation"]
+opened_commit = "6e80511eb426a94dc6db9b3e92cd93bafab1ebdd"
+whole_reason = "One accept transition: the ending of the three refusals, the helper it shares with the decline, its docs/call.md line and its tests change together."
