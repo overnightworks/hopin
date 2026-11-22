@@ -78,12 +78,12 @@ export function tileIdOf(key: string) {
     return "container-" + key;
 }
 
-/** Which of an agent tile's chips shrink to their icon: the see chip on a narrow tile and while the tile shows a figure, which leave less room; the hearing chip while the tile shows a figure and is not narrow, and on the narrow tile that holds all three switches (a sponsor's), where no place is left beside the others for its whole track; on any other narrow tile it stays whole and hopin.css moves it into a corner; the listen chip wherever it and the see chip would not fit whole in one row: on a narrow or figured tile and beside the see chip, which is whole only on a wide tile with no figure. Only a sponsor's tile has a see chip, and it has the hearing chip too. */
-export function compactChips(tile: { figured: boolean; narrow: boolean; seeing: boolean }) {
+/** Which of an agent tile's chips shrink to their icon: the see chip on a narrow tile and while the tile shows a figure, which leave less room; the hearing chip while the tile shows a figure and is not narrow, and on the narrow tile that holds all three switches (a sponsor's), where no place is left beside the others for its whole track; on any other narrow tile it stays whole and hopin.css moves it into a corner; the listen chip wherever its whole label and the see chip would not fit in one row: on a narrow or figured tile, on a tile too small for its label (`spacious` is false) and beside the see chip, which is whole only on a spacious tile with no figure. Only a sponsor's tile has a see chip, and it has the hearing chip too. */
+export function compactChips(tile: { figured: boolean; narrow: boolean; spacious: boolean; seeing: boolean }) {
     return {
         hearing: tile.narrow ? tile.seeing : tile.figured,
         seeing: tile.narrow || tile.figured,
-        listening: tile.narrow || tile.figured || tile.seeing,
+        listening: tile.narrow || tile.figured || tile.seeing || !tile.spacious,
     };
 }
 

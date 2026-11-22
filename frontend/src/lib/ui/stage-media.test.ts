@@ -408,7 +408,7 @@ describe("an agent tile's chips in a component", () => {
         { switch: "seeing" as const, expected: [true, false] },
     ];
 
-    async function chipOf(chip: (typeof chips)[number], figure: string | undefined) {
+    async function chipOf(chip: Pick<(typeof chips)[number], "switch">, figure: string | undefined) {
         showAgentTile(
             { name: "Ada", activity: "present", figure, [chip.switch]: { on: true, onChange: () => {} } } as never,
             "agent-a1",
@@ -431,6 +431,18 @@ describe("an agent tile's chips in a component", () => {
             const withoutFigure = await chipOf(chip, undefined);
 
             expect([withFigure, withoutFigure]).toEqual(chip.expected);
+        },
+    );
+
+    it.each([
+        { width: 184, expected: true },
+        { width: 400, expected: false },
+    ])(
+        "CALL-79: makes the listen chip compact as $expected on a tile $width px wide, where its label would not fit whole",
+        async ({ width, expected }) => {
+            vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(width);
+
+            expect(await chipOf({ switch: "listening" }, undefined)).toBe(expected);
         },
     );
 
