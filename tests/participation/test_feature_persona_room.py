@@ -133,9 +133,9 @@ class TestTheRoomAtAccept:
 
 class TestTheRoute:
     def test_call_80_a_room_is_fetched_once_for_every_read(self, scene, figure_origin):
-        path = joined_with_room(scene, figure_origin)
+        served = reads_and_origin_fetches(scene, figure_origin, joined_with_room(scene, figure_origin), room_url())
 
-        assert reads_and_origin_fetches(scene, figure_origin, path, room_url()) == ([ROOM] * 2, 1)
+        assert served == ([ROOM] * 2, 1)
 
     def test_call_80_a_room_whose_source_redirects_the_way_github_does_is_served(self, scene, figure_origin):
         released = f"{RELEASE_ASSETS}?sp=r&sig=a%2Bb"
