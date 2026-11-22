@@ -106,7 +106,7 @@ function drawFigure(
         fetchBytes(path, fetching.signal).then(
             (bytes) => {
                 roomBytes = bytes;
-                if (!over) handle?.room(bytes);
+                handle?.room(bytes);
             },
             () => undefined,
         );
