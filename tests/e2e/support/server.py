@@ -29,7 +29,7 @@ from hopin.web.page_build import BUILD_DIRECTORY, PageBuild
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.sign_in_settings import TEST_REALM, build_sign_in_settings
-from tests.support.stores import single_process_stores
+from tests.support.stores import InThreadIdentity, single_process_stores
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
@@ -37,7 +37,6 @@ if TYPE_CHECKING:
 
     from fastapi import FastAPI
     from webauth.config import WebAuthConfig
-    from webauth.single_process_stores import SingleProcessStores
 
     from hopin.app import CallFeatureBuilder
     from hopin.config.settings import ServerSettings
@@ -139,7 +138,7 @@ def serving(server: uvicorn.Server, listener: socket.socket) -> Iterator[None]:
 class RunningServer:
     base_url: str
     config: WebAuthConfig
-    stores: SingleProcessStores
+    stores: InThreadIdentity
     issuer: FakeIssuer
 
 
@@ -150,7 +149,7 @@ class LoopbackSignIn:
     listener: socket.socket
     host: str
     sign_in: SignInSettings
-    stores: SingleProcessStores
+    stores: InThreadIdentity
     issuer: FakeIssuer
     shared_stores: SharedStores
 
@@ -242,7 +241,7 @@ def running_hopin(
         page_build=PageBuild.load(page_build_directory),
         shared_stores=loopback.shared_stores,
         scheduler=QuickRecheckScheduler(),
-        stores=loopback.stores,
+        identity=loopback.stores,
         issuer_transports=loopback.issuer.transports,
         call_features=(
             *(() if call_feature is None else (call_feature,)),

@@ -12,7 +12,7 @@ from webauth.policies import (
     SecurityHeadersPolicy,
     default_content_security_policy,
 )
-from webauth.single_process_stores import SingleProcessStores
+from webauth.postgres import SessionStoreError
 from webauth.web_auth import WebAuthStores
 
 from hopin.auth.account import create_account_router
@@ -20,7 +20,6 @@ from hopin.auth.gate import bearer_gate, session_gate
 from hopin.auth.sign_in import (
     ISSUER_OVER_HTTPS,
     IssuerTransports,
-    LoggingAuditSink,
     SignInConfigs,
     build_sign_in_configs,
     build_web_auth,
@@ -40,7 +39,6 @@ from hopin.rooms.manager import RoomManager
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.identity import SessionIdentityResolver
 from hopin.signaling.scheduler import AsyncioScheduler, Deadlines, InMemoryDeadlines, Scheduler, TimerHandle
-from hopin.stores.session_transaction import session_transaction_of
 from hopin.web.call_features import create_call_features_router
 from hopin.web.ice_servers import create_ice_servers_router
 from hopin.web.request_language import RequestLanguage
@@ -55,10 +53,10 @@ if TYPE_CHECKING:
     from webauth.middleware import BearerGate, ProtectedResource
     from webauth.oidc import OidcRelyingParty
     from webauth.ports import SessionTransaction
-    from webauth.single_process_stores import SingleProcessSessionStore
 
     from hopin.config.settings import RealmSettings, ServerSettings
     from hopin.signaling.features import TransitionFeature
+    from hopin.stores.identity import IdentityStores
     from hopin.stores.shared import SharedStores
     from hopin.web.ice_servers import TurnRelay
     from hopin.web.page_build import PageBuild
@@ -112,10 +110,8 @@ class CallFeatureBuilder(Protocol):
 class _ExpiredSessionSweep:
     """Removes expired sessions every SESSION_SWEEP_SECONDS from start to stop."""
 
-    def __init__(
-        self, sessions: SingleProcessSessionStore, wall_clock: Callable[[], float], scheduler: Scheduler
-    ) -> None:
-        self._sessions = sessions
+    def __init__(self, identity: IdentityStores, wall_clock: Callable[[], float], scheduler: Scheduler) -> None:
+        self._identity = identity
         self._wall_clock = wall_clock
         self._scheduler = scheduler
         self._stopped = False
@@ -127,12 +123,17 @@ class _ExpiredSessionSweep:
     async def _sweep(self) -> None:
         if self._stopped:
             return
-        # The scan holds the store's lock, so it runs off the event loop.
-        removed = await asyncio.to_thread(
-            self._sessions.delete_expired, datetime.fromtimestamp(int(self._wall_clock()), UTC)
-        )
-        if removed:
-            logger.info("sessions.swept", removed_count=removed)
+        # The store call blocks, so it runs off the event loop; a sweep the store refused deleted nothing and the next
+        # cycle retries it.
+        try:
+            removed = await asyncio.to_thread(
+                self._identity.delete_expired, datetime.fromtimestamp(int(self._wall_clock()), UTC)
+            )
+        except SessionStoreError:
+            logger.warning("sessions.sweep_refused")
+        else:
+            if removed:
+                logger.info("sessions.swept", removed_count=removed)
         self._schedule_next_unless_stopped()
 
     def _schedule_next_unless_stopped(self) -> None:
@@ -145,14 +146,14 @@ class _ExpiredSessionSweep:
 
 
 def _lifespan(
-    sessions: SingleProcessSessionStore,
+    identity: IdentityStores,
     wall_clock: Callable[[], float],
     scheduler: Scheduler,
     signaling_handler: SignalingHandler,
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        sweep = _ExpiredSessionSweep(sessions, wall_clock, scheduler)
+        sweep = _ExpiredSessionSweep(identity, wall_clock, scheduler)
         try:
             logger.info("process.ready")
             yield
@@ -206,7 +207,7 @@ def _include_routes(
     settings: ServerSettings,
     built_features: list[BuiltCallFeature],
     signaling_handler: SignalingHandler,
-    sessions: SingleProcessSessionStore,
+    identity: IdentityStores,
     page_build: PageBuild,
     request_language: RequestLanguage,
     shared_stores: SharedStores,
@@ -222,7 +223,7 @@ def _include_routes(
         app.include_router(router)
     app.include_router(create_pages_router(page_build, request_language))
     app.include_router(create_account_router(settings.oidc_issuer))
-    app.include_router(create_people_router(sessions, signaling_handler))
+    app.include_router(create_people_router(identity, signaling_handler))
 
 
 def _bearer_of(built_features: list[BuiltCallFeature]) -> BearerGate | None:
@@ -234,7 +235,7 @@ def _bearer_of(built_features: list[BuiltCallFeature]) -> BearerGate | None:
 
 def _new_app(
     settings: ServerSettings,
-    sign_in_stores: SingleProcessStores,
+    identity: IdentityStores,
     auth_config: WebAuthConfig,
     timers: Scheduler,
     deadlines: Deadlines,
@@ -251,7 +252,7 @@ def _new_app(
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
-        lifespan=_lifespan(sign_in_stores.sessions, auth_config.wall_clock, timers, signaling_handler),
+        lifespan=_lifespan(identity, auth_config.wall_clock, timers, signaling_handler),
     )
     return app, signaling_handler
 
@@ -286,7 +287,7 @@ def _assemble_app(
     page_build: PageBuild,
     shared_stores: SharedStores,
     sign_in_configs: SignInConfigs,
-    sign_in_stores: SingleProcessStores,
+    identity: IdentityStores,
     issuer_transports: IssuerTransports,
     monotonic_clock: Callable[[], float],
     timers: Scheduler,
@@ -294,11 +295,11 @@ def _assemble_app(
     turn_relay: TurnRelay | None,
     call_features: Sequence[CallFeatureBuilder],
 ) -> FastAPI:
-    session_transaction = session_transaction_of(sign_in_stores.sessions)
+    session_transaction = identity.session_transaction
     request_language = RequestLanguage(page_build.languages, session_transaction, sign_in_configs.web_auth)
     auth = build_web_auth(
         sign_in_configs,
-        WebAuthStores(sign_in=sign_in_stores.transaction, sessions=session_transaction),
+        WebAuthStores(sign_in=identity.sign_in_transaction, sessions=session_transaction),
         page_build,
         request_language,
         _security_headers(page_build, call_features),
@@ -317,15 +318,13 @@ def _assemble_app(
         page_build,
     )
     bearer = _bearer_of(built_features)
-    app, signaling_handler = _new_app(
-        settings, sign_in_stores, sign_in_configs.web_auth, timers, deadlines, built_features
-    )
+    app, signaling_handler = _new_app(settings, identity, sign_in_configs.web_auth, timers, deadlines, built_features)
     _include_routes(
         app,
         settings,
         built_features,
         signaling_handler,
-        sign_in_stores.sessions,
+        identity,
         page_build,
         request_language,
         shared_stores,
@@ -342,8 +341,8 @@ def create_app(
     *,
     page_build: PageBuild,
     shared_stores: SharedStores,
+    identity: IdentityStores,
     issuer_transports: IssuerTransports = ISSUER_OVER_HTTPS,
-    stores: SingleProcessStores | None = None,
     scheduler: Scheduler | None = None,
     turn_transport: TurnCredentialsPost = TURN_OVER_HTTPS,
     call_features: Sequence[CallFeatureBuilder] = (),
@@ -359,7 +358,6 @@ def create_app(
     )
     turn_relay = build_turn_relay(settings, turn_transport)
 
-    sign_in_stores = stores if stores is not None else SingleProcessStores(audit=LoggingAuditSink())
     timers = scheduler if scheduler is not None else AsyncioScheduler()
     deadlines = InMemoryDeadlines(timers)
     return _assemble_app(
@@ -367,7 +365,7 @@ def create_app(
         page_build=page_build,
         shared_stores=shared_stores,
         sign_in_configs=sign_in_configs,
-        sign_in_stores=sign_in_stores,
+        identity=identity,
         issuer_transports=issuer_transports,
         monotonic_clock=monotonic_clock,
         timers=timers,

@@ -76,7 +76,7 @@ async def call(sign_in_settings) -> AsyncIterator[Call]:
         TEST_REALM,
         page_build=fixture_page_build(),
         shared_stores=in_thread_stores(),
-        stores=stores,
+        identity=stores,
     )
     web_auth = installed_web_auth_config(app)
     host_member = seed_member(stores, web_auth)

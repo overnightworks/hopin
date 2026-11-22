@@ -19,6 +19,7 @@ from webauth.config import WebAuthConfig, installed_web_auth_config
 from webauth.dependencies import session_id_from_request
 from webauth.oidc_login import new_session_id
 from webauth.ports import AccountKind
+from webauth.postgres import SessionStoreError
 
 from hopin.app import create_app
 from hopin.config.constants import (
@@ -44,14 +45,12 @@ from tests.support.page_build import FIXTURE_SCRIPT_HASH, SIGN_IN_ICON, SIGN_IN_
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 from tests.support.signaling_fakes import RecordingFeature, WitnessFeatureBuilder
 from tests.support.signed_in import cookie_header, handshake_headers, new_id_token, seed_member
-from tests.support.stores import single_process_stores
+from tests.support.stores import InThreadIdentity, single_process_stores
 
 pytestmark = pytest.mark.integration
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-    from webauth.single_process_stores import SingleProcessStores
 
     from hopin.config.settings import ServerSettings
 
@@ -61,7 +60,7 @@ SESSION_COOKIE = "__Host-session_id"
 def signed_in_client(settings: ServerSettings) -> TestClient:
     stores = single_process_stores()
     app = create_app(
-        settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores(), stores=stores
+        settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores(), identity=stores
     )
     member = seed_member(stores, installed_web_auth_config(app))
     headers = {"cookie": cookie_header(member.set_cookie_headers)}
@@ -71,7 +70,11 @@ def signed_in_client(settings: ServerSettings) -> TestClient:
 class TestCreateApp:
     def test_returns_fastapi_application(self, sign_in_settings):
         app = create_app(
-            sign_in_settings().settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores()
+            sign_in_settings().settings,
+            TEST_REALM,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
+            identity=single_process_stores(),
         )
         assert isinstance(app, FastAPI)
 
@@ -81,13 +84,20 @@ class TestCreateApp:
             TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
+            identity=single_process_stores(),
         )
         assert app.state.settings.port == 9999
 
     def test_installs_the_web_auth_config_built_from_its_settings(self, sign_in_settings):
         sign_in = sign_in_settings()
         config = installed_web_auth_config(
-            create_app(sign_in.settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+            create_app(
+                sign_in.settings,
+                TEST_REALM,
+                page_build=fixture_page_build(),
+                shared_stores=in_thread_stores(),
+                identity=single_process_stores(),
+            )
         )
         assert isinstance(config, WebAuthConfig)
         assert config.session_secret.get_secret_value() == sign_in.session_secret
@@ -98,7 +108,13 @@ class TestCreateApp:
         page_build = fixture_page_build()
         shared_stores = in_thread_stores()
         with pytest.raises(StartRefusedError, match="HOPIN_SESSION_SECRET_FILE"):
-            create_app(settings, TEST_REALM, page_build=page_build, shared_stores=shared_stores)
+            create_app(
+                settings,
+                TEST_REALM,
+                page_build=page_build,
+                shared_stores=shared_stores,
+                identity=single_process_stores(),
+            )
 
     def test_does_not_start_with_two_call_features_serving_a_bearer_resource(self, sign_in_settings):
         class BearerFeature:
@@ -119,7 +135,12 @@ class TestCreateApp:
 
         with pytest.raises(StartRefusedError, match="bearer"):
             create_app(
-                settings, TEST_REALM, page_build=page_build, shared_stores=shared_stores, call_features=call_features
+                settings,
+                TEST_REALM,
+                page_build=page_build,
+                shared_stores=shared_stores,
+                call_features=call_features,
+                identity=single_process_stores(),
             )
 
     def test_signs_a_member_in_through_the_issuer_it_is_given(self, sign_in_settings):
@@ -131,6 +152,7 @@ class TestCreateApp:
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=issuer.transports,
+            identity=single_process_stores(),
         )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
@@ -151,6 +173,7 @@ class TestCreateApp:
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=issuer.transports,
+            identity=single_process_stores(),
         )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
@@ -173,7 +196,7 @@ class TestCreateApp:
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=issuer.transports,
-            stores=stores,
+            identity=stores,
         )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
@@ -200,6 +223,7 @@ class TestCreateApp:
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
             issuer_transports=issuer.transports,
+            identity=single_process_stores(),
         )
         browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
         start = browser.get(AUTH_START_PATH)
@@ -222,6 +246,7 @@ class TestCreateApp:
                 TEST_REALM,
                 page_build=fixture_page_build(),
                 shared_stores=in_thread_stores(),
+                identity=single_process_stores(),
             )
         ).get("/health")
         assert response.status_code == 200
@@ -274,6 +299,7 @@ class TestCreateApp:
                 page_build=fixture_page_build(),
                 shared_stores=in_thread_stores(),
                 call_features=features,
+                identity=single_process_stores(),
             ),
             base_url=TEST_PUBLIC_ORIGIN,
         ).get("/health")
@@ -320,7 +346,7 @@ class TestExpiredSessionSweep:
             TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
-            stores=stores,
+            identity=stores,
             scheduler=scheduler,
         )
         account = stores.accounts.create_for_subject("subject", "name", "user", kind=AccountKind.PERSON)
@@ -407,7 +433,7 @@ class TestExpiredSessionSweep:
             TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
-            stores=stores,
+            identity=stores,
             scheduler=scheduler,
         )
         now = datetime.now(UTC)
@@ -437,6 +463,29 @@ class TestExpiredSessionSweep:
         asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
         assert sessions.load(expired.id) is not None
 
+    def test_a_sweep_the_store_refuses_deletes_nothing_and_the_next_cycle_retries_it(
+        self, swept, scheduler, monkeypatch
+    ):
+        app, sessions, expired, _ = swept
+        outage = [SessionStoreError()]
+        delete_expired = sessions.delete_expired
+
+        def refused_once(now):
+            if outage:
+                raise outage.pop()
+            return delete_expired(now)
+
+        monkeypatch.setattr(sessions, "delete_expired", refused_once)
+        with structlog.testing.capture_logs() as logs, TestClient(app):
+            asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
+            kept_while_refused = sessions.load(expired.id) is not None
+            asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
+
+        assert (kept_while_refused, sessions.load(expired.id)) == (True, None)
+        assert [entry["event"] for entry in logs if entry["event"] == "sessions.sweep_refused"] == [
+            "sessions.sweep_refused"
+        ]
+
     def test_a_sweep_that_removed_nothing_logs_nothing(self, swept, scheduler):
         app, sessions, expired, _ = swept
         sessions.delete(expired.id)
@@ -455,7 +504,7 @@ class TestExpiredSessionSweep:
 
 class ProxiedStack(NamedTuple):
     app: FastAPI
-    stores: SingleProcessStores
+    stores: InThreadIdentity
 
 
 @pytest.fixture
@@ -466,7 +515,7 @@ def proxied_stack(sign_in_settings) -> ProxiedStack:
         TEST_REALM,
         page_build=fixture_page_build(),
         shared_stores=in_thread_stores(),
-        stores=stores,
+        identity=stores,
     )
     return ProxiedStack(app, stores)
 
@@ -488,7 +537,11 @@ def proxied_client(proxied_stack) -> Callable[..., TestClient]:
 class TestRequestLine:
     def test_a_request_writes_one_json_line_with_its_route_and_without_its_path(self, sign_in_settings, capsys):
         app = create_app(
-            sign_in_settings().settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores()
+            sign_in_settings().settings,
+            TEST_REALM,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
+            identity=single_process_stores(),
         )
         probe = secrets.token_urlsafe(8)
 

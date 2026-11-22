@@ -12,6 +12,7 @@ from hopin.config.settings import RealmSettings, ServerSettings
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_REALM
+from tests.support.stores import single_process_stores
 
 pytestmark = pytest.mark.integration
 
@@ -175,6 +176,7 @@ class TestBuiltConfigs:
                 TEST_REALM,
                 page_build=fixture_page_build(),
                 shared_stores=in_thread_stores(),
+                identity=single_process_stores(),
             )
         )
         assert web_auth.session_lifetime.idle_seconds == SESSION_LENGTH_SECONDS
@@ -185,6 +187,12 @@ class TestBuiltConfigs:
     def test_only_the_public_origins_host_is_admitted(self, sign_in_settings):
         settings = sign_in_settings(public_origin="https://HopIn.Test.invalid:8443").settings
         web_auth = installed_web_auth_config(
-            create_app(settings, TEST_REALM, page_build=fixture_page_build(), shared_stores=in_thread_stores())
+            create_app(
+                settings,
+                TEST_REALM,
+                page_build=fixture_page_build(),
+                shared_stores=in_thread_stores(),
+                identity=single_process_stores(),
+            )
         )
         assert web_auth.allowed_hosts_exact == frozenset({"hopin.test.invalid:8443"})

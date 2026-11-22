@@ -7,6 +7,7 @@ from hopin.stage.settings import StageApp
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
+from tests.support.stores import single_process_stores
 
 pytestmark = pytest.mark.integration
 
@@ -21,6 +22,7 @@ def content_security_policy(sign_in_settings, call_features):
         page_build=fixture_page_build(),
         shared_stores=in_thread_stores(),
         call_features=call_features,
+        identity=single_process_stores(),
     )
     return TestClient(app, base_url=TEST_PUBLIC_ORIGIN).get("/health").headers["content-security-policy"]
 

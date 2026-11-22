@@ -40,7 +40,8 @@ def _require_postgres_url_without_password(url: str) -> str:
     except ValueError:
         # The parser's messages quote parts of the URL, which may hold the password.
         raise ValueError("must be a postgresql URL") from None
-    if parsed.scheme != "postgresql":
+    # A colon with no digits after it names a port that is empty, which the engine refuses with a traceback.
+    if parsed.scheme != "postgresql" or parsed.netloc.endswith(":"):
         raise ValueError("must be a postgresql URL")
     if not (parsed.hostname and parsed.username and parsed.path.removeprefix("/")):
         raise ValueError("must name a host, a user and a database")

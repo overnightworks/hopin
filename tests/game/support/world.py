@@ -18,7 +18,6 @@ from hopin.agent.backend import QuizGameMaster, StarterPerson
 from hopin.agent.settings import AgentSettings
 from hopin.auth.sign_in import build_sign_in_configs, build_web_auth
 from hopin.game.quiz import QUIZ_TOPICS, Speaker, Turn, question_request
-from hopin.stores.session_transaction import session_transaction_of
 from hopin.web.page_build import APP_LANGUAGES
 from hopin.web.request_language import RequestLanguage
 from tests.game.support.fake_agent_backend import FakeAgentBackend
@@ -27,12 +26,12 @@ from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.sign_in_settings import TEST_REALM
 from tests.support.signed_in import cookie_header, seed_member
-from tests.support.stores import single_process_stores
+from tests.support.stores import InThreadIdentity, session_transaction_of, single_process_stores
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from webauth.single_process_stores import SingleProcessSessionStore, SingleProcessStores
+    from webauth.single_process_stores import SingleProcessSessionStore
 
     from tests.support.sign_in_settings import SignInSettings
 
@@ -64,7 +63,7 @@ class StoreSpy:
 class World:
     issuer: FakeIssuer
     backend: FakeAgentBackend
-    stores: SingleProcessStores
+    stores: InThreadIdentity
     sessions: StoreSpy
     relying_party: object
     web_auth: object

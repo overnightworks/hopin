@@ -96,7 +96,7 @@ def member_client(settings, transport, *, signed_in: bool = True) -> TestClient:
         TEST_REALM,
         page_build=fixture_page_build(),
         shared_stores=in_thread_stores(),
-        stores=stores,
+        identity=stores,
         turn_transport=transport,
     )
     headers = dict(FETCH_ACCEPT)
@@ -122,11 +122,15 @@ def write_file_state(path: Path, state) -> None:
 
 
 def refusal_of(settings) -> StartRefusedError:
-    transport = FakeTransport()
-    page_build = fixture_page_build()
-    shared_stores = in_thread_stores()
+    # The call stays on one line: a traceback shows a longer call line by line, and the refusal's check reads it.
+    wiring = {
+        "page_build": fixture_page_build(),
+        "shared_stores": in_thread_stores(),
+        "identity": single_process_stores(),
+        "turn_transport": FakeTransport(),
+    }
     with pytest.raises(StartRefusedError) as refusal:
-        create_app(settings, TEST_REALM, page_build=page_build, shared_stores=shared_stores, turn_transport=transport)
+        create_app(settings, TEST_REALM, **wiring)
     return refusal.value
 
 

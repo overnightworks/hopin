@@ -43,7 +43,7 @@ def quiz_call(sign_in_settings, stores):
         page_build=fixture_page_build(),
         shared_stores=in_thread_stores(),
         issuer_transports=issuer.transports,
-        stores=stores,
+        identity=stores,
         call_features=(GameFeature(backend, VoiceStore()),),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client:

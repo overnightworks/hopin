@@ -15,7 +15,6 @@ from hopin.auth.sign_in import (
     create_pages_router,
     words_logout_button_label,
 )
-from hopin.stores.session_transaction import session_transaction_of
 from hopin.web.page_build import APP_LANGUAGES
 from hopin.web.request_language import RequestLanguage
 from tests.support.fake_issuer import FakeIssuer
@@ -31,11 +30,14 @@ if TYPE_CHECKING:
     from webauth.languages import AppLanguages
     from webauth.ports import AuditSink
 
+    from hopin.stores.identity import IdentityStores
+
 
 @pytest.fixture
 def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
     def make(
         *,
+        stores_of: Callable[[AuditSink | None], IdentityStores] = single_process_stores,
         key_set_of: FakeIssuer | None = None,
         windows_line_ending: bool = False,
         client_secret: str | None = None,
@@ -54,15 +56,15 @@ def make_harness(sign_in_settings) -> Callable[..., SignInHarness]:
         transports = issuer.transports
         if key_set_of is not None:
             transports = IssuerTransports(transports.post_token_request, key_set_of.fetch_key_set)
-        stores = single_process_stores(audit)
+        stores = stores_of(audit)
         accounts, sessions = stores.accounts, stores.sessions
         app = FastAPI()
         page_build = fixture_page_build(languages)
-        session_transaction = session_transaction_of(sessions)
+        session_transaction = stores.session_transaction
         request_language = RequestLanguage(languages, session_transaction, configs.web_auth)
         web_auth = build_web_auth(
             configs,
-            WebAuthStores(sign_in=stores.transaction, sessions=session_transaction),
+            WebAuthStores(sign_in=stores.sign_in_transaction, sessions=session_transaction),
             page_build,
             request_language,
             SecurityHeadersPolicy(content_security_policy=default_content_security_policy()),

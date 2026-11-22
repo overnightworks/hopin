@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
     from httpx2 import Response
     from webauth.config import WebAuthConfig
-    from webauth.single_process_stores import SingleProcessAccountStore, SingleProcessSessionStore
+    from webauth.ports import SessionRecordStore, SubjectUserStore
 
     from tests.support.fake_issuer import FakeIssuer
 
@@ -33,8 +33,8 @@ USERNAME = "alice"
 class SignInHarness:
     sign_in: SignInSettings
     issuer: FakeIssuer
-    accounts: SingleProcessAccountStore
-    sessions: SingleProcessSessionStore
+    accounts: SubjectUserStore
+    sessions: SessionRecordStore
     config: WebAuthConfig
     app: FastAPI
     started: list[Response] = field(default_factory=list)

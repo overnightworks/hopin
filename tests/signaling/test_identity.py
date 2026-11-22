@@ -35,7 +35,7 @@ class TestSessionIdentityResolver:
             TEST_REALM,
             page_build=fixture_page_build(),
             shared_stores=in_thread_stores(),
-            stores=stores,
+            identity=stores,
         )
         member = seed_member(stores, installed_web_auth_config(app))
         resolver = SessionIdentityResolver()

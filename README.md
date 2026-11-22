@@ -32,7 +32,7 @@ Press "Anruf starten" and share the generated link.
 
 ## Run in a Container
 
-HopIn runs on the platform (k3s with Flux) from its attested private image in GHCR; the platform's repository owns its manifests and the live settings. [Deployment View](docs/ARCHITECTURE.md#4-deployment-view) says what runs. One gap holds there today ([platform#46](https://github.com/overnightworks/platform/issues/46)): Keycloak's back-channel logout does not reach HopIn.
+HopIn runs on the platform (k3s with Flux) from its attested private image in GHCR; the platform's repository owns its manifests and the live settings. [Deployment View](docs/ARCHITECTURE.md#4-deployment-view) says what runs.
 
 `compose.yaml` serves only the rollback path on hal. It owns the container's keys: the settings it sets, the four secret files it mounts read-only (the client secret, the session signing key and the two TURN key files), its two networks (HopIn's own, pinned, and the back-channel network on which only Keycloak reaches it as `hopin.hallucinai.de`), its restart policy and its healthcheck on `/health`. It publishes no host port and carries edge's routing label ([edge's README](https://github.com/overnightworks/edge#adding-a-tool-the-label-rule)); the `hal` commands are in [edge's README](https://github.com/overnightworks/edge#the-commands). Secret values never enter the environment.
 
@@ -40,7 +40,7 @@ A release is the `Release` workflow, which an agent dispatches with a version `Y
 
 ## A Person's Data
 
-HopIn holds a person's account (name and role), their sessions and their seats in a call only in memory; a restart forgets all of it. Members of the group `REALM_ADMIN_GROUP` names (or a group below it) download what HopIn holds about one person in their signed-in browser at `/api/admin/people/<keycloak id>/export`, by the person's Keycloak id compared exactly. The answer is a ZIP holding `export.json`.
+HopIn holds a person's account (name and role) and their sessions in its own Postgres, which a restart keeps, and their seats in a call only in memory, which a restart forgets. A session's row holds the refresh token and the ID token in plain text and the session id only as its SHA-256. Members of the group `REALM_ADMIN_GROUP` names (or a group below it) download what HopIn holds about one person in their signed-in browser at `/api/admin/people/<keycloak id>/export`, by the person's Keycloak id compared exactly. The answer is a ZIP holding `export.json`.
 
 - **Listed:** the account's name and role, each session's start and end, and each seat's call link id and whether the person hosts that call. A seat that has not joined a call has no call link id.
 - **Withheld, only counted:** session ids, refresh tokens, ID tokens and resume tokens (secrets), and the frames held for a resume in the person's own seats, which can carry other participants' names, the lines a joined agent reads (only while one is joined), the game master's lines, media state or connection descriptions.
@@ -54,13 +54,13 @@ The shape of `export.json` follows the fleet's shared people contract (`docs/peo
 
 ### Erasing a person
 
-Remove the person from the group `REALM_LOGIN_GROUP` names in Keycloak and sign them out there. Keycloak's back-channel logout (`/auth/backchannel-logout`, a route webauth serves) drops the person from HopIn. Today it does not reach HopIn on the platform ([platform#46](https://github.com/overnightworks/platform/issues/46)), so there the session lasts until its 12-hour lifetime ends. The steps below hold once the logout arrives. A second logout for the same person, or one for a person HopIn does not know, changes nothing. A logout that fails midway answers 400 and ends nothing. Every back-channel logout does this, whatever started it, so an ordinary sign-out from Keycloak elsewhere also removes the account; the next sign-in creates it again.
+Remove the person from the group `REALM_LOGIN_GROUP` names in Keycloak and sign them out there. Keycloak's back-channel logout (`/auth/backchannel-logout`, a route webauth serves, which the platform's realm points at HopIn) ends the person's sessions in HopIn; the account stays. HopIn's own route that deletes an account is [#1093](https://github.com/overnightworks/hopin/issues/1093). A second logout for the same person, or one for a person HopIn does not know, changes nothing. A logout that fails midway answers 400 and ends nothing. Every back-channel logout does this, whatever started it, so an ordinary sign-out from Keycloak elsewhere also ends every session; the next sign-in uses the same account.
 
-- **Removed at once, once the logout arrives:** every session of the person, refresh and ID tokens included, and their account.
+- **Removed at once, once the logout arrives:** every session of the person, refresh and ID tokens included. A deleted row stays in Postgres's backups for up to three months.
 - **Removed within 60 seconds:** the person's own seats in calls, with the resume token and the frames held for it. A seat closes at the person's next frame or at the next minute check, or, for a seat whose connection dropped, when its 30-second wait ends. A call the person hosts ends for everyone after a further 60-second wait.
-- **Stays until it ends by itself:** the person's answers and name in a running quiz, until the quiz ends; frames that already reached other participants (the person's name, media state, and offers, answers and connection candidates, which carry network addresses) stay in those participants' replay buffers, at most 256 frames per seat, until newer frames push them out or that participant's seat ends. A call the person hosts keeps their account as its host until it ends. The `account.changed` log lines (`kind` `user_created`, `role_changed` or `backchannel_logout`) keep the person's Keycloak id until the host's log period ends.
+- **Stays until it ends by itself:** the person's answers and name in a running quiz, until the quiz ends; frames that already reached other participants (the person's name, media state, and offers, answers and connection candidates, which carry network addresses) stay in those participants' replay buffers, at most 256 frames per seat, until newer frames push them out or that participant's seat ends. The account (name and role) stays in Postgres, and a call the person hosts keeps them as its host until it ends. The `account.changed` log lines (`kind` `user_created`, `role_changed` or `backchannel_logout`) keep the person's Keycloak id until the host's log period ends.
 
-Once the logout has arrived, the export shows no account and no sessions, and no seats once the calls have closed.
+Once the logout has arrived, the export shows the account and no sessions, and no seats once the calls have closed.
 
 ## A person's own agent
 
@@ -96,7 +96,7 @@ The bearer is accepted on this one path and nowhere else. webauth's gate admits 
 | `REALM_AGENT_GROUP` | required | The Keycloak group of agents' own accounts, which `/mcp` admits from any client |
 | `REALM_MCP_CLIENT_ID` | required | The public Keycloak client a person's own agent signs in through |
 | `HOPIN_REDIS_URL` | required | The `redis://` or `rediss://` URL of the Redis that every HopIn process shares. The per-address request budgets live there, so a budget spent through one process is refused through the others, and so do the signals that wake an agent's open listen. HopIn refuses to start without it and has no in-memory fallback; with Redis down `/health` is not ready and every budgeted route answers 503 |
-| `HOPIN_DATABASE_URL` | required | The `postgresql://user@host:port/database` URL of the Postgres that every HopIn process shares; no password and no query parameter, which HopIn refuses. `hopin migrate` and `hopin serve` read it; the schema holds the accounts and the sessions' table, which nothing reads yet. With the database down `/health` is not ready |
+| `HOPIN_DATABASE_URL` | required | The `postgresql://user@host:port/database` URL of the Postgres that every HopIn process shares; no password and no query parameter, which HopIn refuses. `hopin migrate` and `hopin serve` read it; the schema holds the accounts and the sessions, which every process reads and writes; an empty port (`host:/database`) is refused. With the database down `/health` is not ready |
 | `HOPIN_DATABASE_PASSWORD_FILE` | required | Absolute path of the file holding only the database user's password |
 | `HOPIN_AGENT__GATEWAY__ORIGIN` | required while the game is installed | The gateway's http(s) origin (scheme, host and optional port), `http://litellm-front:4000` in `compose.yaml` |
 | `HOPIN_AGENT__GATEWAY__KEY_FILE` | required while the game is installed | Absolute path of the file holding HopIn's gateway key, read at every turn, so a missing or unusable file does not stop the start: the turn then reads as unavailable |
