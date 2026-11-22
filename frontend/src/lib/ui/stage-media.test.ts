@@ -434,6 +434,18 @@ describe("an agent tile's chips in a component", () => {
         },
     );
 
+    it.each([
+        { width: 184, expected: true },
+        { width: 400, expected: false },
+    ])(
+        "CALL-79: makes the listen chip compact as $expected on a tile $width px wide, where its label would not fit whole",
+        async ({ width, expected }) => {
+            vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(width);
+
+            expect(await chipOf(chips[1]!, undefined)).toBe(expected);
+        },
+    );
+
     it("CALL-79: shows the listen switch on and hands a press to the tile's owner as the value it asks for", async () => {
         const onChange = vi.fn();
         showAgentTile({ name: "Ada", activity: "present", listening: { on: true, onChange } } as never, "agent-a1");

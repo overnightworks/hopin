@@ -28,6 +28,13 @@ IN_CALL = text("de", "call.statusInCall")
 def e2e_server(voicing_server: RunningServer) -> RunningServer:
     return voicing_server
 
+LABEL_IS_WHOLE_OR_HIDDEN = """
+(switch) => {
+    const label = switch.querySelector(".label");
+    return switch.classList.contains("compact") || label.scrollWidth <= label.clientWidth;
+}
+"""
+
 
 def box_of(locator: Locator) -> dict[str, float]:
     box = locator.bounding_box()
@@ -38,7 +45,7 @@ def box_of(locator: Locator) -> dict[str, float]:
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_each_person_mutes_an_agents_voice_in_their_own_browser_alone(speaker: Speaker) -> None:
     """CALL-79: The listen switch is on every person's agent tile, wholly inside it and clear of the remove button and
-    of the other switches; turning it off in one browser ends the agent's playing sound there at once and keeps the
+    of the other switches, and shows its label whole or as the compact chip; turning it off in one browser ends the agent's playing sound there at once and keeps the
     tile present while the other browsers still hear it, and nothing more plays there, while turning it on plays
     from the agent's next sentence on."""
     muting, *others = speaker.scene.everyone
@@ -48,6 +55,7 @@ def test_each_person_mutes_an_agents_voice_in_their_own_browser_alone(speaker: S
         tile_box = box_of(person.locator(AGENT_TILE))
         switch_box = box_of(switch)
         assert lies_inside(switch_box, tile_box)
+        assert switch.evaluate(LABEL_IS_WHOLE_OR_HIDDEN)
         other_boxes = [box_of(other) for other in person.locator(f"{AGENT_TILE} >> role=switch").all()]
         for other_box in other_boxes:
             assert other_box == switch_box or share_area(switch_box, other_box) == 0
