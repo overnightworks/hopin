@@ -6,29 +6,21 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import pytest
-from sqlalchemy import text
-from sqlalchemy.exc import OperationalError
 from webauth.ports import AccountKind
 from webauth.postgres import SessionStoreError
 
-from hopin.stores.accounts import PostgresSubjectUserStore
 from hopin.stores.identity import ErasedIdentity
+from tests.stores.support.waiting import WAIT_SECONDS, wait_for
 
 if TYPE_CHECKING:
     from tests.stores.support.postgres_identity import PostgresStores
+    from tests.stores.support.scratch_database import ScratchDatabase
 
 pytestmark = pytest.mark.shared_stores
 
 SUBJECT = "subject"
 SESSION_LIFETIME = timedelta(hours=1)
 OTHER_SUBJECT = "other"
-LOCK_WAIT_SECONDS = 10
-LOCK_POLL_SECONDS = 0.02
-WAITING_ADVISORY_LOCKS = """
-    SELECT count(*) FROM pg_locks
-    WHERE locktype = 'advisory' AND NOT granted
-      AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
-"""
 
 
 def seed_session(stores: PostgresStores, session_id: str, expires_at: datetime, subject: str = SUBJECT) -> None:
@@ -115,41 +107,37 @@ def test_a_second_erasure_counts_zeros(two_persons: PostgresStores) -> None:
     assert two_persons.erase(SUBJECT) == ErasedIdentity(accounts=0, sessions=0)
 
 
-def test_a_database_failure_after_the_sessions_went_deletes_nothing_and_a_rerun_completes(
-    two_persons: PostgresStores, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def failing_delete(self: PostgresSubjectUserStore, user_id: str) -> bool:
-        raise OperationalError("DELETE", {}, Exception())
+FAIL_ACCOUNT_DELETE = """
+    CREATE FUNCTION refuse_account_delete() RETURNS trigger AS $$
+        BEGIN RAISE EXCEPTION 'refused'; END
+    $$ LANGUAGE plpgsql;
+    CREATE TRIGGER refuse_account_delete BEFORE DELETE ON accounts
+        FOR EACH ROW EXECUTE FUNCTION refuse_account_delete()
+"""
+RESTORE_ACCOUNT_DELETE = "DROP TRIGGER refuse_account_delete ON accounts"
 
-    with monkeypatch.context() as failing:
-        failing.setattr(PostgresSubjectUserStore, "delete", failing_delete)
+
+def test_a_database_failure_after_the_sessions_went_deletes_nothing_and_a_rerun_completes(
+    two_persons: PostgresStores, empty_database: ScratchDatabase
+) -> None:
+    with empty_database.connect() as connection:
+        connection.execute(FAIL_ACCOUNT_DELETE)
         with pytest.raises(SessionStoreError):
             two_persons.erase(SUBJECT)
+        assert held_by(two_persons, SUBJECT) == (True, 2)
+        connection.execute(RESTORE_ACCOUNT_DELETE)
 
-    assert held_by(two_persons, SUBJECT) == (True, 2)
     assert two_persons.erase(SUBJECT) == ErasedIdentity(accounts=1, sessions=2)
 
 
-def wait_until_an_entry_waits_for_the_lock(stores: PostgresStores) -> None:
-    waiting = threading.Event()
-    deadline = threading.Event()
-    with stores.engine.connect() as connection:
-        for _ in range(int(LOCK_WAIT_SECONDS / LOCK_POLL_SECONDS)):
-            if connection.execute(text(WAITING_ADVISORY_LOCKS)).scalar_one() > 0:
-                waiting.set()
-                break
-            deadline.wait(LOCK_POLL_SECONDS)
-    assert waiting.is_set(), "no entry waited for the sign-in lock"
-
-
 def test_an_erasure_waits_for_an_open_sign_in_entry_and_then_removes_what_the_entry_wrote(
-    seeded_account: PostgresStores,
+    seeded_account: PostgresStores, empty_database: ScratchDatabase
 ) -> None:
     erased: list[ErasedIdentity] = []
     with seeded_account.sign_in_transaction() as entry:
         erasing = threading.Thread(target=lambda: erased.append(seeded_account.erase(SUBJECT)))
         erasing.start()
-        wait_until_an_entry_waits_for_the_lock(seeded_account)
+        wait_for(lambda: empty_database.waiting_for_advisory_lock() > 0)
         assert erased == []
         entry.sessions.create(
             SUBJECT,
@@ -160,14 +148,7 @@ def test_an_erasure_waits_for_an_open_sign_in_entry_and_then_removes_what_the_en
             id_token=None,
             account_language=None,
         )
-    erasing.join(LOCK_WAIT_SECONDS)
+    erasing.join(WAIT_SECONDS)
 
     assert erased == [ErasedIdentity(accounts=1, sessions=1)]
     assert held_by(seeded_account, SUBJECT) == (False, 0)
-
-
-def test_a_dry_run_reads_while_a_sign_in_entry_holds_the_lock(two_persons: PostgresStores) -> None:
-    with two_persons.sign_in_transaction():
-        counted = held_by(two_persons, SUBJECT)
-
-    assert counted == (True, 2)

@@ -13,6 +13,12 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
+WAITING_FOR_ADVISORY_LOCK = """
+    SELECT count(*) FROM pg_locks
+    WHERE locktype = 'advisory' AND NOT granted
+      AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+"""
+
 
 @dataclass(frozen=True)
 class ScratchDatabase:
@@ -32,6 +38,12 @@ class ScratchDatabase:
     def rows(self, statement: str) -> list[tuple]:
         with self.connect() as connection:
             return connection.execute(statement).fetchall()
+
+    def waiting_for_advisory_lock(self) -> int:
+        """How many connections to this database wait for an advisory lock; a lock wait on another database of the
+        shared server does not count."""
+        [(waiting,)] = self.rows(WAITING_FOR_ADVISORY_LOCK)
+        return waiting
 
 
 @contextlib.contextmanager

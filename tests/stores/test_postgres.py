@@ -1,7 +1,6 @@
 import json
 import logging
 import sys
-import time
 from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
 from typing import TYPE_CHECKING, NamedTuple
@@ -20,6 +19,7 @@ from hopin.main import main, serve_on_migrated_database
 from hopin.stores.postgres import create_database_engine
 from hopin.stores.schema import metadata
 from tests.stores.support.service_gate import ServiceGate
+from tests.stores.support.waiting import WAIT_SECONDS, wait_for
 from tests.support.page_build import FIXTURE_DIRECTORY, fixture_page_build
 from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
 
@@ -34,11 +34,8 @@ pytestmark = pytest.mark.shared_stores
 
 LIST_TABLES = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
 LIST_VERSIONS = "SELECT version_num FROM alembic_version"
-COUNT_WAITING_FOR_ADVISORY_LOCK = "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted"
 INSERT_ROBOT_ACCOUNT = "INSERT INTO accounts (id, username, role, kind) VALUES ('subject', 'name', 'member', 'robot')"
 INSERT_INTO_A_MISSING_TABLE = "INSERT INTO missing_table (id) VALUES (%s)"
-WAIT_SECONDS = 20
-POLL_SECONDS = 0.05
 SECRET_PARAMETER = "sentinel-parameter"
 
 
@@ -63,13 +60,6 @@ def health_while_serving(settings: ServerSettings, between: Callable[[], None] =
 
     serve_on_migrated_database(settings, TEST_REALM, fixture_page_build(), run=probe)
     return answers
-
-
-def wait_for(condition: Callable[[], bool]) -> None:
-    deadline = time.monotonic() + WAIT_SECONDS
-    while not condition():
-        assert time.monotonic() < deadline, "the condition did not come about"
-        time.sleep(POLL_SECONDS)
 
 
 class TestMigrate:
@@ -99,7 +89,7 @@ class TestMigrate:
             holder.execute("SELECT pg_advisory_lock(%s)", [MIGRATION_LOCK_KEY])
             try:
                 runs = [pool.submit(main, ["migrate"]) for _ in range(2)]
-                wait_for(lambda: empty_database.rows(COUNT_WAITING_FOR_ADVISORY_LOCK) == [(2,)])
+                wait_for(lambda: empty_database.waiting_for_advisory_lock() == 2)
                 assert empty_database.rows(LIST_TABLES) == []
             finally:
                 holder.execute("SELECT pg_advisory_unlock(%s)", [MIGRATION_LOCK_KEY])
