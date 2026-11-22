@@ -2,6 +2,8 @@ import secrets
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from webauth.admission import GroupPath
+
 from hopin.config.settings import RealmSettings, ServerSettings
 
 if TYPE_CHECKING:
@@ -14,11 +16,11 @@ TEST_REDIS_URL = "redis://redis.test.invalid:6379"
 TEST_DATABASE_URL = "postgresql://hopin@postgres.test.invalid:5432/hopin"
 TEST_REALM = RealmSettings(
     client_id="test-client",
-    login_group="/apps/test",
-    admin_group="/apps/test/admin",
-    mcp_group="/apps/test/mcp",
+    login_group=GroupPath("/apps/test"),
+    admin_group=GroupPath("/apps/test/admin"),
+    mcp_group=GroupPath("/apps/test/mcp"),
     mcp_scope="mcp-test",
-    agent_group="/agents-test",
+    agent_group=GroupPath("/agents-test"),
     mcp_client_id="agents-test",
 )
 SESSION_SECRET_BYTES = 36
@@ -57,7 +59,7 @@ def build_sign_in_settings(directory: Path, **overrides: str | int | Path | None
     return SignInSettings(
         environment={
             **{f"HOPIN_{name.upper()}": str(value) for name, value in present.items()},
-            **{f"REALM_{name.upper()}": value for name, value in TEST_REALM.model_dump().items()},
+            **{f"REALM_{name.upper()}": str(value) for name, value in TEST_REALM},
         },
         settings=ServerSettings(**present),
         client_secret=client_secret,
