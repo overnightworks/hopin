@@ -75,6 +75,19 @@ def frames_of(browser, signal):
     return browser.frames(signal)
 
 
+async def _owner_away(invited, link):
+    await invited.owner.drop()
+
+
+async def _owner_on_two_seats(invited, link):
+    await link.join(OWNER, invited.owner.room_id)
+
+
+async def _no_place_free(invited, link):
+    for number in range(ROOM_LIMIT - 2):
+        await link.join(f"person{number}", invited.owner.room_id)
+
+
 class TestAnInvitation:
     async def test_it_stands_for_the_agent_with_an_epoch_and_the_time_it_ends(self, invited, changes):
         assert invited.standing.state is PlaceState.INVITED
@@ -296,15 +309,43 @@ class TestAnInvitation:
 
         assert refusal is AgentRefusal.STALE_INVITATION
 
-    async def test_accepting_it_with_the_owner_away_is_sponsor_away(self, invited):
-        await invited.owner.drop()
+    @pytest.mark.parametrize(
+        ("arrange", "refusal", "outcome"),
+        [
+            (_owner_away, AgentRefusal.SPONSOR_AWAY, InvitationOutcome.OWNER_ABSENT),
+            (_owner_on_two_seats, AgentRefusal.TWO_SEATS, InvitationOutcome.BUSY),
+            (_no_place_free, AgentRefusal.BUSY, InvitationOutcome.BUSY),
+        ],
+        ids=["owner_away", "owner_on_two_seats", "no_place_free"],
+    )
+    async def test_an_accept_refused_for_the_call_ends_the_invitation_and_tells_the_adder_alone(
+        self, invited, link, arrange, refusal, outcome
+    ):
+        """CALL-52: An accept of a standing invitation that is refused as two_seats, sponsor_away or busy ends it as a
+        decline does, tells the seat that made it, and no other, the outcome, and still answers the agent the code."""
+        [offer] = offers_sent_to(invited.member)
+        await arrange(invited, link)
 
-        assert await invited.accept() is AgentRefusal.SPONSOR_AWAY
+        answer = await invited.accept()
 
-    async def test_accepting_it_with_the_owner_on_two_seats_is_two_seats(self, invited, link):
-        await link.join(OWNER, invited.owner.room_id)
+        [ended] = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
+        assert (
+            answer,
+            ended["outcome"],
+            ended["agent_key"] == offer["agent_key"],
+            invited.owner.frames(ParticipationSignal.AGENT_INVITATION_ENDED),
+            invited.participation.standings_of(AGENT),
+        ) == (refusal, outcome.value, True, [], ())
 
-        assert await invited.accept() is AgentRefusal.TWO_SEATS
+    async def test_an_accept_that_is_stale_ends_nothing_and_tells_no_seat(self, invited):
+        """CALL-52: A stale accept changes nothing."""
+        answer = await invited.accept(epoch=invited.invitation.epoch + 1)
+
+        assert (
+            answer,
+            invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED),
+            len(invited.participation.standings_of(AGENT)),
+        ) == (AgentRefusal.STALE_INVITATION, [], 1)
 
     async def test_accepting_it_while_the_owners_seat_sponsors_another_agent_joins_both(self, invited, participation):
         """CALL-51: A seat sponsors every agent of its owner the call has places for."""
@@ -317,12 +358,6 @@ class TestAnInvitation:
             invited.owner.peer_id,
             invited.owner.peer_id,
         )
-
-    async def test_accepting_it_into_a_call_with_no_place_free_is_busy(self, invited, link):
-        for number in range(ROOM_LIMIT - 2):
-            await link.join(f"person{number}", invited.owner.room_id)
-
-        assert await invited.accept() is AgentRefusal.BUSY
 
     async def test_it_stays_invited_while_its_owners_seat_parks_and_resumes_and_its_standing_signals_both(
         self, invited, changes
