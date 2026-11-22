@@ -241,11 +241,19 @@ class OwnAccountAgent(SdkAgent):
         return invited
 
     def accept(
-        self, standing: dict[str, Any], figure: dict[str, str] | None = None, voices: Sequence[str] | None = None
+        self,
+        standing: dict[str, Any],
+        figure: dict[str, str] | None = None,
+        voices: Sequence[str] | None = None,
+        looks: Sequence[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
-        """Accept the invitation, naming the figure (`url` and `sha256`) its tile shows if it has one and the voices
-        it would speak with, first choice first."""
-        named = ({} if figure is None else {"figure": figure}) | ({} if voices is None else {"voices": list(voices)})
+        """Accept the invitation, naming the figure (`url` and `sha256`) its tile shows if it has one, the voices it
+        would speak with, first choice first, and its looks."""
+        named = (
+            ({} if figure is None else {"figure": figure})
+            | ({} if voices is None else {"voices": list(voices)})
+            | ({} if looks is None else {"looks": list(looks)})
+        )
         return self.call(ACCEPT_INVITATION_TOOL, self._acceptance(standing) | named)
 
     def gesture(self, name: str) -> dict[str, Any]:

@@ -9,29 +9,25 @@ from urllib.parse import urlsplit
 import pytest
 from agents.member import SET_FRAMING_TOOL, SET_TURN_STATE_TOOL, SPEAK_TOOL, PlaceRef
 from playwright.sync_api import expect
-from speech_client.wire import VoiceId
 
-from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import CALL_KIND
-from hopin.participation.settings import ParticipationSettings
 from hopin.participation.vocabulary import CLIP_PATH, FIGURE_MODULE, VOICE_PATH, FigureMood
 from tests.e2e.support.client_manifest import entry_of, urls_of_the_chunks_of
-from tests.e2e.support.dialed_agent import AGENT_TILE, OWNER_SUBJECT, room_of_link
+from tests.e2e.support.dialed_agent import AGENT_TILE, room_of_link
 from tests.e2e.support.media import LOUD, SILENCE, SPEAK_ON_DEMAND
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
-from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
 from tests.e2e.support.speaker import SPEAKING_TILE, Speaker
-from tests.participation.support.figures import SOURCE_PREFIX, Answer, FigureOrigin, digest_of, figure_url, glb, ok
-from tests.support.agent_adders import ADDERS_GROUP
-from tests.support.loopback_origin import Origin
-from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, offering, silent_wav, speaking
+from tests.participation.support.figures import Answer, FigureOrigin, digest_of, figure_url, glb, ok
+from tests.support.speech_origin import chunked_wav, silent_wav, speaking
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable
 
     from playwright.sync_api import Page
 
     from tests.e2e.support.participation_scene import Scene
+    from tests.e2e.support.server import RunningServer
+    from tests.support.loopback_origin import Origin
 
 pytestmark = pytest.mark.e2e
 
@@ -64,34 +60,6 @@ def figure_origin() -> FigureOrigin:
     origin.serve(MISSING_WAVE_URL, Answer(404))
     origin.serve(REFUSED_WAVE_URL, ok(REFUSED_WAVE))
     return origin
-
-
-@pytest.fixture(scope="module")
-def speech_origin() -> Iterator[Origin]:
-    origin = Origin()
-    offering(origin, *VoiceId)
-    yield origin
-    origin.close()
-
-
-@pytest.fixture(scope="module")
-def figure_server(
-    tmp_path_factory: pytest.TempPathFactory, figure_origin: FigureOrigin, speech_origin: Origin
-) -> Iterator[RunningServer]:
-    """HopIn with participation that allows figures from the test source, fetched through `figure_origin`, and lets
-    agents speak through `speech_origin`."""
-    loopback = loopback_sign_in(tmp_path_factory.mktemp("figure-sign-in"))
-    with running_hopin(
-        loopback,
-        tmp_path_factory.mktemp("figure-tls"),
-        participation=True,
-        speaks=True,
-        speech=SpeechService(speech_origin.base_url, VoiceId.THORSTEN, AUDIENCE_SCOPE),
-        agent_adders={OWNER_SUBJECT: ADDERS_GROUP},
-        figure_sources=ParticipationSettings(figure_sources=[SOURCE_PREFIX]).figure_sources,
-        figure_transport=figure_origin,
-    ) as server:
-        yield server
 
 
 @pytest.fixture
