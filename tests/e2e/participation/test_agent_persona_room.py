@@ -38,15 +38,18 @@ SWAPPED_ROOM_URL = figure_url("swapped_room.glb")
 REFUSED_ROOM_URL = figure_url("refused_room.glb")
 WAIT_FOR_THE_FIGURE_MILLISECONDS = 30_000
 WAIT_FOR_THE_ROOM_SECONDS = 30
-# A room that is not to appear is looked for this many steps of the page's clock after the figure is drawn, each with
-# the real time a small room takes to load.
-ABSENCE_STEPS = 30
 # The held page clock advances by a step to each picture.
 STEP_MILLISECONDS = 100
 CLOCK_LEAD_MILLISECONDS = 5_000
 SCREENSHOT_ATTEMPTS = 3
 SCREENSHOT_TIMEOUT_MILLISECONDS = 5_000
-SCREENSHOT_RETRY_MILLISECONDS = 500
+
+# Whether the page has the server's answer to a room request; the room is looked for only once that is in.
+ROOM_ANSWERED = """
+(path) => performance.getEntriesByType("resource").some(
+    (entry) => new URL(entry.name).pathname.startsWith(path) && entry.responseStatus > 0
+)
+"""
 
 # The number of pixels of the canvas as the page shows it in the room's colour: pure magenta, which the figure's own
 # pink is far from.
@@ -132,7 +135,7 @@ def magenta_pixels(person: Page) -> int:
         except PlaywrightError:
             if attempt == SCREENSHOT_ATTEMPTS - 1:
                 raise
-            person.wait_for_timeout(SCREENSHOT_RETRY_MILLISECONDS)
+            person.locator(f"{AGENT_TILE} canvas").wait_for(timeout=SCREENSHOT_TIMEOUT_MILLISECONDS)
         else:
             return int(person.evaluate(MAGENTA_PIXELS, base64.b64encode(picture).decode()))
     raise AssertionError("unreachable")
@@ -147,7 +150,6 @@ def room_is_seen(person: Page) -> bool:
                 return True
         except PlaywrightError:
             return False
-        person.wait_for_timeout(100)
     return False
 
 
@@ -218,9 +220,8 @@ def test_a_room_that_cannot_be_shown_leaves_no_room_and_the_figure_drawn(
 
     everyone = with_the_figure_drawn(scene, figure_look_with(room_url, declared))
     for person in everyone:
-        for _ in range(ABSENCE_STEPS):
-            person.clock.run_for(STEP_MILLISECONDS)
-            person.wait_for_timeout(STEP_MILLISECONDS)
+        person.wait_for_function(ROOM_ANSWERED, PERSONA_ROOM_PATH, timeout=WAIT_FOR_THE_ROOM_SECONDS * 1000)
+    pixels = [magenta_pixels(person) for person in everyone]
 
     assert [room_answers[person] for person in everyone] == [[answer]] * len(everyone)
-    assert [magenta_pixels(person) for person in everyone] == [0] * len(everyone)
+    assert pixels == [0] * len(everyone)
