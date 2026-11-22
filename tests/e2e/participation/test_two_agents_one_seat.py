@@ -204,8 +204,9 @@ def test_a_full_call_refuses_an_agent_and_a_person_and_a_place_an_agent_leaves_a
     form_factor: dict[str, Any],
 ) -> None:
     """CALL-47, CALL-51: Agents take places like people: a fourth person fills the last place, the invited third
-    agent's acceptance is refused as place full, a further person is refused as full, and once an agent leaves the
-    third agent's acceptance joins it and the control says that no place is free."""
+    agent's acceptance is refused as place full and ends its invitation, a further person is refused as full, and once
+    an agent leaves the adder calls the third agent again, its acceptance joins it and the control says that no place
+    is free."""
     scene = scene_of(form_factor)
     third = OwnAccountAgent(e2e_server, OWNER_SUBJECT, f"{THIRD_AGENT_NAME}-{secrets.token_hex(3)}")
     try:
@@ -224,7 +225,7 @@ def test_a_full_call_refuses_an_agent_and_a_person_and_a_place_an_agent_leaves_a
             expect(person.locator(AGENT_TILE)).to_have_count(2)
 
         own_account_agent.call(LEAVE_CALL, {"room": room_of_link(scene.link)})
-        third.accept(invited)
+        scene.member_adds_and_accepts(third)
 
         for person in scene.everyone:
             expect(person.locator(AGENT_TILE).filter(has_text=third.name)).to_have_count(1)
