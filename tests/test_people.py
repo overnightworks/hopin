@@ -417,13 +417,13 @@ def issuer_browser(sign_in_settings, stores):
 
 
 class TestAdminGroup:
-    @pytest.mark.parametrize("group", [TEST_REALM.admin_group, f"{TEST_REALM.admin_group}/team"])
+    @pytest.mark.parametrize("group", [str(TEST_REALM.admin_group), f"{TEST_REALM.admin_group}/team"])
     def test_an_admin_group_member_exports_after_signing_in(self, issuer_browser, group):
         browser, _ = issuer_browser([group])
 
         assert browser.get(export_path("anna")).status_code == 200
 
-    @pytest.mark.parametrize("group", [TEST_REALM.login_group, f"{TEST_REALM.login_group}/administrators"])
+    @pytest.mark.parametrize("group", [str(TEST_REALM.login_group), f"{TEST_REALM.login_group}/administrators"])
     def test_a_member_outside_the_admin_group_is_refused(self, issuer_browser, group):
         browser, _ = issuer_browser([group])
 

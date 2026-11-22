@@ -54,7 +54,7 @@ class TestWhoIsLetIn:
             pytest.param({"audience": "https://elsewhere.test.invalid/mcp"}, 401, True, id="a wrong audience"),
             pytest.param({"authorized_party": TEST_REALM.client_id}, 401, True, id="a foreign azp"),
             pytest.param({"scope": "openid"}, 403, True, id="no mcp scope"),
-            pytest.param({"groups": (TEST_REALM.login_group,)}, 403, False, id="a person outside the mcp group"),
+            pytest.param({"groups": (str(TEST_REALM.login_group),)}, 403, False, id="a person outside the mcp group"),
             pytest.param({"age_seconds": 400}, 401, True, id="a token past its life and the leeway"),
         ],
     )
@@ -98,7 +98,7 @@ class TestWhoIsLetIn:
             audience=dialed_call.audience,
             authorized_party=TEST_REALM.mcp_client_id,
             scope=TEST_REALM.mcp_scope,
-            groups=(TEST_REALM.login_group, TEST_REALM.mcp_group),
+            groups=(str(TEST_REALM.login_group), str(TEST_REALM.mcp_group)),
         )
 
         assert dialed_call.call(stranger, JOIN_CALL, {"room": "x", "name": NAME}).status == 403

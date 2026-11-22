@@ -226,7 +226,7 @@ class OwnAccountAgent(SdkAgent):
             audience=f"{server.base_url}/mcp",
             authorized_party="some-agent-client",
             scope=TEST_REALM.mcp_scope,
-            groups=(TEST_REALM.agent_group, TEST_REALM.mcp_group),
+            groups=(str(TEST_REALM.agent_group), str(TEST_REALM.mcp_group)),
             extra_claims={"agent_owner": owner_subject, "agent_name": name},
         )
         super().__init__(server, token)
@@ -288,7 +288,7 @@ class OwnAgent(SdkAgent):
             audience=f"{server.base_url}/mcp",
             authorized_party=TEST_REALM.mcp_client_id,
             scope=TEST_REALM.mcp_scope,
-            groups=(TEST_REALM.login_group, TEST_REALM.mcp_group),
+            groups=(str(TEST_REALM.login_group), str(TEST_REALM.mcp_group)),
         )
         super().__init__(server, token)
 

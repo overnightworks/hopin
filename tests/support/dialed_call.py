@@ -222,7 +222,7 @@ class DialedCall:
         audience=None,
         authorized_party=TEST_REALM.mcp_client_id,
         scope=TEST_REALM.mcp_scope,
-        groups=(TEST_REALM.login_group, TEST_REALM.mcp_group),
+        groups=(str(TEST_REALM.login_group), str(TEST_REALM.mcp_group)),
         age_seconds=0,
     ):
         return self.issuer.access_token(
@@ -243,7 +243,7 @@ class DialedCall:
             audience=self.audience,
             authorized_party="some-agent-client",
             scope=TEST_REALM.mcp_scope,
-            groups=(TEST_REALM.agent_group, TEST_REALM.mcp_group),
+            groups=(str(TEST_REALM.agent_group), str(TEST_REALM.mcp_group)),
             extra_claims={"agent_owner": owner, "agent_name": agent_name, **username},
         )
 
@@ -464,7 +464,7 @@ def accept_arguments(standing):
 
 
 def admin_groups():
-    return (TEST_REALM.login_group, TEST_REALM.admin_group, TEST_REALM.mcp_group)
+    return (str(TEST_REALM.login_group), str(TEST_REALM.admin_group), str(TEST_REALM.mcp_group))
 
 
 @contextmanager
