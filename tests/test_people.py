@@ -403,7 +403,7 @@ def api_call_status(client, member):
 
 
 @pytest.fixture
-def two_sessions(stores, config, person):
+def two_sessions(stores, person):
     """Anna with an account and two sessions, and no seat."""
     anna = person("anna")
     an_older_session(stores, anna, secrets.token_urlsafe(), new_id_token())
@@ -446,6 +446,7 @@ class TestErasureOfAPerson:
         answer = erase(client, "anna", admin)
 
         assert answer.status_code == 200
+        assert answer.headers["cache-control"] == "no-store"
         assert answer.json() == erasure_body("anna", account=1, sessions=2)
         assert (stores.accounts.get("anna"), stores.sessions.records_of("anna").sessions) == (None, ())
         assert api_call_status(client, two_sessions) == 401
@@ -454,6 +455,7 @@ class TestErasureOfAPerson:
         answer = erase(client, "anna", admin, dry_run=True)
 
         assert answer.status_code == 200
+        assert answer.headers["cache-control"] == "no-store"
         assert answer.json() == erasure_body("anna", dry_run=True, account=1, sessions=2)
         assert stores.accounts.get("anna") is not None
         assert len(stores.sessions.records_of("anna").sessions) == 2
@@ -542,37 +544,38 @@ class TestErasureOfAPerson:
 
 class TestWhoMayErase:
     @pytest.mark.parametrize(
-        "caller",
+        ("caller", "status"),
         [
-            pytest.param(lambda client, person, scene: erase(client, "anna", person("mallory")), id="a member"),
+            pytest.param(lambda client, person, scene: erase(client, "anna", person("mallory")), 403, id="a member"),
             pytest.param(
                 lambda client, person, scene: erase(client, "anna", headers={"accept": "application/json"}),
+                401,
                 id="no session for an api call",
             ),
             pytest.param(
                 lambda client, person, scene: erase(client, "anna", headers={"accept": "text/html"}),
+                302,
                 id="no session for a navigation",
             ),
             pytest.param(
                 lambda client, person, scene: erase(
                     client, "anna", person("olga", role=AppRole.ADMIN), origin="https://page.test.invalid"
                 ),
+                403,
                 id="a page of another site",
             ),
         ],
     )
-    def test_a_refused_caller_changes_nothing(self, client, person, scene, stores, caller):
+    def test_a_refused_caller_changes_nothing_and_is_told_nothing(self, client, person, scene, stores, caller, status):
         before = stored_state_of_anna(stores, scene)
 
         answer = caller(client, person, scene)
 
-        assert answer.status_code in {401, 302, 403}
+        assert answer.status_code == status
         assert "anna" not in answer.text
+        assert "people_erasure" not in answer.text
         assert stored_state_of_anna(stores, scene) == before
         assert answer.headers["cache-control"] == "no-store"
-
-    def test_a_refused_member_is_not_told_the_counts(self, client, person, scene):
-        assert "people_erasure" not in erase(client, "anna", person("mallory")).text
 
 
 class TestCaching:

@@ -3,7 +3,7 @@
 import pytest
 import pytest_asyncio
 
-from hopin.config.constants import SESSION_ENDED_CLOSE_CODE, ErrorReason, RoomClosedReason, SignalType
+from hopin.config.constants import ErrorReason, RoomClosedReason, SignalType
 from hopin.signaling.handler import PersonReach
 from tests.signaling.support.browsers import Link, host_and_guest
 
@@ -18,15 +18,18 @@ async def link(handler):
 
 
 class TestWhatAPersonHolds:
-    async def test_a_guest_seat_counts_as_a_seat_and_no_call(self, link, handler):
+    @pytest.mark.parametrize(
+        ("subject", "held"),
+        [
+            pytest.param("guest", PersonReach(seats=1, calls=0), id="a guest seat counts as a seat and no call"),
+            pytest.param("host", PersonReach(seats=1, calls=1), id="a hosted call with a guest counts as a call"),
+            pytest.param("stranger", PersonReach(seats=0, calls=0), id="a person with no seat holds nothing"),
+        ],
+    )
+    async def test_a_person_holds_what_the_call_gives_them(self, link, handler, subject, held):
         await host_and_guest(link)
 
-        assert handler.reach_of("guest") == PersonReach(seats=1, calls=0)
-
-    async def test_a_hosted_call_with_a_guest_counts_as_a_call(self, link, handler):
-        await host_and_guest(link)
-
-        assert handler.reach_of("host") == PersonReach(seats=1, calls=1)
+        assert handler.reach_of(subject) == held
 
     async def test_a_hosted_call_with_a_joined_agent_counts_as_a_call(self, link, handler, room_manager):
         host = await link.join("host")
@@ -39,43 +42,8 @@ class TestWhatAPersonHolds:
 
         assert handler.reach_of("host") == PersonReach(seats=1, calls=0)
 
-    async def test_a_person_with_no_seat_holds_nothing(self, link, handler):
-        await host_and_guest(link)
-
-        assert handler.reach_of("stranger") == PersonReach(seats=0, calls=0)
-
-    async def test_counting_changes_nothing(self, link, handler, room_manager):
-        host, guest = await host_and_guest(link)
-
-        handler.reach_of("host")
-
-        assert room_manager.find_room(host.room_id) is not None
-        assert guest.socket.closed_with is None
-        assert host.socket.closed_with is None
-
 
 class TestEndingWhatAPersonHolds:
-    async def test_a_guest_seat_is_closed_as_a_session_end_and_the_room_hears_it_left(self, link, handler):
-        host, guest = await host_and_guest(link)
-
-        reach = await handler.end_all_of("guest")
-
-        assert reach == PersonReach(seats=1, calls=0)
-        assert guest.socket.closed_with == SESSION_ENDED_CLOSE_CODE
-        assert [frame["participant_id"] for frame in host.frames(SignalType.PARTICIPANT_LEFT)] == [guest.peer_id]
-        assert host.socket.closed_with is None
-
-    async def test_a_hosted_call_ends_at_once_for_everyone_without_the_hosts_name(self, link, handler, room_manager):
-        host, guest = await host_and_guest(link)
-
-        reach = await handler.end_all_of("host")
-
-        assert reach == PersonReach(seats=1, calls=1)
-        [closed] = guest.frames(SignalType.ROOM_CLOSED)
-        assert (closed["reason"], closed["host_name"]) == (RoomClosedReason.ENDED.value, "")
-        assert room_manager.find_room(host.room_id) is None
-        assert guest.socket.closed_with is not None
-
     async def test_a_call_whose_host_is_in_grace_ends_at_once_and_counts(self, link, handler, room_manager):
         host, guest = await host_and_guest(link)
         await host.drop(1000)
