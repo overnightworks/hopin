@@ -81,7 +81,7 @@ The bearer is accepted on this one path and nowhere else. webauth's gate admits 
 
 ## Configuration
 
-`src/hopin/config/settings.py` owns the settings; every one is an environment variable with the `HOPIN_` prefix, except the nine `REALM_` keys, which name HopIn's objects and the two services' names in the Keycloak realm under the same keys in every app. The client secret, the session signing key and the two TURN key files are the exception in content: the variables name files, HopIn reads them at start, and the secrets never enter the environment.
+`src/hopin/config/settings.py` owns the settings; every one is an environment variable with the `HOPIN_` prefix, except the nine `REALM_` keys, which name HopIn's objects in the Keycloak realm, the AI gateway's group and the speech scope under the same keys in every app. The client secret, the session signing key and the two TURN key files are the exception in content: the variables name files, HopIn reads them at start, and the secrets never enter the environment.
 
 | Variable | Default | Description |
 |---|---|---|

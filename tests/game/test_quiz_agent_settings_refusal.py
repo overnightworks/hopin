@@ -24,14 +24,25 @@ class TestServeRefusesTheGameSettings:
     ):
         serve_refusal(setting, value, expected_line)
 
-    def test_refuses_with_no_agent_setting_at_all_naming_the_family(self, sign_in_settings, monkeypatch, capsys):
+    @pytest.mark.parametrize(
+        "leftover",
+        [
+            pytest.param({}, id="nothing_set"),
+            pytest.param({"HOPIN_AGENT__API_GROUP": "sentinel-group"}, id="only_the_old_group_key_set"),
+        ],
+    )
+    def test_refuses_with_no_agent_setting_at_all_naming_the_family_and_the_group_key(
+        self, sign_in_settings, monkeypatch, capsys, leftover
+    ):
         for name, environment_value in sign_in_settings().environment.items():
             monkeypatch.setenv(name, environment_value)
         for name in GAME_ENVIRONMENT:
             monkeypatch.delenv(name)
+        for name, environment_value in leftover.items():
+            monkeypatch.setenv(name, environment_value)
 
         with pytest.raises(SystemExit) as refusal:
             main(["serve"])
 
         assert refusal.value.code == 1
-        assert capsys.readouterr().err == "HOPIN_AGENT__* is missing\n"
+        assert capsys.readouterr().err == "HOPIN_AGENT__* is missing\nREALM_AI_GROUP is missing\n"
