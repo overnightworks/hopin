@@ -505,7 +505,7 @@ requires-dist = [
     { name = "overnightworks-logline", git = "https://github.com/overnightworks/logline?rev=v1.8.0" },
     { name = "overnightworks-speech-client", git = "https://github.com/overnightworks/speech?subdirectory=packages%2Fclient&rev=v0.22.3" },
     { name = "overnightworks-tandem", git = "https://github.com/overnightworks/tandem?rev=v0.13.1" },
-    { name = "overnightworks-webauth", extras = ["postgres"], git = "https://github.com/overnightworks/webauth?rev=v0.44.0" },
+    { name = "overnightworks-webauth", extras = ["postgres"], git = "https://github.com/overnightworks/webauth?rev=v0.45.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.7" },
@@ -989,8 +989,8 @@ dependencies = [
 
 [[package]]
 name = "overnightworks-webauth"
-version = "0.44.0"
-source = { git = "https://github.com/overnightworks/webauth?rev=v0.44.0#43cf8d1693a175c0f63b27ec0427e843baa513e9" }
+version = "0.45.0"
+source = { git = "https://github.com/overnightworks/webauth?rev=v0.45.0#f30388aab1742b58c9718ae8bfa34bf0c0f94949" }
 dependencies = [
     { name = "anyio" },
     { name = "cryptography" },

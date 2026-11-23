@@ -7,8 +7,10 @@ engine hides statement parameters and never sets `echo`, which keeps `sqlalchemy
 never by the driver's text, which quotes the host and the parameters.
 
 The accounts and sessions are `PostgresIdentity`: each entry is one transaction on the engine, so a sign-in survives a
-restart and every process admits the same session. A failure of the database in an entry is webauth's
-`SessionStoreError`, which carries no statement, parameter or address.
+restart and every process admits the same session. A database that cannot be reached raises webauth's
+`StoreUnavailableError`, which webauth answers `503` with `Retry-After` to a request that needs a session; every other
+failure of the database in an entry is its `SessionStoreError`, a `500`. Neither carries a statement, parameter or
+address.
 """
 
 from contextlib import contextmanager
