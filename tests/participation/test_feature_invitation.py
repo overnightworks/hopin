@@ -1,22 +1,26 @@
 import asyncio
+from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
-from agents.member import INVITATION_SECONDS, LEASE_SECONDS
+from agents.calling import CallOutcome
+from agents.member import INVITATION_SECONDS, LEASE_SECONDS, DeclineInvitationRefusal
 
 from hopin.config.constants import SESSION_RECHECK_SECONDS, SignalType
 from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from hopin.participation.participants import DialedAgent
 from hopin.participation.places import PlaceState
-from hopin.participation.vocabulary import AgentRefusal, InvitationOutcome, ParticipationSignal
+from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
 from tests.participation.support.own_accounts import (
     AGENT,
     NAME,
     OWNER,
     WALL_CLOCK_SECONDS,
+    acceptance_of,
     agent_calls,
     agent_calls_and_listens,
     agent_stops_listening,
+    busy_decline_of,
     let_reads_finish,
     offers_sent_to,
 )
@@ -48,10 +52,17 @@ class Invited:
         invitation = self.invitation
         return await self.participation.accept(
             AGENT,
-            self.owner.room_id,
-            invitation.invitation_id if invitation_id is None else invitation_id,
-            invitation.epoch if epoch is None else epoch,
+            acceptance_of(
+                self.owner.room_id,
+                invitation.invitation_id if invitation_id is None else invitation_id,
+                invitation.epoch if epoch is None else epoch,
+            ),
             None,
+        )
+
+    async def decline(self):
+        return await self.participation.decline(
+            AGENT, busy_decline_of(self.owner.room_id, self.invitation.invitation_id, self.invitation.epoch)
         )
 
 
@@ -91,7 +102,10 @@ async def _no_place_free(invited, link):
 class TestAnInvitation:
     async def test_it_stands_for_the_agent_with_an_epoch_and_the_time_it_ends(self, invited, changes):
         assert invited.standing.state is PlaceState.INVITED
-        assert (invited.invitation.epoch, invited.invitation.expires_at) == (0, WALL_CLOCK_SECONDS + INVITATION_SECONDS)
+        assert (invited.invitation.epoch, invited.invitation.expires_at) == (
+            0,
+            datetime.fromtimestamp(WALL_CLOCK_SECONDS + INVITATION_SECONDS, UTC),
+        )
         assert changes[-1:] == [(AGENT, (PlaceState.INVITED,))]
 
     async def test_accepting_it_puts_the_agent_in_the_call_under_its_name_and_everyone_sees_the_tile(self, invited):
@@ -165,7 +179,7 @@ class TestAnInvitation:
             invited.owner.frames(ParticipationSignal.AGENT_INVITATION_ENDED),
         ) == (
             [ParticipationSignal.AGENT_OFFERS.value, ParticipationSignal.AGENT_INVITATION_ENDED.value],
-            InvitationOutcome.NO_ANSWER.value,
+            CallOutcome.NO_ANSWER.value,
             True,
             True,
             [],
@@ -187,7 +201,7 @@ class TestAnInvitation:
 
         [ended] = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
         assert (ended["outcome"], ended["agent_key"], ended["name"]) == (
-            InvitationOutcome.NO_ANSWER.value,
+            CallOutcome.NO_ANSWER.value,
             offer["agent_key"],
             offer["name"],
         )
@@ -199,15 +213,12 @@ class TestAnInvitation:
 
     @pytest.mark.parametrize("ending", ["accepted", "declined"])
     async def test_an_ended_invitation_leaves_no_deadline_of_its_own(self, invited, scheduler, ending):
-        old = invited.invitation
         timers_before = scheduler.pending_timers()
 
         if ending == "accepted":
             await invited.accept()
         else:
-            await invited.participation.decline(
-                AGENT, invited.owner.room_id, old.invitation_id, old.epoch, InvitationOutcome.BUSY
-            )
+            await invited.decline()
 
         assert [timer.delay for timer in timers_before if not timer.pending] == [INVITATION_SECONDS]
 
@@ -220,15 +231,13 @@ class TestAnInvitation:
         self, invited, link, changes
     ):
         """CALL-52: It ends when the owner's seat leaves for good, and an accept after it is stale."""
-        old = invited.invitation
         told = len(changes)
         await invited.owner.drop(code=1000)
         await link.join(OWNER, invited.owner.room_id)
 
         assert invited.participation.standings_of(AGENT) == ()
         assert len(changes) > told
-        refusal = await invited.participation.accept(AGENT, invited.owner.room_id, old.invitation_id, old.epoch, None)
-        assert refusal is AgentRefusal.STALE_INVITATION
+        assert await invited.accept() is AgentRefusal.STALE_INVITATION
 
     async def test_its_owner_leaving_tells_only_the_adder_the_owner_is_away_after_the_offers(self, invited):
         """CALL-52: An invitation whose agent's owner leaves before the agent joins ends at once and tells the seat
@@ -245,10 +254,91 @@ class TestAnInvitation:
             told[-1].get("name") == offer["name"],
         ) == (
             [ParticipationSignal.AGENT_OFFERS.value, ParticipationSignal.AGENT_INVITATION_ENDED.value],
-            InvitationOutcome.OWNER_ABSENT.value,
+            CallOutcome.OWNER_AWAY.value,
             True,
             True,
         )
+
+    async def test_its_owner_leaving_keeps_the_epoch_and_the_invitation_the_agent_held_is_stale(self, invited, link):
+        """CALL-52 (CALLING-6): An owner's leaving ends the invitation without raising the epoch, so the old accept is
+        stale by its missing invitation and a new invitation has the same epoch."""
+        await invited.owner.drop(code=1000)
+        await link.join(OWNER, invited.owner.room_id)
+        await let_reads_finish()
+        stale = await invited.accept()
+
+        await add_the_offered_agent(invited.member)
+
+        [standing] = invited.participation.standings_of(AGENT)
+        assert (stale, standing.invitation.invitation_id != invited.invitation.invitation_id) == (
+            AgentRefusal.STALE_INVITATION,
+            True,
+        )
+        assert standing.invitation.epoch == invited.invitation.epoch
+
+    async def test_its_timer_with_the_wall_clock_behind_waits_out_the_rest_and_ends_it_at_its_expiry(
+        self, invited, scheduler, participation, listeners, wall_clock
+    ):
+        """CALL-52 (CALLING-6, 8): The invitation stands while the wall clock is before its expiry: a timer that fires
+        with the wall clock behind arms again for the rest, and the invitation ends as no answer when it is reached."""
+        wall_clock.step(-30)
+        await scheduler.advance(INVITATION_SECONDS - 1)
+        await agent_calls_and_listens(participation, listeners)  # the agent keeps calling, so its lease holds
+        await scheduler.advance(1)
+        states_at_the_timer = [standing.state for standing in participation.standings_of(AGENT)]
+        ended_before = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
+        await scheduler.advance(29)
+
+        await scheduler.advance(1)
+
+        [ended] = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
+        assert (states_at_the_timer, ended_before, ended["outcome"], participation.standings_of(AGENT)) == (
+            [PlaceState.INVITED],
+            [],
+            CallOutcome.NO_ANSWER.value,
+            (),
+        )
+
+    async def test_its_standing_keeps_the_expiry_it_was_opened_with_when_the_wall_clock_steps(
+        self, invited, wall_clock
+    ):
+        """CALL-52: The standing shows the invitation's stored expiry."""
+        wall_clock.step(-45)
+
+        [standing] = invited.participation.standings_of(AGENT)
+
+        assert standing.invitation.expires_at == invited.invitation.expires_at
+
+    async def test_a_wall_clock_that_steps_forward_lapses_it_for_the_accept_and_the_timer_still_tells_the_adder(
+        self, invited, scheduler, participation, listeners, wall_clock
+    ):
+        """CALL-52 (CALLING-8): An invitation the wall clock has carried past its expiry is stale, and the inviter still
+        hears that nobody answered."""
+        wall_clock.step(INVITATION_SECONDS)
+        accepted = await invited.accept()
+        await scheduler.advance(INVITATION_SECONDS - 1)
+        await agent_calls_and_listens(participation, listeners)  # the agent keeps calling, so its lease holds
+
+        await scheduler.advance(1)
+
+        [ended] = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
+        assert (accepted, ended["outcome"], participation.standings_of(AGENT)) == (
+            AgentRefusal.STALE_INVITATION,
+            CallOutcome.NO_ANSWER.value,
+            (),
+        )
+
+    async def test_an_owner_leaving_after_the_wall_clock_lapsed_the_invitation_ends_it_with_no_answer(
+        self, invited, wall_clock, participation
+    ):
+        """CALL-52 (CALLING-6, 8): An invitation the wall clock lapsed before its timer ran ends when its owner leaves,
+        and the inviter hears no answer."""
+        wall_clock.step(INVITATION_SECONDS)
+
+        await invited.owner.drop(code=1000)
+
+        [ended] = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
+        assert (ended["outcome"], participation.standings_of(AGENT)) == (CallOutcome.NO_ANSWER.value, ())
 
     async def test_a_room_that_ends_while_its_owners_cleanup_is_pending_tells_the_adder_nothing(
         self, invited, scheduler
@@ -268,12 +358,9 @@ class TestAnInvitation:
     async def test_a_decline_ends_it_as_busy_for_the_adder_alone(self, invited):
         """CALL-52: A standing decline ends the invitation at once, tells the seat that made it, and no other, the
         outcome, and offers the agent again."""
-        old = invited.invitation
         [offer] = offers_sent_to(invited.member)
 
-        refusal = await invited.participation.decline(
-            AGENT, invited.owner.room_id, old.invitation_id, old.epoch, InvitationOutcome.BUSY
-        )
+        refusal = await invited.decline()
 
         [ended] = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
         assert (
@@ -284,14 +371,12 @@ class TestAnInvitation:
             invited.owner.frames(ParticipationSignal.AGENT_INVITATION_ENDED),
             invited.participation.standings_of(AGENT),
             offers_sent_to(invited.member)[0]["pending"],
-        ) == (None, InvitationOutcome.BUSY.value, True, True, [], (), False)
+        ) == (None, CallOutcome.BUSY.value, True, True, [], (), False)
 
     async def test_an_invitation_added_after_a_decline_has_the_epoch_of_the_declined_one(self, invited):
         old = invited.invitation
         [offer] = offers_sent_to(invited.member)
-        await invited.participation.decline(
-            AGENT, invited.owner.room_id, old.invitation_id, old.epoch, InvitationOutcome.BUSY
-        )
+        await invited.decline()
 
         await invited.member.say({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offer["agent_key"]})
         await let_reads_finish()
@@ -300,29 +385,25 @@ class TestAnInvitation:
         assert (standing.invitation.invitation_id != old.invitation_id, standing.invitation.epoch) == (True, old.epoch)
 
     async def test_a_decline_past_its_deadline_before_its_timer_ran_is_stale(self, invited, scheduler):
-        old = invited.invitation
         scheduler.skip(INVITATION_SECONDS)
 
-        refusal = await invited.participation.decline(
-            AGENT, invited.owner.room_id, old.invitation_id, old.epoch, InvitationOutcome.BUSY
-        )
-
-        assert refusal is AgentRefusal.STALE_INVITATION
+        assert await invited.decline() is DeclineInvitationRefusal.STALE_INVITATION
 
     @pytest.mark.parametrize(
         ("arrange", "refusal", "outcome"),
         [
-            (_owner_away, AgentRefusal.SPONSOR_AWAY, InvitationOutcome.OWNER_ABSENT),
-            (_owner_on_two_seats, AgentRefusal.TWO_SEATS, InvitationOutcome.BUSY),
-            (_no_place_free, AgentRefusal.BUSY, InvitationOutcome.BUSY),
+            (_owner_away, AgentRefusal.SPONSOR_AWAY, CallOutcome.OWNER_AWAY),
+            (_owner_on_two_seats, AgentRefusal.TWO_SEATS, CallOutcome.OWNER_AWAY),
+            (_no_place_free, AgentRefusal.BUSY, CallOutcome.BUSY),
         ],
         ids=["owner_away", "owner_on_two_seats", "no_place_free"],
     )
     async def test_an_accept_refused_for_the_call_ends_the_invitation_and_tells_the_adder_alone(
         self, invited, link, arrange, refusal, outcome
     ):
-        """CALL-52: An accept of a standing invitation that is refused as two_seats, sponsor_away or busy ends it as a
-        decline does, tells the seat that made it, and no other, the outcome, and still answers the agent the code."""
+        """CALL-52 (CALLING-7): An accept of a standing invitation that is refused as two_seats, sponsor_away or busy
+        ends it as a decline does, tells the seat that made it, and no other, owner away for the first two and busy
+        for the third, and still answers the agent the code."""
         [offer] = offers_sent_to(invited.member)
         await arrange(invited, link)
 
@@ -398,14 +479,12 @@ class TestAnAgentInTheCall:
         assert joined[0]["agent_id"] == left[0]["agent_id"] != joined[1]["agent_id"]
 
     async def test_its_sponsor_removes_it_and_an_old_accept_is_stale(self, invited):
-        old = invited.invitation
         agent = await invited.accept()
 
         await invited.owner.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
 
         assert invited.participation.standings_of(AGENT) == ()
-        refusal = await invited.participation.accept(AGENT, invited.owner.room_id, old.invitation_id, old.epoch, None)
-        assert refusal is AgentRefusal.STALE_INVITATION
+        assert await invited.accept() is AgentRefusal.STALE_INVITATION
 
     async def test_the_host_removes_it_but_another_guest_is_refused(self, invited, link):
         agent = await invited.accept()

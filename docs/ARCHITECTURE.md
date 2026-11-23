@@ -66,7 +66,7 @@ Caption: what each part may import, from the `layers` contract in `pyproject.tom
 | `auth` | sign-in against Keycloak through webauth, built once by `WebAuth.build` before the routes and installed by `auth.install` after the last, and the session gate |
 | `people` | the admin export and erasure of what HopIn holds about one person |
 | `game` | optional: one quiz per call |
-| `participation` | optional: the agents a person dials in, with no AI in it |
+| `participation` | optional: the agents a person dials in or calls, with no AI in it; `agents.calling` decides the call and the end of an invitation |
 | `stage` | optional: the table of a registered app that a call shows, and its start link `/c/new`, which sends a member to the open call showing a table or starts one |
 | `agent` | optional connector: the MCP surface of a person's agents and the quiz agent; the only speaker to LiteLLM and the speech service |
 | `app` | the composition root: wires the packages, names no feature |

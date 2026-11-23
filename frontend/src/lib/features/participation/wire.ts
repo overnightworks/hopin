@@ -40,6 +40,8 @@ export enum AGENT_REFUSAL {
     OWN_ACCOUNT_ONLY = "own_account_only",
     NOT_ADDER = "not_adder",
     ALREADY_THERE = "already_there",
+    NOT_LISTENING = "not_listening",
+    INVITED_BY_ANOTHER = "invited_by_another",
     STALE_INVITATION = "stale_invitation",
     UNAVAILABLE = "unavailable",
     BAD_LINE = "bad_line",
@@ -48,7 +50,7 @@ export enum AGENT_REFUSAL {
 export enum INVITATION_OUTCOME {
     NO_ANSWER = "no_answer",
     BUSY = "busy",
-    OWNER_ABSENT = "owner_absent",
+    OWNER_AWAY = "owner_away",
 }
 
 export enum HEARING_CLOSE {

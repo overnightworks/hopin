@@ -3,13 +3,14 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, get_args
 
+from agents.calling import CallOutcome  # noqa: TC002 - the wire generator reads the field's type at runtime
+
 from hopin.participation.figures import clip_path, figure_path, persona_room_path
 from hopin.participation.vocabulary import (
     AgentRefusal,
     FigureFraming,
     FigureGesture,
     FigureMood,
-    InvitationOutcome,
     ParticipationSignal,
     TurnOutcome,
 )
@@ -156,7 +157,7 @@ class AgentInvitationEndedFrame(WireFrame):
 
     agent_key: str
     name: str
-    outcome: InvitationOutcome
+    outcome: CallOutcome
 
 
 @dataclass(frozen=True)

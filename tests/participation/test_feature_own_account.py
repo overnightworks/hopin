@@ -5,12 +5,13 @@ import json
 
 import pytest
 import structlog.testing
+from agents.calling import CallOutcome
 from agents.member import ACCEPT_INVITATION_TOOL, DECLINE_INVITATION_TOOL, STANDING_URI, PlaceRef, place_window_uri
 
 from hopin.agent.mcp import OFFERS_RECOMPUTE_TASK_NAME
 from hopin.config.constants import MAX_PARTICIPANTS_PER_ROOM
 from hopin.participation.feature import Participation
-from hopin.participation.vocabulary import AgentRefusal, InvitationOutcome, ParticipationSignal
+from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS
 from tests.support.dialed_call import accept_arguments
 from tests.support.log_lines import captured_lines
@@ -212,7 +213,7 @@ class TestDecliningTheInvitation:
         dialed = scene.call.call(scene.token, DECLINE_INVITATION_TOOL, decline_arguments(standing))
 
         ended = scene.member.frame_of_type(INVITATION_ENDED)
-        assert (dialed.is_error, ended["outcome"], scene.standings()) == (False, InvitationOutcome.BUSY.value, [])
+        assert (dialed.is_error, ended["outcome"], scene.standings()) == (False, CallOutcome.BUSY.value, [])
         assert INVITATION_ENDED not in [frame["type"] for frame in scene.owner.received]
 
     def test_a_declined_agent_is_offered_to_the_adder_again_and_can_be_invited_anew(self, scene):

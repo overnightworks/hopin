@@ -1,6 +1,8 @@
 from enum import IntEnum, StrEnum
 from typing import ClassVar, Final
 
+from agents.calling import CallOutcome, InviteRefusal
+
 FEATURE_NAME = "participation"
 # The page installs this browser module beside the feature's own when agents may show figures.
 FIGURE_MODULE = "figure"
@@ -90,24 +92,25 @@ class AgentRefusal(StrEnum):
     OWN_ACCOUNT_ONLY = "own_account_only"
     NOT_ADDER = "not_adder"
     ALREADY_THERE = "already_there"
+    NOT_LISTENING = "not_listening"
+    INVITED_BY_ANOTHER = "invited_by_another"
     STALE_INVITATION = "stale_invitation"
     UNAVAILABLE = "unavailable"
     BAD_LINE = "bad_line"
 
 
-class InvitationOutcome(StrEnum):
-    """How an invitation ended without the agent joining, as the seat that made it is told."""
-
-    NO_ANSWER = "no_answer"
-    BUSY = "busy"
-    OWNER_ABSENT = "owner_absent"
-
-
-# An accept refused for the call ends the invitation as a decline does; a stale one changes nothing.
-OUTCOME_OF_REFUSED_ACCEPT: Final = {
-    AgentRefusal.TWO_SEATS: InvitationOutcome.BUSY,
-    AgentRefusal.BUSY: InvitationOutcome.BUSY,
-    AgentRefusal.SPONSOR_AWAY: InvitationOutcome.OWNER_ABSENT,
+# The calling standard's refusals of a call as the page and the tools know them; a call is always made from a seat, so
+# `NOT_PRESENT` stands for a refusal no frame meets.
+AGENT_REFUSAL_OF_INVITE_REFUSAL: Final = {
+    InviteRefusal.NOT_PRESENT: AgentRefusal.NO_SEAT,
+    InviteRefusal.NOT_A_MEMBER: AgentRefusal.NOT_ADDER,
+    InviteRefusal.ALREADY_THERE: AgentRefusal.ALREADY_THERE,
+    InviteRefusal.NOT_LISTENING: AgentRefusal.NOT_LISTENING,
+    InviteRefusal.INVITED_BY_ANOTHER: AgentRefusal.INVITED_BY_ANOTHER,
+    InviteRefusal.OWNER_ABSENT: AgentRefusal.NO_SEAT,
+    InviteRefusal.OWNER_AWAY: AgentRefusal.SPONSOR_AWAY,
+    InviteRefusal.OWNER_ELSEWHERE: AgentRefusal.TWO_SEATS,
+    InviteRefusal.NO_FREE_SEAT: AgentRefusal.BUSY,
 }
 
 
@@ -301,7 +304,7 @@ SIGNAL_TYPES = _members(ParticipationSignal)
 BROWSER_ENUMS: dict[str, type[StrEnum | IntEnum]] = {
     "PARTICIPATION_SIGNAL": ParticipationSignal,
     "AGENT_REFUSAL": AgentRefusal,
-    "INVITATION_OUTCOME": InvitationOutcome,
+    "INVITATION_OUTCOME": CallOutcome,
     "HEARING_CLOSE": HearingClose,
     "FIGURE_GESTURE": FigureGesture,
     "FIGURE_FRAMING": FigureFraming,

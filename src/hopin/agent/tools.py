@@ -29,7 +29,6 @@ from agents.member import (
     ContinueSpeakingRefusal,
     ContinueSpeakingRefused,
     DeclineInvitationArguments,
-    DeclineInvitationReason,
     DeclineInvitationRefusal,
     DeclineInvitationRefused,
     DroppedSpeaking,
@@ -76,7 +75,6 @@ from hopin.participation.vocabulary import (
     FigureGesture,
     FigureMood,
     HoldRefusal,
-    InvitationOutcome,
     LookRefusal,
     SpeakFallback,
     SpeakStop,
@@ -131,9 +129,6 @@ AUDIENCE_OF_TOOL: Final = {
     SET_TURN_STATE_TOOL: Audience.EVERY_AGENT,
     LOOK: Audience.EVERY_AGENT,
 }
-
-# The row's outcome a decline's reason shows to the seat that made the invitation.
-_OUTCOME_OF_DECLINE: Final = {DeclineInvitationReason.BUSY: InvitationOutcome.BUSY}
 
 _SPEAK_REFUSAL_OF: Final = {
     AgentRefusal.GONE: SpeakRefusal.NOT_ACTIVE,
@@ -408,9 +403,7 @@ async def _accepted(participation: Participation, caller: Caller, arguments: Jso
         return _accept_refused(AcceptInvitationRefusal.STALE_INVITATION)
     figure = _figure_of(accepted)
     voices = known_voices(accepted.voices)
-    outcome = await participation.accept(
-        caller.person, accepted.place.id, accepted.invitation, accepted.epoch, figure, voices
-    )
+    outcome = await participation.accept(caller.person, accepted, figure, voices)
     if isinstance(outcome, AgentRefusal):
         return _accept_refused(AcceptInvitationRefusal(outcome.value))
     if len(voices) < len(accepted.voices or ()):
@@ -422,11 +415,9 @@ async def _declined(participation: Participation, caller: Caller, arguments: Jso
     declined = member_arguments(DeclineInvitationArguments, arguments)
     if declined.place.kind != CALL_KIND:
         return _decline_refused(DeclineInvitationRefusal.STALE_INVITATION)
-    refusal = await participation.decline(
-        caller.person, declined.place.id, declined.invitation, declined.epoch, _OUTCOME_OF_DECLINE[declined.reason]
-    )
+    refusal = await participation.decline(caller.person, declined)
     if refusal is not None:
-        return _decline_refused(DeclineInvitationRefusal(refusal.value))
+        return _decline_refused(refusal)
     return ToolOutcome(json.dumps({}), is_error=False)
 
 

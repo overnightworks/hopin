@@ -1,8 +1,18 @@
 import secrets
+from datetime import UTC, datetime
 from functools import partial
 from typing import TYPE_CHECKING, Final, cast
 
 import structlog
+from agents.calling import (
+    AcceptRefused,
+    Ended,
+    OpenInvitation,
+    check_accept,
+    check_decline,
+    expired,
+)
+from agents.member import DeclineInvitationRefusal
 
 from hopin.errors import InvalidMessageError
 from hopin.participation.agent_speech import AgentSpeech
@@ -22,7 +32,6 @@ from hopin.participation.participants import DialedAgent, DialOutcome, OwnAccoun
 from hopin.participation.places import (
     AbandonedInvitation,
     InvitationStanding,
-    Invited,
     Places,
     PlaceStanding,
     PlaceState,
@@ -39,13 +48,11 @@ from hopin.participation.vocabulary import (
     AGENT_ID_BYTES,
     FEATURE_NAME,
     FIGURE_MODULE,
-    OUTCOME_OF_REFUSED_ACCEPT,
     SIGNAL_TYPES,
     AgentRefusal,
     FigureMood,
     HearingRefusal,
     HoldRefusal,
-    InvitationOutcome,
     LookRefusal,
     ParticipationSignal,
 )
@@ -56,6 +63,8 @@ from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Mapping, Sequence
+
+    from agents.member import AcceptInvitationArguments, DeclineInvitationArguments
 
     from hopin.participation.figures import FigureVerdict
     from hopin.participation.group_reads import GroupsOf, GroupsRead
@@ -92,7 +101,6 @@ class Participation(TransitionFeature):
         self,
         deadlines: Deadlines,
         lease_seconds: float,
-        invitation_seconds: float,
         on_changed: Callable[[Person], None],
         on_window_changed: Callable[[Person, str], None],
         wall_clock: Callable[[], float],
@@ -107,7 +115,6 @@ class Participation(TransitionFeature):
         deadlines.register(DeadlineKind.INVITATION, self._invitation_timer)
         deadlines.register(DeadlineKind.LEASE, self._lease_timer)
         self._lease_seconds = lease_seconds
-        self._invitation_seconds = invitation_seconds
         self._on_changed = on_changed
         self._on_window_changed = on_window_changed
         self._wall_clock = wall_clock
@@ -281,7 +288,7 @@ class Participation(TransitionFeature):
 
     def standings_of(self, person: Person) -> tuple[PlaceStanding, ...]:
         """Every place the person holds as it reads now; a place it was removed from is absent."""
-        return tuple(self._standing_in(room_id, place) for room_id, place in self._places.of_person(person))
+        return tuple(self._standing_in(person, room_id, place) for room_id, place in self._places.of_person(person))
 
     def open_hearing(
         self, account: Person, seat: PeerId, holds_token: Callable[[Person], bool]
@@ -311,21 +318,16 @@ class Participation(TransitionFeature):
     async def accept(
         self,
         person: Person,
-        room_id: str,
-        invitation_id: str,
-        epoch: int,
+        accepted: AcceptInvitationArguments,
         figure: Figure | None,
         voices: tuple[str, ...] = (),
     ) -> DialOutcome:
         """Turn the agent's open invitation into its tile, bound to the owner's seat the invitation names; the tile
         shows the figure only when an allowed source holds it, and the agent keeps `voices` for its sentences."""
+        room_id = accepted.place.id
         verdict = judge_figure(self._figure_sources, figure)
-        outcome = await self._transitions.apply(
-            room_id, partial(self._accept, person, invitation_id, epoch, verdict, voices)
-        )
-        if outcome in OUTCOME_OF_REFUSED_ACCEPT:
-            await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_reference(room_id), reason="refused")
-        elif not isinstance(outcome, AgentRefusal):
+        outcome = await self._transitions.apply(room_id, partial(self._accept, person, accepted, verdict, voices))
+        if isinstance(outcome, DialedAgent):
             await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_reference(room_id), reason="accepted")
             if verdict.refusal is not None:
                 await logger.ainfo(
@@ -342,13 +344,14 @@ class Participation(TransitionFeature):
                     "agent_clip.refused", room_ref=room_reference(room_id), gesture=gesture, reason=clip_refusal.value
                 )
             await self._update_offers(room_id)
+        elif outcome is not AgentRefusal.STALE_INVITATION:
+            await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_reference(room_id), reason="refused")
         return outcome
 
     def _accept(
         self,
         person: Person,
-        invitation_id: str,
-        epoch: int,
+        accepted: AcceptInvitationArguments,
         verdict: FigureVerdict,
         voices: tuple[str, ...],
         view: RoomView,
@@ -356,64 +359,43 @@ class Participation(TransitionFeature):
     ) -> DialOutcome:
         live = self._live.by_person.get(person)
         room_id = view.room_id
-        invitation = (
-            None
-            if room_id is None
-            else self._places.standing_invitation(person, room_id, invitation_id, epoch, self._deadlines.now())
-        )
-        if live is None or room_id is None or invitation is None:
+        entry = None if room_id is None else self._places.entry(person, room_id)
+        invitation = None if entry is None else entry.invitation
+        if live is None or room_id is None or entry is None or invitation is None:
             return AgentRefusal.STALE_INVITATION
-        if view.seats_in(live.owner_subject) != (invitation.sponsor,):
-            refusal = AgentRefusal.TWO_SEATS
-        elif view.is_parked(invitation.sponsor):
-            refusal = AgentRefusal.SPONSOR_AWAY
-        elif not view.has_free_place:
-            refusal = AgentRefusal.BUSY
-        else:
-            refusal = None
-        if refusal is not None:
-            self._end_invitation(view, person, invitation, OUTCOME_OF_REFUSED_ACCEPT[refusal], transition)
-            return refusal
+        facts = self._offers.accept_facts(view, live, invitation)
+        decided = check_accept(entry, accepted, facts, now=self._now())
+        if isinstance(decided, AcceptRefused):
+            if decided.ended is not None:
+                self._end_invitation(view, person, decided.ended, transition)
+            return AgentRefusal(decided.refusal.value)
+        sponsor = PeerId(invitation.bound_to)
         agent = DialedAgent(
-            secrets.token_hex(AGENT_ID_BYTES),
-            live.name,
-            person,
-            invitation.sponsor,
-            room_id,
-            verdict.shown,
-            voices,
+            secrets.token_hex(AGENT_ID_BYTES), live.name, person, sponsor, room_id, verdict.shown, voices
         )
+        self._places.write(person, room_id, decided.entry)
         self._deadlines.cancel(DeadlineKind.INVITATION, invitation_key(person, room_id))
-        self._seat(view, agent, transition, brought_by_sponsor=invitation.adder == invitation.sponsor)
+        self._seat(view, agent, transition, brought_by_sponsor=invitation.inviter == invitation.bound_to)
         return agent
 
-    async def decline(
-        self, person: Person, room_id: str, invitation_id: str, epoch: int, outcome: InvitationOutcome
-    ) -> AgentRefusal | None:
-        """End the agent's standing invitation as its expiry does and tell the seat that made it `outcome`; the refusal,
-        or nothing when it ended. A decline seats nothing, so it needs no lease."""
-        refusal = await self._transitions.apply(room_id, partial(self._decline, person, invitation_id, epoch, outcome))
+    async def decline(self, person: Person, declined: DeclineInvitationArguments) -> DeclineInvitationRefusal | None:
+        """End the agent's standing invitation as its expiry does and tell the seat that made it the outcome of the
+        reason; the refusal, or nothing when it ended. A decline seats nothing, so it needs no lease."""
+        room_id = declined.place.id
+        refusal = await self._transitions.apply(room_id, partial(self._decline, person, declined))
         if refusal is None:
             await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_reference(room_id), reason="declined")
         return refusal
 
     def _decline(
-        self,
-        person: Person,
-        invitation_id: str,
-        epoch: int,
-        outcome: InvitationOutcome,
-        view: RoomView,
-        transition: Transition,
-    ) -> AgentRefusal | None:
-        invitation = (
-            None
-            if view.room_id is None
-            else self._places.standing_invitation(person, view.room_id, invitation_id, epoch, self._deadlines.now())
-        )
-        if invitation is None:
-            return AgentRefusal.STALE_INVITATION
-        self._end_invitation(view, person, invitation, outcome, transition)
+        self, person: Person, declined: DeclineInvitationArguments, view: RoomView, transition: Transition
+    ) -> DeclineInvitationRefusal | None:
+        if view.room_id is None:
+            return DeclineInvitationRefusal.STALE_INVITATION
+        decided = check_decline(self._places.entry(person, view.room_id), declined, now=self._now())
+        if isinstance(decided, DeclineInvitationRefusal):
+            return decided
+        self._end_invitation(view, person, decided, transition)
         return None
 
     async def agent_called(self, person: Person, own_account: OwnAccount) -> None:
@@ -495,9 +477,7 @@ class Participation(TransitionFeature):
         """A seat that left its room takes its places out in a change of that room at once and holds its agents for
         `seat_left`; a seat that left, parked or resumed tells the agents it sponsors."""
         del change
-        bound = [
-            (person, room_id, place) for person, room_id, place in self._places.entries() if place.sponsor == peer_id
-        ]
+        bound = self._places.bound_to(peer_id)
         if view.room_id is None:
             seat_room = self._seat_views.room_of(peer_id)
             if seat_room is not None:
@@ -516,14 +496,18 @@ class Participation(TransitionFeature):
     ) -> None:
         del view
         seat_room = self._seat_views.left(peer_id)
-        invitations = [
-            AbandonedInvitation(room_id, agent.key, agent.name, place.adder)
-            for person, room_id, place in bound
-            if isinstance(place, Invited)
-            for agent in [self._live.by_person[person]]
-        ]
-        for person, room_id, _ in bound:
-            self._places.remove(person, room_id)
+        now = self._now()
+        invitations = []
+        for person, room_id, place in bound:
+            if isinstance(place, OpenInvitation):
+                ended = self._places.end_for_departed_owner(person, room_id, now)
+                called = self._live.by_person[person]
+                invitations.append(
+                    AbandonedInvitation(room_id, called.key, called.name, PeerId(ended.inviter), ended.outcome)
+                )
+                self._deadlines.cancel(DeadlineKind.INVITATION, invitation_key(person, room_id))
+            else:
+                self._places.remove(person, room_id)
         if invitations:
             self._abandoned[peer_id] = invitations
         joined = [place for _, _, place in bound if isinstance(place, DialedAgent)]
@@ -544,8 +528,8 @@ class Participation(TransitionFeature):
             send_in_room(
                 view,
                 transition,
-                [invitation.adder],
-                AgentInvitationEndedFrame(invitation.agent_key, invitation.name, InvitationOutcome.OWNER_ABSENT),
+                [invitation.inviter],
+                AgentInvitationEndedFrame(invitation.agent_key, invitation.name, invitation.outcome),
             )
 
     def room_ended(self, room_id: str) -> None:
@@ -611,9 +595,7 @@ class Participation(TransitionFeature):
         if membership is Membership.FAILED:
             refusal = AgentRefusal.UNAVAILABLE
         else:
-            refusal = self._offers.refusal_of_add_now(view, read.seat, adding.agent, adding.sponsor, self._live)
-        if refusal is None:
-            self._invite(view, read.seat, adding.agent, adding.sponsor)
+            refusal = self._invite(view, read.seat, adding.agent, inviter_is_member=membership is Membership.MEMBER)
         self._offer(view, transition)
         if refusal is not None:
             # After the offers: every offers frame a seat gets after a refusal is a later one, which clears it.
@@ -637,7 +619,7 @@ class Participation(TransitionFeature):
         return agent.room_id
 
     def _on_add(self, peer_id: PeerId, frame: ForeignFrame, view: RoomView, transition: Transition) -> None:
-        """Refuse an add that cannot stand, or read the adder's groups afresh, which then decides it."""
+        """Refuse an add of an agent no registration holds, or read the adder's groups afresh, which then decides it."""
         agent_key = frame.data.get("agent_key")
         if not isinstance(agent_key, str):
             raise InvalidMessageError("An add needs the agent's key")
@@ -645,26 +627,39 @@ class Participation(TransitionFeature):
         if live is None:
             transition.send(peer_id, AgentRefusedFrame(AgentRefusal.GONE).to_json())
             return
-        refusal = self._offers.refusal_of_add(view, peer_id, live, membership_is_fresh=False)
-        if refusal is not None:
-            transition.send(peer_id, AgentRefusedFrame(refusal).to_json())
-            return
-        [sponsor] = view.seats_in(live.owner_subject)  # the checks before it found exactly one
-        transition.dispatch(self._offers.group_reads.for_add(peer_id, live, sponsor))
+        transition.dispatch(self._offers.group_reads.for_add(peer_id, live))
 
-    def _invite(self, view: RoomView, adder: PeerId, live: LiveAgent, sponsor: PeerId) -> None:
-        room_id = cast("str", view.room_id)  # the adder sits in it
-        invitation = Invited(
+    def _invite(
+        self, view: RoomView, inviter: PeerId, live: LiveAgent, *, inviter_is_member: bool
+    ) -> AgentRefusal | None:
+        """Call the agent as the calling standard decides on the facts of the call now: the refusal, or nothing when an
+        invitation stands. A repeated call by the seat that made the open invitation changes nothing."""
+        room_id = cast("str", view.room_id)  # the inviter sits in it
+        now = self._now()
+        before = self._places.entry(live.person, room_id)
+        decided = self._offers.call(
+            view,
+            inviter,
+            live,
+            self._live,
+            inviter_is_member=inviter_is_member,
             invitation_id=secrets.token_hex(AGENT_ID_BYTES),
-            epoch=self._places.epoch_of(live.person, room_id),
-            deadline=self._deadlines.now() + self._invitation_seconds,
-            sponsor=sponsor,
-            adder=adder,
+            now=now,
         )
-        self._places.put(live.person, room_id, invitation)
-        self._deadlines.set(DeadlineKind.INVITATION, invitation_key(live.person, room_id), self._invitation_seconds)
-        self._on_changed(live.person)
-        logger.info("agent.invited", room_ref=room_reference(room_id))
+        if isinstance(decided, AgentRefusal):
+            return decided
+        if decided.entry != before:
+            self._places.write(live.person, room_id, decided.entry)
+            self._arm_invitation(live.person, room_id, decided.invitation.expires_at, now)
+            self._on_changed(live.person)
+            logger.info("agent.invited", room_ref=room_reference(room_id))
+        return None
+
+    def _arm_invitation(self, person: Person, room_id: str, expires_at: datetime, now: datetime) -> None:
+        """Arm the invitation's timer to fire when it expires; the wall clock decides whether it has."""
+        self._deadlines.set(
+            DeadlineKind.INVITATION, invitation_key(person, room_id), (expires_at - now).total_seconds()
+        )
 
     async def _invitation_timer(self, key: str) -> None:
         person, room_id = invitation_of(key)
@@ -672,24 +667,31 @@ class Participation(TransitionFeature):
             await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_reference(room_id), reason="expired")
 
     def _invitation_ran_out(self, person: Person, view: RoomView, transition: Transition) -> bool:
-        """End the person's open invitation in the room, and say whether one was open."""
-        place = None if view.room_id is None else self._places.get(person, view.room_id)
-        if not isinstance(place, Invited):
+        """End the person's invitation in the room when it ran out, and say whether one ended; an invitation the wall
+        clock still holds open arms the timer for the rest."""
+        if view.room_id is None:
             return False
-        self._end_invitation(view, person, place, InvitationOutcome.NO_ANSWER, transition)
-        return True
+        entry = self._places.entry(person, view.room_id)
+        now = self._now()
+        ended = expired(entry, now=now)
+        if ended is not None:
+            self._end_invitation(view, person, ended, transition)
+            return True
+        if entry.invitation is not None:
+            self._arm_invitation(person, view.room_id, entry.invitation.expires_at, now)
+        return False
 
-    def _end_invitation(
-        self, view: RoomView, person: Person, invitation: Invited, outcome: InvitationOutcome, transition: Transition
-    ) -> None:
+    def _end_invitation(self, view: RoomView, person: Person, ended: Ended, transition: Transition) -> None:
         room_id = cast("str", view.room_id)  # the invitation is open in it
         agent = self._live.by_person[person]
-        self._places.end_invitation(person, room_id)
+        self._places.write(person, room_id, ended.entry)
         self._deadlines.cancel(DeadlineKind.INVITATION, invitation_key(person, room_id))
         self._on_changed(person)
         self._offer(view, transition)
         # After the offers, which list the agent as available again: the outcome then marks that row.
-        send_in_room(view, transition, [invitation.adder], AgentInvitationEndedFrame(agent.key, agent.name, outcome))
+        send_in_room(
+            view, transition, [PeerId(ended.inviter)], AgentInvitationEndedFrame(agent.key, agent.name, ended.outcome)
+        )
 
     def _arm(self, person: Person, seconds: float) -> None:
         self._deadlines.set(DeadlineKind.LEASE, person.key, seconds)
@@ -722,12 +724,10 @@ class Participation(TransitionFeature):
             self._agent_ended(place, transition)
             tell_left(place, view.members, transition)
 
-    def _standing_in(self, room_id: str, place: Invited | DialedAgent) -> PlaceStanding:
-        if isinstance(place, Invited):
-            expires_at = self._wall_clock() + place.deadline - self._deadlines.now()
-            return PlaceStanding(
-                room_id, PlaceState.INVITED, InvitationStanding(place.invitation_id, place.epoch, expires_at)
-            )
+    def _standing_in(self, person: Person, room_id: str, place: Place) -> PlaceStanding:
+        if isinstance(place, OpenInvitation):
+            invitation = InvitationStanding(place.id, self._places.epoch_of(person, room_id), place.expires_at)
+            return PlaceStanding(room_id, PlaceState.INVITED, invitation)
         state = PlaceState.PAUSED if self._transitions.view(room_id).is_parked(place.sponsor) else PlaceState.ACTIVE
         return PlaceStanding(room_id, state)
 
@@ -752,6 +752,10 @@ class Participation(TransitionFeature):
         self._agent_speech.end(agent)
         self._seeing.ended(agent)
         self.figures.agent_ended(agent)
+
+    def _now(self) -> datetime:
+        """The wall clock's time, which every decision of the calling standard reads."""
+        return datetime.fromtimestamp(self._wall_clock(), UTC)
 
     def _is_working(self, key: str) -> bool:
         return self._transitions.is_working(key)

@@ -1,16 +1,20 @@
-"""What each seat of a call may add: the agents it is offered, whether its control shows, and the refusals an add
-meets, all decided by the seats' membership in the realm group of agent adders as a read of their groups found it."""
+"""What each seat of a call may add: the agents it is offered, whether its control shows, and the facts the calling
+standard decides an add on, as the seats' membership in the realm group of agent adders a read of their groups found
+it and the call's seats give them."""
 
 from typing import TYPE_CHECKING, cast
+
+from agents.calling import AcceptFacts, CallFacts, Invited, OpenInvitation, OwnerAt, invite
 
 from hopin.participation.frames import AgentOffersFrame, Offer
 from hopin.participation.group_reads import GroupReads
 from hopin.participation.memberships import AGENT_ADDERS_GROUP, Membership, membership_in
-from hopin.participation.places import Invited
-from hopin.participation.vocabulary import AgentRefusal
+from hopin.participation.participants import DialedAgent
+from hopin.participation.vocabulary import AGENT_REFUSAL_OF_INVITE_REFUSAL, AgentRefusal
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+    from datetime import datetime
 
     from hopin.participation.group_reads import GroupsRead
     from hopin.participation.live_agents import LiveAgent, LiveAgents
@@ -63,38 +67,49 @@ class Offers:
                 seat.full = full
                 transition.send(peer_id, AgentOffersFrame(shown=shown, full=full, offers=list(offers)).to_json())
 
-    def refusal_of_add_now(
-        self, view: RoomView, peer_id: PeerId, live: LiveAgent, sponsor: PeerId, agents: LiveAgents
-    ) -> AgentRefusal | None:
-        """The add as it stands after the fresh read: the same registration and the same single seat of the owner."""
+    def call(
+        self,
+        view: RoomView,
+        inviter: PeerId,
+        live: LiveAgent,
+        agents: LiveAgents,
+        *,
+        inviter_is_member: bool,
+        invitation_id: str,
+        now: datetime,
+    ) -> Invited | AgentRefusal:
+        """The call as it stands after the fresh read: gone when the registration it was read for was replaced
+        meanwhile, else what the calling standard decides on the facts of the call now."""
         current = agents.by_person.get(live.person)
         if current is None or current.generation != live.generation:
             return AgentRefusal.GONE
-        refusal = self.refusal_of_add(view, peer_id, live, membership_is_fresh=True)
-        if refusal is None and view.seats_in(live.owner_subject) != (sponsor,):
-            return AgentRefusal.NO_SEAT
-        return refusal
+        room_id = cast("str", view.room_id)  # the inviter sits in it
+        seats = view.seats_in(live.owner_subject)
+        bound_to = seats[0] if seats else live.owner_subject  # an owner with no seat has nothing to bind to
+        facts = CallFacts(
+            inviter=inviter,
+            inviter_present=view.room_of(inviter) is not None,
+            inviter_is_member=inviter_is_member,
+            agent_listens=self._listens_to_standing(live.person),
+            agent_seated=isinstance(self._places.get(live.person, room_id), DialedAgent),
+            owner=live.owner_subject,
+            owner_at=owner_at(view, live.owner_subject, bound_to),
+            bound_to=bound_to,
+            seat_free=view.has_free_place,
+        )
+        decided = invite(self._places.entry(live.person, room_id), facts, invitation_id=invitation_id, now=now)
+        return decided if isinstance(decided, Invited) else AGENT_REFUSAL_OF_INVITE_REFUSAL[decided]
 
-    def refusal_of_add(
-        self, view: RoomView, peer_id: PeerId, live: LiveAgent, *, membership_is_fresh: bool
-    ) -> AgentRefusal | None:
-        """The refusals an add meets; a membership read before this add decides nothing, only the fresh one does."""
-        room_id = cast("str", view.room_id)  # the adder sits in it
-        sponsor = _sole_seat(view, live.owner_subject)
-        if isinstance(sponsor, AgentRefusal):
-            return sponsor
-        if view.is_parked(sponsor):
-            return AgentRefusal.SPONSOR_AWAY
-        if (
-            membership_is_fresh
-            and self._seat_views.of(peer_id, room_id).memberships.get(AGENT_ADDERS_GROUP) is Membership.NOT_MEMBER
-        ):
-            return AgentRefusal.NOT_ADDER
-        if self._places.get(live.person, room_id) is not None:
-            return AgentRefusal.ALREADY_THERE
-        if not view.has_free_place:
-            return AgentRefusal.BUSY
-        return None
+    def accept_facts(self, view: RoomView, live: LiveAgent, invitation: OpenInvitation) -> AcceptFacts:
+        """What an accept of the invitation reads of the call now: the owner's presence is judged against the seat the
+        invitation is bound to."""
+        return AcceptFacts(
+            holds_lease=True,  # the agent's registration is its lease
+            owner=live.owner_subject,
+            owner_at=owner_at(view, live.owner_subject, invitation.bound_to),
+            agent_seated=isinstance(self._places.get(live.person, cast("str", view.room_id)), DialedAgent),
+            seat_free=view.has_free_place,
+        )
 
     def _read_groups(self, view: RoomView, transition: Transition) -> None:
         """Read the groups of each seat whose membership in the agent adders group is unknown or failed to read, unless
@@ -130,11 +145,22 @@ class Offers:
             ):
                 continue
             place = self._places.get(live.person, room_id)
-            if isinstance(place, Invited) and place.adder == peer_id:
+            if isinstance(place, OpenInvitation) and place.inviter == peer_id:
                 offers.append(Offer(live.key, live.name, pending=True))
             elif place is None and view.has_free_place:
                 offers.append(Offer(live.key, live.name, pending=False))
         return tuple(offers)
+
+
+def owner_at(view: RoomView, owner_subject: str, bound_to: str) -> OwnerAt:
+    """Where the owner is by the call's presence rule: at the one seat the invitation is or will be bound to, away when
+    that seat waits to resume, elsewhere on any other seats, and absent on none."""
+    seats = view.seats_in(owner_subject)
+    if not seats:
+        return OwnerAt.ABSENT
+    if seats != (bound_to,):
+        return OwnerAt.ELSEWHERE
+    return OwnerAt.AWAY if view.is_parked(seats[0]) else OwnerAt.AT_BINDING
 
 
 def _sole_seat(view: RoomView, owner_subject: str) -> PeerId | AgentRefusal:
