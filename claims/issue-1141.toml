@@ -3,6 +3,6 @@ agent = "Claude ec75e0df-83db-4de9-9765-71b041e0ffeb"
 role = "builder"
 base = "0d7a5c897040d115a2d273464e63c867412309f4"
 branch = "claude/issue-1141-quality-0-25-0"
-scope = [".github/workflows/ci.yml", ".github/workflows/code-scanning.yml", ".github/workflows/release.yml", "frontend/vite.config.ts", "quality/baseline.toml"]
+scope = [".github/workflows/ci.yml", ".github/workflows/code-scanning.yml", ".github/workflows/release.yml", "frontend/vite.config.ts", "quality/baseline.toml", "quality/config.toml"]
 opened_commit = "4bb85f9878bbdeb16ea08b06f6d8f96d2ae3c634"
 whole_reason = "One quality release taken whole: its pins in the three workflows move together, and its new vitest-random and size rules need the shuffled config and the declared baseline entries in the same change."
