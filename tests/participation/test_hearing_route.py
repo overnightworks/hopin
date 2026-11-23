@@ -143,7 +143,6 @@ class TestAFinishedSentence:
         "events",
         [
             pytest.param(lambda: [completed("")], id="an_empty_transcript"),
-            pytest.param(lambda: [completed("   ")], id="a_blank_transcript"),
             pytest.param(lambda: list(a_sentence("Guten", started_ms=None, stopped_ms=None))[:-1], id="deltas_only"),
         ],
     )

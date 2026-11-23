@@ -209,14 +209,14 @@ importers:
         specifier: ^3.2.1
         version: 3.2.1
       overnightworks-design:
-        specifier: https://github.com/overnightworks/design/releases/download/v0.40.0/overnightworks-design-0.40.0.tgz
-        version: https://github.com/overnightworks/design/releases/download/v0.40.0/overnightworks-design-0.40.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.73.0))
+        specifier: https://github.com/overnightworks/design/releases/download/v0.41.0/overnightworks-design-0.41.0.tgz
+        version: https://github.com/overnightworks/design/releases/download/v0.41.0/overnightworks-design-0.41.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.73.0))
       overnightworks-figure:
         specifier: https://github.com/overnightworks/figure/releases/download/v0.10.0/overnightworks-figure-0.10.0.tgz
         version: https://github.com/overnightworks/figure/releases/download/v0.10.0/overnightworks-figure-0.10.0.tgz
       overnightworks-speech-browser:
-        specifier: https://github.com/overnightworks/speech/releases/download/v0.22.3/overnightworks-speech-browser-0.22.3.tgz
-        version: https://github.com/overnightworks/speech/releases/download/v0.22.3/overnightworks-speech-browser-0.22.3.tgz
+        specifier: https://github.com/overnightworks/speech/releases/download/v0.24.0/overnightworks-speech-browser-0.24.0.tgz
+        version: https://github.com/overnightworks/speech/releases/download/v0.24.0/overnightworks-speech-browser-0.24.0.tgz
       prettier:
         specifier: ^3.10.1
         version: 3.10.1
@@ -1267,9 +1267,9 @@ packages:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
     engines: {node: '>= 0.8.0'}
 
-  overnightworks-design@https://github.com/overnightworks/design/releases/download/v0.40.0/overnightworks-design-0.40.0.tgz:
-    resolution: {integrity: sha512-FcNQJAOmGx75AXap4v9+wNZ6te41PYvajP6AnEWcm+HFFGHhrmEXI1YwaYkU7gjWgWmoXQFI1P6ScsOJWazfMQ==, tarball: https://github.com/overnightworks/design/releases/download/v0.40.0/overnightworks-design-0.40.0.tgz}
-    version: 0.40.0
+  overnightworks-design@https://github.com/overnightworks/design/releases/download/v0.41.0/overnightworks-design-0.41.0.tgz:
+    resolution: {integrity: sha512-kVheofJ8ZGjMwgGPQcixhTk1/Kp8EX6aWQTCivKFsuARcw1zQ4a/QKfrPWfJyRkuLXRAM33QthM5GPZcjFRKDA==, tarball: https://github.com/overnightworks/design/releases/download/v0.41.0/overnightworks-design-0.41.0.tgz}
+    version: 0.41.0
     peerDependencies:
       svelte: ^5.20.0
 
@@ -1278,9 +1278,9 @@ packages:
     version: 0.10.0
     hasBin: true
 
-  overnightworks-speech-browser@https://github.com/overnightworks/speech/releases/download/v0.22.3/overnightworks-speech-browser-0.22.3.tgz:
-    resolution: {integrity: sha512-D+6q3R1NuDkM1iT3fTi7GmThD32IMP7MTAUHOTF1b1Xt/jUe0Vq++IiRgTDSN+uZ8jmFoikH6PmXhDTARXGEoQ==, tarball: https://github.com/overnightworks/speech/releases/download/v0.22.3/overnightworks-speech-browser-0.22.3.tgz}
-    version: 0.22.3
+  overnightworks-speech-browser@https://github.com/overnightworks/speech/releases/download/v0.24.0/overnightworks-speech-browser-0.24.0.tgz:
+    resolution: {integrity: sha512-Zsvu19iGWNTKiEb1DK6xpxt/DD/WH9TT9sycr09mD6w54HRAyA+DM3oFJCCsntypARAHjW+48XicXJqXGFjzAg==, tarball: https://github.com/overnightworks/speech/releases/download/v0.24.0/overnightworks-speech-browser-0.24.0.tgz}
+    version: 0.24.0
 
   p-limit@3.1.0:
     resolution: {integrity: sha512-TYOanM3wGwNGsZN2cVTYPArw454xnXj5qmWF1bEoAc4+cU/ol7GVh7odevjp1FNHduHc3KZMcFduxU5Xc6uJRQ==}
@@ -2671,7 +2671,7 @@ snapshots:
       type-check: 0.4.0
       word-wrap: 1.2.5
 
-  overnightworks-design@https://github.com/overnightworks/design/releases/download/v0.40.0/overnightworks-design-0.40.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.73.0)):
+  overnightworks-design@https://github.com/overnightworks/design/releases/download/v0.41.0/overnightworks-design-0.41.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.73.0)):
     dependencies:
       svelte: 5.57.3(@typescript-eslint/types@8.73.0)
 
@@ -2681,7 +2681,7 @@ snapshots:
       '@pixiv/three-vrm-animation': 3.5.5(three@0.187.0)
       three: 0.187.0
 
-  overnightworks-speech-browser@https://github.com/overnightworks/speech/releases/download/v0.22.3/overnightworks-speech-browser-0.22.3.tgz: {}
+  overnightworks-speech-browser@https://github.com/overnightworks/speech/releases/download/v0.24.0/overnightworks-speech-browser-0.24.0.tgz: {}
 
   p-limit@3.1.0:
     dependencies:

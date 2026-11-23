@@ -71,7 +71,7 @@ export function fakePlayers() {
                 fake.stoppers.push(() => end({ kind: "stopped", playedSeconds: 0 }));
                 fake.mutes.push(() => end({ kind: "muted", playedSeconds: 0 }));
                 if (fake.muted) void end({ kind: "muted", playedSeconds: 0 });
-                return { started: started.promise, ended: ended.promise };
+                return { started: started.promise, ended: ended.promise, playedSeconds: () => 0 };
             },
             // Like the player: every sound handed over so far ends stopped, one already ended staying as it ended.
             stop: () => {
