@@ -57,13 +57,7 @@ class SpeechSettings(BaseSettings):
 
     @model_validator(mode="after")
     def _origin_is_plain_http_and_names_its_scope(self) -> SpeechSettings:
-        if self.origin is None:
-            return self
-        prefix = self.model_config["env_prefix"]
-        if not _is_plain_http_origin(self.origin):
-            raise ValueError(f"{prefix}ORIGIN must be http://host[:port] with no path")
-        if self.audience_scope is None:
-            raise ValueError(f"{prefix}AUDIENCE_SCOPE is required when {prefix}ORIGIN is set")
+        check_origin_names_its_scope(self.model_config["env_prefix"], self.origin, self.audience_scope)
         return self
 
     @model_validator(mode="after")
@@ -81,6 +75,17 @@ class SpeechSettings(BaseSettings):
                 f"{prefix}ORIGIN and {prefix}AUDIENCE_SCOPE are required when {prefix}HEARING or {prefix}SPEAKING is on"
             )
         return self
+
+
+def check_origin_names_its_scope(prefix: str, origin: str | None, audience_scope: str | None) -> None:
+    """Refuse an origin that is no plain http origin, and an origin without its audience scope; a service without an
+    origin is off and needs neither. The message names the setting and never echoes the value."""
+    if origin is None:
+        return
+    if not _is_plain_http_origin(origin):
+        raise ValueError(f"{prefix}ORIGIN must be http://host[:port] with no path")
+    if audience_scope is None:
+        raise ValueError(f"{prefix}AUDIENCE_SCOPE is required when {prefix}ORIGIN is set")
 
 
 def _is_plain_http_origin(origin: str) -> bool:

@@ -90,6 +90,7 @@ if TYPE_CHECKING:
     from webauth.ports import SessionTransaction
 
     from hopin.agent.speech_settings import SpeechService
+    from hopin.agent.video_settings import VideoService
     from hopin.config.settings import RealmSettings
     from hopin.participation.chat_window import WindowRead, WindowTalkedOver
     from hopin.participation.places import PlaceStanding
@@ -439,6 +440,7 @@ class ParticipationFeature:
     figure_transport: FigureTransport = get_figure_over_https
     hearing: SpeechService | None = None
     speaking: SpeechService | None = None
+    video: VideoService | None = None
     voices: VoiceStore = field(default_factory=VoiceStore)
     subscription_wait_seconds: float = PLACE_SUBSCRIPTION_WAIT_SECONDS
 
