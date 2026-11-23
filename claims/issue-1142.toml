@@ -1,8 +1,0 @@
-claim_id = "3742d8197f484637b083f51d4ba30161"
-agent = "Claude ec75e0df-83db-4de9-9765-71b041e0ffeb"
-role = "builder"
-base = "0d7a5c897040d115a2d273464e63c867412309f4"
-branch = "claude/issue-1142-speech-0-24-0"
-scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/features/participation/capture.fixture.ts", "frontend/src/lib/features/participation/player.fixture.ts", "pyproject.toml", "tests/participation/test_hearing_route.py", "uv.lock"]
-opened_commit = "b553d7cd8f4f90e2b6482e1756aac9285ed4ac5b"
-whole_reason = "One speech release taken whole: the client and the browser package move to one tag together, with the one fake the release's wire change breaks."
