@@ -10,9 +10,7 @@ class TestServeRefusesTheGameSettings:
     @pytest.mark.parametrize(
         ("setting", "value", "expected_line"),
         [
-            pytest.param(
-                "HOPIN_AGENT__API_GROUP", None, "HOPIN_AGENT__API_GROUP is missing", id="missing_agent_api_group"
-            ),
+            pytest.param("REALM_AI_GROUP", None, "REALM_AI_GROUP is missing", id="missing_agent_api_group"),
             pytest.param(
                 "HOPIN_AGENT__GATEWAY__ORIGIN",
                 "sentinel-gateway",

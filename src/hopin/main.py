@@ -244,6 +244,9 @@ def refusal_lines(settings_class: type[BaseSettings], invalid: ValidationError) 
             lines.append(error["msg"].removeprefix(MODEL_VALIDATOR_MESSAGE_PREFIX))
             continue
         state = "missing" if error["type"] == "missing" else "malformed"
+        if (key := getattr(settings_class, "environment_keys", {}).get(tuple(error["loc"]))) is not None:
+            lines.append(f"{key} is {state}")
+            continue
         if delimiter is None:
             name = str(error["loc"][0])
         elif state == "missing" and len(error["loc"]) == 1:
