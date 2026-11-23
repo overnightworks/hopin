@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 from agents.member import LEASE_SECONDS
 from speech_client.wire import VoiceId
-from video_client.session_wire import SessionCreated, SessionInfo, SessionUpdate, error_event
+from video_client.session_wire import SessionCreated, SessionInfo, SessionUpdate, SessionUpdated, error_event
 from video_client.wire import AUTHORIZATION_HEADER, WORKLOAD_TOKEN_HEADER, RefusalCode, caller_headers
 from websockets.frames import CloseCode
 
@@ -230,7 +230,11 @@ class TestAVideoSessionOpens:
         [
             pytest.param(lambda session: session.fail(RefusalCode.UNAVAILABLE), VideoFailure.ERROR, id="an-error"),
             pytest.param(lambda session: session.hang_up(), VideoFailure.CLOSED, id="a-close"),
-            pytest.param(lambda session: session.say(b"\x00"), VideoFailure.MALFORMED, id="a-binary-frame"),
+            pytest.param(
+                lambda session: session.say(SessionUpdated().model_dump_json().encode()),
+                VideoFailure.MALFORMED,
+                id="an-event-in-a-binary-frame",
+            ),
             pytest.param(lambda session: session.say("no event"), VideoFailure.MALFORMED, id="a-text-that-is-no-event"),
         ],
     )
