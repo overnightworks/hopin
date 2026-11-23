@@ -1,8 +1,0 @@
-claim_id = "bfa2528ebd2547bc9005bba699fafb60"
-agent = "Claude ec75e0df-83db-4de9-9765-71b041e0ffeb"
-role = "builder"
-base = "e4491606ce37ac07dc7f2715b6eac788aaff648e"
-branch = "claude/issue-1124-webauth-v0-45-0"
-scope = ["README.md", "pyproject.toml", "src/hopin/app.py", "src/hopin/stores/postgres.py", "tests/stores/test_identity_outage.py", "tests/stores/test_postgres_identity.py", "tests/test_app.py", "uv.lock"]
-opened_commit = "b54479db9adc58f5e42c95b27a21bdde22cc291a"
-whole_reason = "One webauth release is one pin with its uv.lock, the sweep's catch it forces, the docstring and README row that name the outage's answer, and the tests that pin the error class, so no part stands without the rest."
