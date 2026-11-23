@@ -83,7 +83,7 @@ def check_origin_names_its_scope(prefix: str, origin: str | None, audience_scope
     if origin is None:
         return
     if not _is_plain_http_origin(origin):
-        raise ValueError(f"{prefix}ORIGIN must be http://host[:port] with no path")
+        raise ValueError(f"{prefix}ORIGIN must be http://host[:port] with no path, query or fragment")
     if audience_scope is None:
         raise ValueError(f"{prefix}AUDIENCE_SCOPE is required when {prefix}ORIGIN is set")
 
@@ -95,4 +95,11 @@ def _is_plain_http_origin(origin: str) -> bool:
         _port = address.port
     except ValueError:
         return False
-    return address.scheme == "http" and bool(address.hostname) and not address.path
+    # An empty query or fragment parses to nothing, so the marks are looked for, as the services' clients do.
+    return (
+        address.scheme == "http"
+        and bool(address.hostname)
+        and not address.path
+        and "?" not in origin
+        and "#" not in origin
+    )
