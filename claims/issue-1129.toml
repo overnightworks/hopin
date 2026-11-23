@@ -1,0 +1,8 @@
+claim_id = "31949e34e2b14d55943af94474136163"
+agent = "Claude ec75e0df-83db-4de9-9765-71b041e0ffeb"
+role = "builder"
+base = "df8e0525606ead4f133869be37976b965c69d2e0"
+branch = "claude/issue-1129-hopin-decides-a-call-an-invitation-s-acc"
+scope = ["docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation/index.test.ts", "frontend/src/lib/features/participation/offers.svelte.ts", "frontend/src/lib/features/participation/wire.ts", "pyproject.toml", "quality/config.toml", "src/hopin/agent/mcp.py", "src/hopin/agent/tools.py", "src/hopin/participation/feature.py", "src/hopin/participation/frames.py", "src/hopin/participation/group_reads.py", "src/hopin/participation/offers.py", "src/hopin/participation/places.py", "src/hopin/participation/vocabulary.py", "tests/participation/conftest.py", "tests/participation/test_feature_adding.py", "tests/participation/test_feature_invitation.py", "tests/participation/test_feature_lease_timer.py", "tests/participation/test_feature_own_account.py", "uv.lock"]
+opened_commit = "36910f0c944f4e87630ab07cc859b5e6bbfbb50d"
+whole_reason = "One decider move: hopin's call, accept, decline, expiry and owner-left checks are replaced by agents.calling on facts hopin derives, with the pin, the import loosenings and the CALL-51 and CALL-52 text that move with it; a part alone would leave two deciders."
