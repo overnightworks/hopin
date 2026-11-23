@@ -3,6 +3,7 @@ loopback port under a fake issuer and a fake TURN provider, and the fall to its 
 
 import asyncio
 import json
+import socket
 import threading
 import time
 from http import HTTPStatus
@@ -414,9 +415,10 @@ class TestASessionThatDoesNotOpen:
         assert (line["outcome"], line["reason"], figure_is_still_shown(scene)) == ("refused", reason.value, True)
         fake_video.next_session().wait_until_closed()
 
-    def test_call_82_a_service_that_nothing_listens_on_ends_the_open_as_unreachable(self, fake_video):
-        origin = fake_video.origin
-        fake_video.stop()
+    def test_call_82_a_service_that_nothing_listens_on_ends_the_open_as_unreachable(self):
+        with socket.socket() as unused:
+            unused.bind(("127.0.0.1", 0))
+            origin = f"http://127.0.0.1:{unused.getsockname()[1]}"
 
         opened = asyncio.run(video_session.open_connection(origin, ESTABLISHED, {}, []))
 

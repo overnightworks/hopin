@@ -276,9 +276,9 @@ allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
 id = "speech-service-only-through-the-connector"
-name = "Only the connector reaches the speech and video services"
+name = "Only the connector reaches the speech service"
 type = "forbidden"
-# The speech client, under either of its distribution names, and the video client are the connector's alone.
+# The speech client, under either of its distribution names, and the video client are the connector's alone; the video service shares this contract.
 source_modules = ["hopin.main", "hopin.app"]
 forbidden_modules = ["speech_client", "speech_runtime_client", "video_client"]
 # main imports hopin.agent to switch the game in; only a direct import is the violation.
