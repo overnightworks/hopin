@@ -344,7 +344,7 @@ class TestAnInvitation:
         self, invited, link, groups_of_seat, wall_clock
     ):
         """CALL-52 (CALLING-8): An invitation the wall clock lapsed before its timer ran ends with no answer to the seat
-        that made it, even when another seat calls the agent first."""
+        that made it, even when another seat calls the agent first, and after the offers that follow."""
         groups_of_seat["second"] = frozenset({AGENT_ADDERS_GROUP})
         second = await link.join("second", invited.owner.room_id)
         await let_reads_finish()
@@ -354,8 +354,11 @@ class TestAnInvitation:
         await second.say({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offer["agent_key"]})
         await let_reads_finish()
 
-        [ended] = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
-        assert ended["outcome"] == CallOutcome.NO_ANSWER.value
+        told = invited.member.frames(ParticipationSignal.AGENT_OFFERS, ParticipationSignal.AGENT_INVITATION_ENDED)
+        assert (told[-1]["type"], told[-1].get("outcome")) == (
+            ParticipationSignal.AGENT_INVITATION_ENDED.value,
+            CallOutcome.NO_ANSWER.value,
+        )
 
     async def test_a_room_that_ends_while_its_owners_cleanup_is_pending_tells_the_adder_nothing(
         self, invited, scheduler

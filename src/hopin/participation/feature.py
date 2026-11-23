@@ -592,13 +592,19 @@ class Participation(TransitionFeature):
             self._offer(view, transition, read=False)
             return
         refusal: AgentRefusal | None
+        lapsed: Ended | None = None
         if membership is Membership.FAILED:
             refusal = AgentRefusal.UNAVAILABLE
         else:
+            now = self._now()
+            lapsed = self._close_lapsed(view, adding.agent.person, now)
             refusal = self._invite(
-                view, transition, read.seat, adding.agent, inviter_is_member=membership is Membership.MEMBER
+                view, read.seat, adding.agent, now, inviter_is_member=membership is Membership.MEMBER
             )
         self._offer(view, transition)
+        if lapsed is not None:
+            # After the offers: the outcome marks the row the offers list the agent on again.
+            self._tell_outcome(view, adding.agent.person, lapsed, transition)
         if refusal is not None:
             # After the offers: every offers frame a seat gets after a refusal is a later one, which clears it.
             transition.send(read.seat, AgentRefusedFrame(refusal).to_json())
@@ -631,17 +637,28 @@ class Participation(TransitionFeature):
             return
         transition.dispatch(self._offers.group_reads.for_add(peer_id, live))
 
+    def _close_lapsed(self, view: RoomView, person: Person, now: datetime) -> Ended | None:
+        """End the person's invitation in the room when the wall clock lapsed it, before a call decides on the room
+        without it; the end its inviter has yet to hear of, or nothing."""
+        room_id = cast("str", view.room_id)  # the inviter sits in it
+        lapsed = expired(self._places.entry(person, room_id), now=now)
+        if lapsed is not None:
+            self._close_invitation(person, room_id, lapsed)
+            logger.info(INVITATION_CLOSED_EVENT, room_ref=room_reference(room_id), reason="expired")
+        return lapsed
+
     def _invite(
-        self, view: RoomView, transition: Transition, inviter: PeerId, live: LiveAgent, *, inviter_is_member: bool
+        self,
+        view: RoomView,
+        inviter: PeerId,
+        live: LiveAgent,
+        now: datetime,
+        *,
+        inviter_is_member: bool,
     ) -> AgentRefusal | None:
         """Call the agent as the calling standard decides on the facts of the call now: the refusal, or nothing when an
-        invitation stands. A repeated call by the seat that made the open invitation changes nothing. An invitation the
-        wall clock lapsed ends first, so its inviter hears its outcome before the call replaces it."""
+        invitation stands. A repeated call by the seat that made the open invitation changes nothing."""
         room_id = cast("str", view.room_id)  # the inviter sits in it
-        now = self._now()
-        lapsed = expired(self._places.entry(live.person, room_id), now=now)
-        if lapsed is not None:
-            self._end_invitation(view, live.person, lapsed, transition)
         before = self._places.entry(live.person, room_id)
         decided = self._offers.call(
             view,
@@ -688,13 +705,19 @@ class Participation(TransitionFeature):
         return False
 
     def _end_invitation(self, view: RoomView, person: Person, ended: Ended, transition: Transition) -> None:
-        room_id = cast("str", view.room_id)  # the invitation is open in it
-        agent = self._live.by_person[person]
+        self._close_invitation(person, cast("str", view.room_id), ended)  # the invitation is open in it
+        self._offer(view, transition)
+        self._tell_outcome(view, person, ended, transition)
+
+    def _close_invitation(self, person: Person, room_id: str, ended: Ended) -> None:
         self._places.write(person, room_id, ended.entry)
         self._deadlines.cancel(DeadlineKind.INVITATION, invitation_key(person, room_id))
         self._on_changed(person)
-        self._offer(view, transition)
-        # After the offers, which list the agent as available again: the outcome then marks that row.
+
+    def _tell_outcome(self, view: RoomView, person: Person, ended: Ended, transition: Transition) -> None:
+        """Tell the inviter the outcome, after the offers: they list the agent as available again, and the outcome
+        marks that row."""
+        agent = self._live.by_person[person]
         send_in_room(
             view, transition, [PeerId(ended.inviter)], AgentInvitationEndedFrame(agent.key, agent.name, ended.outcome)
         )
