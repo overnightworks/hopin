@@ -12,8 +12,8 @@ SETTINGS_MODULE = SOURCE / "agent" / "settings.py"
 CLIENT_CONFIG = f"{CLIENT}.config"
 # The tools name only the client's tool contract and the member records, the MCP module only the MCP profile, the
 # member records and the tool contract, the hearing adapter only the hearing record, the member records and the tool
-# contract, and participation only the calling standard and the member records; import-linter squashes an external
-# package to its root, so only this test can hold the parts.
+# contract; import-linter squashes an external package to its root, so only this test can hold these parts.
+# Participation is held by its import contract.
 CLIENT_PARTS_OF = {
     SOURCE / "agent" / "tools.py": {f"{CLIENT}.member", f"{CLIENT}.tools"},
     SOURCE / "agent" / "mcp.py": {
@@ -23,12 +23,16 @@ CLIENT_PARTS_OF = {
         f"{CLIENT}.tools",
     },
     SOURCE / "agent" / "hearing.py": {f"{CLIENT}.mcp_server", f"{CLIENT}.member", f"{CLIENT}.tools"},
-    **{path: {f"{CLIENT}.calling", f"{CLIENT}.member"} for path in (SOURCE / "participation").rglob("*.py")},
 }
+PARTICIPATION = SOURCE / "participation"
 
 
-@pytest.mark.parametrize("path", sorted(SOURCE.rglob("*.py")), ids=lambda path: str(path.relative_to(SOURCE)))
-def test_only_the_connector_names_the_client_and_only_its_settings_name_the_client_config(path):
+@pytest.mark.parametrize(
+    "path",
+    sorted(path for path in SOURCE.rglob("*.py") if PARTICIPATION not in path.parents),
+    ids=lambda path: str(path.relative_to(SOURCE)),
+)
+def test_each_module_names_only_its_allowed_parts_of_the_client_and_only_the_settings_name_its_config(path):
     modules = imported_modules(path)
     client = {module for module in modules if names(module, CLIENT)}
     client_config = {module for module in client if names(module, CLIENT_CONFIG)}
