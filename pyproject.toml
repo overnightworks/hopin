@@ -10,6 +10,7 @@ dependencies = [
     "overnightworks-logline @ git+https://github.com/overnightworks/logline@v1.9.0",
     "overnightworks-speech-client @ git+https://github.com/overnightworks/speech@v0.22.3#subdirectory=packages/client",
     "overnightworks-tandem @ git+https://github.com/overnightworks/tandem@v0.15.0",
+    "overnightworks-video-client @ git+https://github.com/overnightworks/video@v0.3.0#subdirectory=packages/client",
     "overnightworks-webauth[postgres] @ git+https://github.com/overnightworks/webauth@v0.46.0",
     "psycopg[binary]>=3.2",
     "pydantic>=2.10",
@@ -38,6 +39,7 @@ no-binary-package = [
     "overnightworks-logline",
     "overnightworks-speech-client",
     "overnightworks-tandem",
+    "overnightworks-video-client",
     "overnightworks-webauth",
 ]
 # Their build backends run with these exact tools, as hatchling is pinned above.
