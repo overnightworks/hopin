@@ -149,9 +149,10 @@ def with_database_readiness(shared_stores: SharedStores, engine: Engine) -> Shar
 class PostgresIdentity:
     """The accounts and sessions over the engine, as `IdentityStores`.
 
-    Each entry is `database_errors_as_store_errors()` around `engine.begin()`, so a connection that cannot open and a
-    commit that fails raise `SessionStoreError` like a failed statement. A sign-in entry takes the advisory lock of
-    every process first; the audit events of a block that ends without an exception reach the sink before the commit.
+    Each entry is `database_errors_as_store_errors()` around `engine.begin()`: an unreachable database at open or commit
+    raises `StoreUnavailableError`, and every other database failure raises `SessionStoreError`. A sign-in entry takes
+    the advisory lock of every process first; the audit events of a block that ends without an exception reach the sink
+    before the commit.
     """
 
     engine: Engine
