@@ -595,7 +595,9 @@ class Participation(TransitionFeature):
         if membership is Membership.FAILED:
             refusal = AgentRefusal.UNAVAILABLE
         else:
-            refusal = self._invite(view, read.seat, adding.agent, inviter_is_member=membership is Membership.MEMBER)
+            refusal = self._invite(
+                view, transition, read.seat, adding.agent, inviter_is_member=membership is Membership.MEMBER
+            )
         self._offer(view, transition)
         if refusal is not None:
             # After the offers: every offers frame a seat gets after a refusal is a later one, which clears it.
@@ -630,12 +632,16 @@ class Participation(TransitionFeature):
         transition.dispatch(self._offers.group_reads.for_add(peer_id, live))
 
     def _invite(
-        self, view: RoomView, inviter: PeerId, live: LiveAgent, *, inviter_is_member: bool
+        self, view: RoomView, transition: Transition, inviter: PeerId, live: LiveAgent, *, inviter_is_member: bool
     ) -> AgentRefusal | None:
         """Call the agent as the calling standard decides on the facts of the call now: the refusal, or nothing when an
-        invitation stands. A repeated call by the seat that made the open invitation changes nothing."""
+        invitation stands. A repeated call by the seat that made the open invitation changes nothing. An invitation the
+        wall clock lapsed ends first, so its inviter hears its outcome before the call replaces it."""
         room_id = cast("str", view.room_id)  # the inviter sits in it
         now = self._now()
+        lapsed = expired(self._places.entry(live.person, room_id), now=now)
+        if lapsed is not None:
+            self._end_invitation(view, live.person, lapsed, transition)
         before = self._places.entry(live.person, room_id)
         decided = self._offers.call(
             view,
