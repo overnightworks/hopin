@@ -132,3 +132,25 @@ class TestFrameSequence:
         during, *after = commits
         assert during.received[guest.peer_id] == guest.sent_count - 1
         assert after[-1].received[guest.peer_id] == guest.sent_count
+
+    async def test_a_frame_that_changes_nothing_is_dropped_with_its_seat_when_the_call_ends_meanwhile(
+        self, link, commits, monkeypatch
+    ):
+        host, guest = await host_and_guest(link)
+        refusal_log = Hold()
+
+        async def held_log(event, **_fields):
+            if event == "relay.refused":
+                await refusal_log.hold()
+
+        monkeypatch.setattr("hopin.signaling.routing.logger", SimpleNamespace(ainfo=held_log))
+        guest.sent_count += 1
+        guest.socket.push(text_frame({**note_for(host, "hi"), "target": "nobody", "seq": guest.sent_count}))
+        await refusal_log.reached()
+        commits.clear()
+
+        await host.say({"type": SignalType.END_ROOM.value})
+        refusal_log.release.set()
+        await link.settle(guest.socket)
+
+        assert guest.peer_id not in commits[-1].received

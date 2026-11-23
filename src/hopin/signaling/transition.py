@@ -438,6 +438,7 @@ class InMemoryCallStore:
                 self._seats.attach(peer_id, socket)
             case SeatForgotten(peer_id):
                 forgotten = self._records.pop(peer_id, None)
+                self._unwritten_seqs.pop(peer_id, None)
                 self._seats.detach(peer_id)
                 if forgotten is not None and forgotten.park is not None:
                     self._deadlines.cancel(DeadlineKind.RESUME_WINDOW, peer_id)
