@@ -66,6 +66,7 @@ class Session:
     look: str
     client_messages: list[str] = field(default_factory=list)
     closed: threading.Event = field(default_factory=threading.Event)
+    close_code: int | None = None
     _outgoing: queue.Queue[ServerEvent | None] = field(default_factory=queue.Queue)
     _arrived: threading.Condition = field(default_factory=threading.Condition)
 
@@ -188,6 +189,7 @@ class FakeVideo:
         except ConnectionClosed:
             pass
         finally:
+            session.close_code = connection.close_code
             session.closed.set()
 
     def _serve(self, connection: ServerConnection, session: Session) -> None:

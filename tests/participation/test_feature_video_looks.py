@@ -11,6 +11,7 @@ from agents.member import LEASE_SECONDS
 from speech_client.wire import VoiceId
 from video_client.session_wire import SessionUpdate
 from video_client.wire import AUTHORIZATION_HEADER, WORKLOAD_TOKEN_HEADER, RefusalCode, caller_headers
+from websockets.frames import CloseCode
 
 from hopin.agent import video_session
 from hopin.agent.mcp import ParticipationFeature
@@ -500,6 +501,25 @@ class TestThePlaceEnds:
         assert lines.wait_for_event(ENDED_EVENT, 10)
         [line] = ended_lines(lines)
         assert line["outcome"] == "ok"
+
+
+class TestTheAppsShutdown:
+    def test_call_81_a_session_still_waiting_for_its_update_closes_and_writes_its_line_when_the_app_shuts_down(
+        self, scene, fake_video, with_a_figure_after, lines
+    ):
+        fake_video.updates = False
+        opening = threading.Thread(target=accepted, args=(scene, with_a_figure_after))
+        opening.start()
+        session = fake_video.next_session()
+        session.wait_for_update()
+
+        scene.call.sockets.close()
+        scene.call.client.__exit__(None, None, None)
+        opening.join(10)
+
+        session.wait_until_closed()
+        [line] = ended_lines(lines)
+        assert (line["outcome"], session.close_code) == ("ok", CloseCode.NORMAL_CLOSURE)
 
 
 class TestTheTokensAreHeldNowhereAfterTheUpgrade:

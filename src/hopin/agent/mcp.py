@@ -511,6 +511,8 @@ class ParticipationFeature:
                     await self._enter_bounded(stack, front)
                     yield
             finally:
+                if opening is not None:
+                    await opening.shut_down()
                 await built.shut_down()
                 for store in stores:
                     store.shut_down()

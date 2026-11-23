@@ -146,6 +146,11 @@ async def open_connection(
         failure = ended.failure
     except OSError, WebSocketException:
         failure = VideoFailure.UNREACHABLE
+    except asyncio.CancelledError:
+        # HopIn's shutdown: the connection that already upgraded closes before the cancellation goes on.
+        if connection is not None:
+            await connection.close()
+        raise
     else:
         # The connection keeps the upgrade's request, whose headers carry both tokens; the session holds them nowhere.
         assert connection.request is not None  # noqa: S101 - the handshake that just answered set it
@@ -213,7 +218,15 @@ class VideoOpening:
         self._participation = participation
         self._scheduler = scheduler
         self._wall_clock = wall_clock
+        self._opens: set[asyncio.Task[None]] = set()
         self._sessions: set[asyncio.Task[None]] = set()
+
+    async def shut_down(self) -> None:
+        """HopIn's shutdown: the opens still under way end, each closing the connection it upgraded and writing its
+        line. A session already open closes with its place, which the call core ends."""
+        for opening in self._opens:
+            opening.cancel()
+        await asyncio.gather(*self._opens, return_exceptions=True)
 
     def after_accept(self, person: Person, looks: AcceptedVideoLooks, connection: HTTPConnection) -> None:
         """Start the open for the agent the accept joined when it lists a video look ahead of its figure look. The
@@ -225,6 +238,14 @@ class VideoOpening:
             self._scheduler.call_later(0, partial(self._open, agent, looks.names, connection))
 
     async def _open(self, agent: DialedAgent, names: tuple[str, ...], connection: HTTPConnection) -> None:
+        opening = asyncio.get_running_loop().create_task(self._open_session(agent, names, connection))
+        self._opens.add(opening)
+        opening.add_done_callback(self._opens.discard)
+        await asyncio.wait({opening})
+        if not opening.cancelled():
+            opening.result()
+
+    async def _open_session(self, agent: DialedAgent, names: tuple[str, ...], connection: HTTPConnection) -> None:
         look = await self._first_ready(names)
         if look is None:
             return
@@ -233,7 +254,11 @@ class VideoOpening:
         if isinstance(look, VideoFailure):
             video_looks.refused(agent, attempt, look)
             return
-        failure = await self._opened(agent, look, connection, attempt)
+        try:
+            failure = await self._opened(agent, look, connection, attempt)
+        except asyncio.CancelledError:
+            attempt.end()
+            raise
         if failure is not None:
             video_looks.refused(agent, attempt, failure)
 
