@@ -21,6 +21,7 @@ from hopin.rooms.models import Account
 from hopin.signaling.seats import SeatRecord, hash_token
 from tests.signaling.support.browsers import (
     MISSING,
+    HeldWrite,
     Link,
     fill_server_log,
     host_and_guest,
@@ -517,6 +518,21 @@ class TestResumeLogs:
         assert host.frames(SignalType.PARTICIPANT_LEFT) == []
         await host.say(note_for(guest, "live"))
         assert newer_socket.sent[-1]["candidate"] == "live"
+
+    async def test_room_ending_while_the_resumed_frame_is_written_leaves_the_resumed_seat_nothing_to_replay(self, link):
+        host, guest = await host_and_guest(link)
+        await guest.drop()
+        resuming = await link.open(account_named("guest"))
+        writing_resumed = HeldWrite(resuming, first_only=True)
+        guest.sockets.append(resuming)
+        resuming.push(text_frame(guest.resume_frame()))
+        await writing_resumed.reached()
+        await host.say({"type": SignalType.END_ROOM.value})
+
+        writing_resumed.release.set()
+        await link.settle(resuming)
+
+        assert resuming.closed_with == SEAT_CLOSED_BY_SERVER_CODE
 
     async def test_replay_stops_when_the_socket_breaks_and_the_next_resume_gets_the_rest(self, link):
         host, guest = await host_and_guest(link)

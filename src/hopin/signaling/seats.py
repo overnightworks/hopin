@@ -155,9 +155,9 @@ class Seats:
     async def replay(self, peer_id: PeerId, socket: SeatSocket, last_seq: int) -> bool:
         """Write the seat's logged frames after the seq the browser last dispatched, then open the socket to the frames
         that follow; false when the log no longer reaches back to that seq."""
-        record = self._records[peer_id]
         cursor = last_seq
         while self._sockets.get(peer_id) is socket:
+            record = self._records[peer_id]
             if not record.log.reaches_back_to(cursor):
                 return False
             pending = record.log.since(cursor)
