@@ -3,6 +3,6 @@ agent = "Claude ec75e0df-83db-4de9-9765-71b041e0ffeb"
 role = "builder"
 base = "df8e0525606ead4f133869be37976b965c69d2e0"
 branch = "claude/issue-1123-take-logline-v1-9-0-closing-lines-carry"
-scope = ["docs/call.md", "pyproject.toml", "src/hopin/participation/shown_figures.py", "tests/participation/test_feature_figure_end.py", "uv.lock"]
+scope = ["docs/call.md", "pyproject.toml", "src/hopin/participation/shown_figures.py", "tests/game/test_table.py", "tests/participation/test_feature_figure_end.py", "uv.lock"]
 opened_commit = "fb94500075a431e6865c4b114e5f9791cba18b45"
 whole_reason = "One pin raise and one event line with its test and the CALL line that names it."
