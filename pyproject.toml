@@ -259,7 +259,7 @@ source_modules = ["hopin.participation"]
 # agent_runtime_client stays forbidden beside agents, because quality's gate counts a struck forbidden module as a loosening.
 forbidden_modules = ["agents", "agent_runtime_client", "speech_client", "speech_runtime_client", "httpx2"]
 # import-linter squashes an external package to its root, so a submodule cannot be named: this one entry admits the
-# import of agents, and tests/participation/test_agents_imports.py holds participation to agents.calling and
+# import of agents, and tests/game/test_quiz_agent_connector_imports.py holds participation to agents.calling and
 # agents.member.
 ignore_imports = ["hopin.participation.** -> agents"]
 
