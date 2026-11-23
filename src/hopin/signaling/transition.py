@@ -1,12 +1,14 @@
 """A change of a call as one transition: load the room's view, apply a feature's hook to it, then commit the hook's
-state and frames together and wake the seats it sent to. Work a transition dispatched runs beside the call, and its
-results re-enter the room as transitions of their own.
+state and frames together and wake the seats it sent to. The call core's own actions (a seat opening, a join, a lock, a
+leave, a park, a resume, an end) are transitions too, made of edits to rooms and seats beside the frames they send. The
+features and the call core commit through one store, and the commit is the only writer of rooms, seats and seat logs.
+Work a transition dispatched runs beside the call, and its results re-enter the room as transitions of their own.
 
 Each hook reads the room's view (`RoomView`: its seats and their accounts and names, its hosts, its parked seats,
 whether an agent place is free and the feature's own `Section` of state in that room), puts state, takes or frees agent
 places and sends frames only through its `Transition`, and does no other work. The store (`InMemoryCallStore`, one
-process's rooms) commits both in one synchronous step, and a hook that raises commits neither. Only then are the seats
-it sent to woken, each writing its logged frames in the order of their seq.
+process's rooms and seats) commits both in one synchronous step, and a hook that raises commits neither. Only then are
+the seats it sent to woken, each writing its logged frames in the order of their seq.
 
 - A transition may follow itself with another hook, which reads the room as the first one left it; the seats of both
   are woken together.
@@ -26,11 +28,15 @@ import asyncio
 from dataclasses import dataclass, field, replace
 from functools import partial
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Protocol, assert_never, cast
 
 import structlog
 
+from hopin.config.constants import RESUME_WINDOW_SECONDS
+from hopin.rooms.models import HostGrace
 from hopin.signaling.frames import PeerId
+from hopin.signaling.scheduler import DeadlineKind
+from hopin.signaling.seats import Park, Seats
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine, Mapping, Sequence
@@ -38,10 +44,10 @@ if TYPE_CHECKING:
     from starlette.requests import HTTPConnection
 
     from hopin.rooms.manager import RoomManager
-    from hopin.signaling.features import TransitionFeature
-    from hopin.signaling.frames import ForeignFrame, JsonObject
+    from hopin.signaling.frames import JsonObject
     from hopin.signaling.replay import Supersedes
-    from hopin.signaling.routing import RoomRouting
+    from hopin.signaling.scheduler import Deadlines
+    from hopin.signaling.seats import SeatRecord, SeatSocket
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -180,6 +186,101 @@ class Transition(Change):
 
 
 @dataclass(frozen=True)
+class SeatOpened:
+    peer_id: PeerId
+    record: SeatRecord
+    socket: SeatSocket
+
+
+@dataclass(frozen=True)
+class SeatForgotten:
+    """The seat ends, its record and its socket with it; a seat already gone is left as it is."""
+
+    peer_id: PeerId
+
+
+@dataclass(frozen=True)
+class SeatParked:
+    peer_id: PeerId
+
+
+@dataclass(frozen=True)
+class SeatTakenOver:
+    """A resume gives the seat its new socket and the hash of its new token, and ends its park."""
+
+    peer_id: PeerId
+    token_hash: bytes
+    socket: SeatSocket
+
+
+@dataclass(frozen=True)
+class ReceivedAdvanced:
+    peer_id: PeerId
+    seq: int
+
+
+@dataclass(frozen=True)
+class RoomCreated:
+    room_id: str
+    host_peer_id: PeerId
+
+
+@dataclass(frozen=True)
+class ParticipantAdded:
+    room_id: str
+    peer_id: PeerId
+
+
+@dataclass(frozen=True)
+class ParticipantRemoved:
+    room_id: str
+    peer_id: PeerId
+
+
+@dataclass(frozen=True)
+class RoomLockSet:
+    room_id: str
+    requester: PeerId
+    locked: bool
+
+
+@dataclass(frozen=True)
+class RoomEnded:
+    room_id: str
+    peer_ids: tuple[PeerId, ...]
+
+
+@dataclass(frozen=True)
+class HostGraceStarted:
+    room_id: str
+    host_peer_id: PeerId
+    deadline: float
+
+
+@dataclass(frozen=True)
+class HostGraceCleared:
+    room_id: str
+
+
+type SeatEdit = SeatOpened | SeatForgotten | SeatParked | SeatTakenOver | ReceivedAdvanced
+type RoomEdit = (
+    RoomCreated | ParticipantAdded | ParticipantRemoved | RoomLockSet | RoomEnded | HostGraceStarted | HostGraceCleared
+)
+type Edit = SeatEdit | RoomEdit
+
+
+@dataclass
+class CoreTransition(Transition):
+    """A transition of the call core: the edits it makes to rooms and seats, applied in order by the commit, beside the
+    frames it sends. An edit that refuses, such as a join of a locked room, leaves the edits after it unapplied."""
+
+    edits: list[Edit] = field(default_factory=list)
+
+    def edit(self, edit: Edit) -> None:
+        self.edits.append(edit)
+
+
+@dataclass(frozen=True)
 class Committed:
     """A change the store has committed: the seats it logged frames for, which are still to be woken, and the event a
     broken write of them is logged under, none to raise it."""
@@ -213,36 +314,67 @@ class InMemoryCallStore:
     """A process's calls behind the transition contract: the rooms and seats the call core keeps and the features'
     sections. A commit applies in one synchronous step, so no other transition runs between its load and its commit."""
 
-    def __init__(self, routing: RoomRouting, room_manager: RoomManager) -> None:
-        self._routing = routing
+    def __init__(
+        self,
+        room_manager: RoomManager,
+        deadlines: Deadlines,
+        on_room_ended: Callable[[str], None],
+        on_seat_changed: Callable[[PeerId], None],
+    ) -> None:
         self._room_manager = room_manager
+        self._deadlines = deadlines
+        self._on_room_ended = on_room_ended
+        self._on_seat_changed = on_seat_changed
+        self._records: dict[PeerId, SeatRecord] = {}
+        self._seats = Seats(MappingProxyType(self._records))
         self._sections: dict[str, dict[str, object]] = {}
+
+    @property
+    def seats(self) -> Seats:
+        return self._seats
+
+    def find_record(self, peer_id: PeerId) -> SeatRecord | None:
+        return self._records.get(peer_id)
+
+    def record_of(self, peer_id: PeerId) -> SeatRecord:
+        return self._records[peer_id]
+
+    def held_by(self, account_id: str) -> tuple[tuple[PeerId, SeatRecord], ...]:
+        """The seats an account holds, parked ones included."""
+        return tuple((peer_id, record) for peer_id, record in self._records.items() if record.account.id == account_id)
+
+    def room_of(self, peer_id: PeerId) -> str | None:
+        record = self._records.get(peer_id)
+        return None if record is None else record.room_id
 
     def load(self, room_id: str | None) -> RoomView:
         """The room's view now; an ended room or none is the view of no room."""
         room = None if room_id is None else self._room_manager.find_room(room_id)
         if room is None:
             return RoomView()
-        seats = self._routing.seats
+        records = self._records
         members = tuple(PeerId(participant_id) for participant_id in room.participant_ids)
         return RoomView(
             room_id=room.room_id,
             members=members,
-            hosts=frozenset(peer_id for peer_id in members if room.is_hosted_by(seats.account_of(peer_id))),
-            names=MappingProxyType({peer_id: seats.account_of(peer_id).name for peer_id in members}),
-            accounts=MappingProxyType({peer_id: seats.account_of(peer_id).id for peer_id in members}),
-            parked=frozenset(peer_id for peer_id in members if seats.seat(peer_id).park is not None),
+            hosts=frozenset(peer_id for peer_id in members if room.is_hosted_by(records[peer_id].account)),
+            names=MappingProxyType({peer_id: records[peer_id].account.name for peer_id in members}),
+            accounts=MappingProxyType({peer_id: records[peer_id].account.id for peer_id in members}),
+            parked=frozenset(peer_id for peer_id in members if records[peer_id].park is not None),
             has_free_place=self._room_manager.has_free_place_for_agent(room.room_id),
             sections=MappingProxyType(dict(self._sections.get(room.room_id, {}))),
         )
 
     def load_seat(self, peer_id: PeerId) -> RoomView:
         """The view of the room the seat sits in."""
-        return self.load(self._routing.room_of(peer_id))
+        return self.load(self.room_of(peer_id))
 
     def commit(self, view: RoomView, change: Change) -> tuple[PeerId, ...]:
-        """Write the change's sections and agent places into its room and log each frame it sends for its seat, and
-        name the seats to wake."""
+        """Write the change's edits, sections and agent places and log each frame it sends for its seat, and name the
+        seats to wake."""
+        if isinstance(change, CoreTransition):
+            for edit in change.edits:
+                self._apply(edit)
         if view.room_id is None:
             if change.puts or change.seated_agents:  # pragma: no cover - a hook keeps state only in its room
                 raise ValueError("A transition of no room keeps no state")
@@ -253,14 +385,100 @@ class InMemoryCallStore:
                 self._room_manager.add_agent(view.room_id, agent_id)
             for agent_id in change.released_agents:
                 self._room_manager.remove_agent(view.room_id, agent_id)
-        seats = self._routing.seats
         return tuple(
             dict.fromkeys(
                 outbound.peer_id
                 for outbound in change.outbound()
-                if seats.log(outbound.peer_id, outbound.frame, outbound.supersedes)
+                if self._log(outbound.peer_id, outbound.frame, outbound.supersedes)
             )
         )
+
+    def commit_edits(self, transition: CoreTransition) -> None:
+        """Commit a transition of the call core that sends nothing, so no seat waits to be woken."""
+        self.commit(RoomView(), transition)
+
+    async def apply(self, transition: CoreTransition) -> None:
+        """Commit a transition of the call core and wake the seats it sent to."""
+        await self.wake_committed([Committed(self.commit(RoomView(), transition))])
+
+    def _log(self, peer_id: PeerId, frame: JsonObject, supersedes: Supersedes | None) -> bool:
+        """Give the frame the seat's next seq in its log, dropping the frames it supersedes there, and say whether the
+        seat is there to have it."""
+        record = self._records.get(peer_id)
+        if record is None:
+            return False
+        record.log.append(frame, supersedes)
+        return True
+
+    def _apply(self, edit: Edit) -> None:
+        if isinstance(edit, SeatOpened | SeatForgotten | SeatParked | SeatTakenOver | ReceivedAdvanced):
+            self._apply_to_seats(edit)
+        else:
+            self._apply_to_rooms(edit)
+
+    def _apply_to_seats(self, edit: SeatEdit) -> None:
+        match edit:
+            case SeatOpened(peer_id, record, socket):
+                self._records[peer_id] = record
+                self._seats.attach(peer_id, socket)
+            case SeatForgotten(peer_id):
+                forgotten = self._records.pop(peer_id, None)
+                self._seats.detach(peer_id)
+                if forgotten is not None and forgotten.park is not None:
+                    self._deadlines.cancel(DeadlineKind.RESUME_WINDOW, peer_id)
+            case SeatParked(peer_id):
+                self._deadlines.set(DeadlineKind.RESUME_WINDOW, peer_id, RESUME_WINDOW_SECONDS)
+                self._records[peer_id].park = Park(dropped_at=self._deadlines.now())
+                self._on_seat_changed(peer_id)
+            case SeatTakenOver(peer_id, token_hash, socket):
+                record = self._records[peer_id]
+                parked = record.park is not None
+                if parked:
+                    self._deadlines.cancel(DeadlineKind.RESUME_WINDOW, peer_id)
+                    record.park = None
+                record.token_hash = token_hash
+                self._seats.attach(peer_id, socket)
+                if parked:
+                    self._on_seat_changed(peer_id)
+            case ReceivedAdvanced(peer_id, seq):
+                self._records[peer_id].received_seq = seq
+            case _:  # pragma: no cover - the type checker proves the match exhaustive
+                assert_never(edit)
+
+    def _apply_to_rooms(self, edit: RoomEdit) -> None:
+        match edit:
+            case RoomCreated(room_id, host_peer_id):
+                record = self._records[host_peer_id]
+                self._room_manager.create_room(host_peer_id, record.account, room_id)
+                record.room_id = room_id
+            case ParticipantAdded(room_id, peer_id):
+                record = self._records[peer_id]
+                self._room_manager.add_participant(room_id, peer_id, record.account)
+                record.room_id = room_id
+            case ParticipantRemoved(room_id, peer_id):
+                self._room_manager.remove_participant(room_id, peer_id)
+                self._on_seat_changed(peer_id)
+            case RoomLockSet(room_id, requester, locked):
+                self._room_manager.set_room_locked(room_id, self._records[requester].account, locked=locked)
+            case RoomEnded(room_id, peer_ids):
+                self._clear_host_grace(room_id)
+                for peer_id in peer_ids:
+                    self._records[peer_id].room_id = None
+                self._room_manager.remove_room(room_id)
+                self._on_room_ended(room_id)
+            case HostGraceStarted(room_id, host_peer_id, deadline):
+                self._deadlines.set(DeadlineKind.HOST_GRACE, room_id, deadline - self._deadlines.now())
+                self._room_manager.set_host_grace(room_id, HostGrace(host_peer_id=host_peer_id, deadline=deadline))
+            case HostGraceCleared(room_id):
+                self._clear_host_grace(room_id)
+            case _:  # pragma: no cover - the type checker proves the match exhaustive
+                assert_never(edit)
+
+    def _clear_host_grace(self, room_id: str) -> None:
+        room = self._room_manager.find_room(room_id)
+        if room is not None and room.grace is not None:
+            self._deadlines.cancel(DeadlineKind.HOST_GRACE, room_id)
+            self._room_manager.set_host_grace(room_id, None)
 
     async def wake_committed(self, committed: Sequence[Committed]) -> None:
         """Wake the seats of transitions committed together once every one of them is logged, so a frame of one
@@ -284,7 +502,7 @@ class InMemoryCallStore:
             delivered = False
             while not delivered:
                 try:
-                    await self._routing.seats.deliver(peer_id)
+                    await self._seats.deliver(peer_id)
                     delivered = True
                 except Exception as error:  # A broken write has used up its frame, so the next try writes the next one.
                     broken_writes.append(error)
@@ -446,61 +664,6 @@ class FeatureTransitions:
             for key in tuple(self._works):
                 self._worker.stop_work(key)
             await asyncio.wait([running.task for running in self._works.values()])
-
-
-class TransitionHost:
-    """Runs a feature where the call core calls its hooks: each hook it is offered is one transition of the seat's
-    room, and the work those transitions dispatch runs here, where the seats' sockets are held."""
-
-    def __init__(self, feature: TransitionFeature, store: InMemoryCallStore, live_seats: LiveSeats) -> None:
-        self._feature = feature
-        self._transitions = FeatureTransitions(feature, store, live_seats)
-        feature.attach(self._transitions)
-
-    @property
-    def feature(self) -> TransitionFeature:
-        return self._feature
-
-    @property
-    def browser_modules(self) -> tuple[str, ...]:
-        return self._feature.browser_modules
-
-    @property
-    def signal_types(self) -> Mapping[str, str]:
-        return self._feature.signal_types
-
-    async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
-        view = self._transitions.seat_view(peer_id)
-        return await self._transitions.run(view, partial(self._feature.on_frame, view, peer_id, frame))
-
-    async def seat_joined(self, peer_id: PeerId) -> None:
-        view = self._transitions.seat_view(peer_id)
-        await self._transitions.run(view, partial(self._feature.seat_joined, view, peer_id))
-
-    def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> list[Committed]:
-        """Apply the feature's `seat_left` to the room the seat left and commit it, leaving its seats to be woken
-        together with the departure that tells the room."""
-        view = self._transitions.view(room_id).naming(peer_id, name)
-        transition = Transition()
-        self._feature.seat_left(view, peer_id, transition)
-        return self._transitions.commit(view, transition)
-
-    def seat_changed(self, peer_id: PeerId) -> None:
-        """Apply the feature's `seat_changed` to the view of the seat's room now and commit it at once; it cannot send,
-        so no seat waits to be woken."""
-        view = self._transitions.seat_view(peer_id)
-        change = Change()
-        self._feature.seat_changed(view, peer_id, change)
-        self._transitions.commit(view, change)
-
-    def room_ended(self, room_id: str) -> None:
-        self._transitions.room_ended(room_id)
-        self._feature.room_ended(room_id)
-
-    async def shut_down(self) -> None:
-        """Stop the feature's work, wait until it has ended, then shut the feature down."""
-        await self._transitions.shut_down()
-        await self._feature.shut_down()
 
 
 @dataclass(frozen=True)

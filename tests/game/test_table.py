@@ -496,7 +496,7 @@ class TestRoomEnd:
 class RoomIdUsedAgain(RoomManager):
     """Hands every new room the same id, as chance may hand a later call the id of one that ended."""
 
-    def _generate_room_id(self):
+    def new_room_id(self):
         return "r" * ROOM_ID_LENGTH
 
 

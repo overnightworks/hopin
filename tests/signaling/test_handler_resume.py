@@ -18,7 +18,7 @@ from hopin.config.constants import (
 )
 from hopin.errors import RoomNotFoundError
 from hopin.rooms.models import Account
-from hopin.signaling.seats import Peer
+from hopin.signaling.seats import SeatRecord, hash_token
 from tests.signaling.support.browsers import (
     MISSING,
     Link,
@@ -33,7 +33,6 @@ from tests.support.signaling_fakes import (
     ROOM_LIMIT,
     account_named,
     disconnect_frame,
-    make_ws_mock,
     text_frame,
 )
 
@@ -667,7 +666,7 @@ class TestTokenStaysSecret:
     async def test_no_frame_to_another_member_carries_a_token_or_another_members_peer_credentials(self, link):
         host, guest = await host_and_guest(link)
         await guest.drop()
-        await guest.resume()
+        await guest.resume(last_seq=0)
         await guest.accept_resumption()
         await guest.say(note_for(host, "hi"))
 
@@ -675,8 +674,32 @@ class TestTokenStaysSecret:
         assert guest.token not in heard_by_host
         assert "resume_token" not in heard_by_host
         assert host.token not in json.dumps(guest.sockets[-1].sent)
+        assert [frame["type"] for frame in guest.sockets[-1].sent if "resume_token" in frame] == [
+            SignalType.RESUMED.value
+        ]
 
-    async def test_seat_reprs_hide_the_token(self):
-        seat = Peer(account=ADMITTED_ACCOUNT, websocket=make_ws_mock())
+    @pytest.mark.parametrize("seat", ["host", "guest"])
+    async def test_the_log_a_resume_replays_holds_neither_the_token_key_nor_its_value(self, link, seat):
+        browsers = dict(zip(("host", "guest"), await host_and_guest(link), strict=True))
+        browser = browsers[seat]
+        issued_token = browser.token
+        assert "resume_token" in browser.sockets[0].sent[0]
 
-        assert seat.resume_token not in repr(seat)
+        await browser.drop()
+        await browser.resume(last_seq=0)
+
+        replayed = [frame for frame in browser.sockets[-1].sent if frame["type"] != SignalType.RESUMED.value]
+        assert {SignalType.ROOM_CREATED.value, SignalType.EXISTING_PARTICIPANTS.value} & {
+            frame["type"] for frame in replayed
+        }
+        assert "resume_token" not in json.dumps(replayed)
+        assert issued_token not in json.dumps(browser.sockets[-1].sent)
+
+    async def test_a_seat_record_keeps_only_the_hash_of_the_token(self):
+        token = "plaintext-token"  # noqa: S105 - a value the record must never hold
+        record = SeatRecord(account=ADMITTED_ACCOUNT, token_hash=hash_token(token))
+
+        assert token not in repr(record)
+        assert token.encode() not in {value for value in vars(record).values() if isinstance(value, bytes)}
+        assert record.accepts(token)
+        assert not record.accepts("another-token")
