@@ -1,0 +1,7 @@
+claim_id = "31634068561f44cbacc32305cea11a60"
+agent = "Claude ec75e0df-83db-4de9-9765-71b041e0ffeb"
+role = "builder"
+base = "f9b1c86cf7d6d53115dcae1f325b05cafc7a5086"
+branch = "claude/issue-1148-targeted-local-runs"
+scope = ["AGENTS.md", "Makefile"]
+opened_commit = "7444ff0c50896dfd6f35a1684791ddb2e3e9ed77"
