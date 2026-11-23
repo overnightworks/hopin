@@ -191,7 +191,7 @@ class ShownFigures:
         if room_id is None or joined.get(agent_id) != room_id or peer_id in self._ended.get(agent_id, ()):
             return
         self._ended.setdefault(agent_id, set()).add(peer_id)
-        logger.info("agent_figure.ended", room_ref=room_reference(room_id), agent_id=agent_id, code=code)
+        logger.info("agent_figure.failed", room_ref=room_reference(room_id), agent_id=agent_id, code=code)
 
     def seat_left(self, peer_id: PeerId) -> None:
         """Forget the figure ends the seat reported, so a seat that comes back does not grow what is kept."""
