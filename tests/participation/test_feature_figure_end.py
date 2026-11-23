@@ -14,7 +14,7 @@ from tests.signaling.support.browsers import host_and_guest
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
-ENDED_EVENT = "agent_figure.ended"
+ENDED_EVENT = "agent_figure.failed"
 
 
 def report(agent_id, code):

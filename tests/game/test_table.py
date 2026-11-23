@@ -146,7 +146,8 @@ class TestOneRun:
             await sent(host, answering(host))
 
         [run] = [log for log in logs if log["event"] == "game_master_run.ended"]
-        assert {key: value for key, value in run.items() if key != "duration_ms"} == {
+        measured = {"duration_ms", "span_id", "parent_span_id"}
+        assert {key: value for key, value in run.items() if key not in measured} == {
             "event": "game_master_run.ended",
             "log_level": "info",
             "room_ref": room_reference(host.socket.sent[0]["room_id"]),
