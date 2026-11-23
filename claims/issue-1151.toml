@@ -3,6 +3,6 @@ agent = "Claude ec75e0df-83db-4de9-9765-71b041e0ffeb"
 role = "builder"
 base = "f9b1c86cf7d6d53115dcae1f325b05cafc7a5086"
 branch = "claude/issue-1151-realm-ai-and-speech-keys"
-scope = ["README.md", "compose.yaml", "src/hopin/agent/settings.py", "src/hopin/agent/speech_settings.py", "src/hopin/agent/video_settings.py", "tests/agent/test_speech_settings.py", "tests/agent/test_video_settings.py", "tests/game/test_quiz_agent_settings.py", "tests/game/test_quiz_agent_settings_refusal.py", "tests/support/game_environment.py", "tests/test_main.py"]
+scope = ["README.md", "compose.yaml", "src/hopin/agent/fleet_keys.py", "src/hopin/agent/settings.py", "src/hopin/agent/speech_settings.py", "src/hopin/agent/video_settings.py", "src/hopin/main.py", "tests/agent/test_speech_settings.py", "tests/agent/test_video_settings.py", "tests/game/test_quiz_agent_settings.py", "tests/game/test_quiz_agent_settings_refusal.py", "tests/support/game_environment.py", "tests/test_main.py"]
 opened_commit = "1f8557b428d9b4d681f503604aff22b0360692b8"
 whole_reason = "One rename of two settings' environment keys: their owners, the shared refusal, README's table, compose and every test that sets them change together, or a test or the page refuses to start."
