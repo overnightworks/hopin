@@ -347,6 +347,11 @@ class DialedCall:
         """Shut the call's features down as the app's lifespan does, while the sockets of the test are still open."""
         self.client.portal.call(self._signaling_handler().shut_down)
 
+    def stop(self):
+        """Close the sockets and run the app's lifespan shutdown, as the app's stop does."""
+        self.sockets.close()
+        self.client.__exit__(None, None, None)
+
     def end_room_after(self, room_id, before):
         """End the call's room for participation on the app's own loop in the same turn as `before`, which runs first:
         what `before` queues for a reader of the loop is already waiting when the end is set."""

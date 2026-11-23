@@ -4,20 +4,25 @@ loopback port under a fake issuer and a fake TURN provider, and the fall to its 
 import asyncio
 import json
 import threading
+import time
 from http import HTTPStatus
+from types import SimpleNamespace
 
 import pytest
 from agents.member import LEASE_SECONDS
 from speech_client.wire import VoiceId
-from video_client.session_wire import SessionUpdate
+from video_client.session_wire import SessionCreated, SessionInfo, SessionUpdate, error_event
 from video_client.wire import AUTHORIZATION_HEADER, WORKLOAD_TOKEN_HEADER, RefusalCode, caller_headers
 from websockets.frames import CloseCode
 
 from hopin.agent import video_session
 from hopin.agent.mcp import ParticipationFeature
 from hopin.agent.speech_settings import SpeechService
-from hopin.agent.tools import LEAVE_CALL
+from hopin.agent.tools import LEAVE_CALL, AcceptedVideoLooks
 from hopin.agent.video_settings import VideoService
+from hopin.participation.participants import Person
+from hopin.participation.places import Places
+from hopin.participation.video_looks import VideoLooks
 from hopin.participation.vocabulary import FIGURE_PATH, ParticipationSignal, VideoFailure
 from hopin.rooms.reference import room_reference
 from tests.participation.support.figure_scene import FILE, JOINED, accept_with, figure_look, read_figure
@@ -31,9 +36,10 @@ from tests.support.fake_turn import (
     FakeTransport,
     provider_answer,
 )
-from tests.support.fake_video import WAIT_SECONDS, FakeVideo, refused_with
+from tests.support.fake_video import PICTURE, WAIT_SECONDS, FakeVideo, Refusal, refused_with
 from tests.support.log_lines import captured_lines
 from tests.support.sign_in_settings import TEST_REALM
+from tests.support.signaling_fakes import ManualScheduler
 from tests.support.speech_origin import AUDIENCE_SCOPE as SPEECH_SCOPE
 from tests.support.speech_origin import header_of, speech_requests
 
@@ -224,9 +230,11 @@ class TestAVideoSessionOpens:
         [
             pytest.param(lambda session: session.fail(RefusalCode.UNAVAILABLE), VideoFailure.ERROR, id="an-error"),
             pytest.param(lambda session: session.hang_up(), VideoFailure.CLOSED, id="a-close"),
+            pytest.param(lambda session: session.say(b"\x00"), VideoFailure.MALFORMED, id="a-binary-frame"),
+            pytest.param(lambda session: session.say("no event"), VideoFailure.MALFORMED, id="a-text-that-is-no-event"),
         ],
     )
-    def test_call_82_an_error_or_a_close_mid_call_ends_it_for_good_with_one_line_and_leaves_the_figure(
+    def test_call_82_a_failed_session_mid_call_ends_it_for_good_with_one_line_and_leaves_the_figure(
         self, scene, fake_video, with_a_figure_after, lines, fail, reason
     ):
         accepted(scene, with_a_figure_after)
@@ -337,6 +345,13 @@ FAILURES = [
         VideoFailure.TURN_CREDENTIAL_UNAVAILABLE,
         id="no-turn-credential-comes",
     ),
+    pytest.param(
+        lambda fake_video, issuer, turn: setattr(
+            fake_video, "refusal", Refusal(HTTPStatus.BAD_GATEWAY, "a refusal that is no wire body")
+        ),
+        VideoFailure.REFUSED,
+        id="the-upgrade-is-refused-without-a-wire-body",
+    ),
     *(
         pytest.param(
             lambda fake_video, issuer, turn, code=code: setattr(fake_video, "refusal", refused_with(code)),
@@ -372,6 +387,36 @@ class TestASessionThatDoesNotOpen:
             figure_is_still_shown(scene),
         ) == ("refused", reason.value, room_reference(scene.owner.room_id), True, True)
         assert len(fake_video.sessions) == 0
+
+    @pytest.mark.parametrize(
+        ("answer", "reason"),
+        [
+            pytest.param(error_event(RefusalCode.UNAVAILABLE), VideoFailure.ERROR, id="an-error-event"),
+            pytest.param(
+                SessionCreated(session=SessionInfo(id="again", look=ESTABLISHED, video=PICTURE)),
+                VideoFailure.MALFORMED,
+                id="another-event-than-the-update",
+            ),
+        ],
+    )
+    def test_call_82_a_service_that_answers_the_update_with_anything_else_ends_the_attempt_and_closes_the_session(
+        self, scene, fake_video, with_a_figure_after, lines, answer, reason
+    ):
+        fake_video.update_reply = answer
+        accepted(scene, with_a_figure_after)
+        scene.call.pass_time(1)
+
+        [line] = ended_lines(lines)
+        assert (line["outcome"], line["reason"], figure_is_still_shown(scene)) == ("refused", reason.value, True)
+        fake_video.next_session().wait_until_closed()
+
+    def test_call_82_a_service_that_nothing_listens_on_ends_the_open_as_unreachable(self, fake_video):
+        origin = fake_video.origin
+        fake_video.stop()
+
+        opened = asyncio.run(video_session.open_connection(origin, ESTABLISHED, {}, []))
+
+        assert opened is VideoFailure.UNREACHABLE
 
     def test_call_82_the_open_that_runs_past_its_deadline_ends_the_attempt_with_one_refused_line(
         self, scene, fake_video, with_a_figure_after, lines, open_deadline_seconds
@@ -513,13 +558,45 @@ class TestTheAppsShutdown:
         session = fake_video.next_session()
         session.wait_for_update()
 
-        scene.call.sockets.close()
-        scene.call.client.__exit__(None, None, None)
+        scene.call.stop()
         opening.join(10)
 
         session.wait_until_closed()
         [line] = ended_lines(lines)
         assert (line["outcome"], session.close_code) == ("ok", CloseCode.NORMAL_CLOSURE)
+
+    def test_call_81_an_upgrade_still_waiting_for_the_service_ends_and_writes_its_line_when_the_app_shuts_down(
+        self, scene, fake_video, with_a_figure_after, lines
+    ):
+        fake_video.opening.clear()
+        opening = threading.Thread(target=accepted, args=(scene, with_a_figure_after))
+        opening.start()
+        assert fake_video.upgrade_asked.wait(10)
+
+        scene.call.stop()
+        opening.join(10)
+        fake_video.opening.set()
+
+        [line] = ended_lines(lines)
+        assert line["outcome"] == "ok"
+
+
+class TestAnAcceptWhoseAgentHoldsNoPlace:
+    def test_call_81_no_open_starts_for_an_accept_after_which_the_agent_is_no_longer_joined(self):
+        scheduler = ManualScheduler()
+        participation = SimpleNamespace(video_looks=VideoLooks(Places()))
+        opening = video_session.VideoOpening(
+            None,
+            relying_party=None,
+            turn_relay=None,
+            participation=lambda: participation,
+            scheduler=scheduler,
+            wall_clock=time.time,
+        )
+
+        opening.after_accept(Person("issuer", "anna"), AcceptedVideoLooks("room", (ESTABLISHED,)), None)
+
+        assert scheduler.pending_timers() == []
 
 
 class TestTheTokensAreHeldNowhereAfterTheUpgrade:
