@@ -126,7 +126,7 @@ def _session_update(servers: list[IceServer]) -> str:
     return SessionUpdate(type="session.update", session=relay).model_dump_json(exclude_none=True)
 
 
-async def _opened(
+async def open_connection(
     origin: str, look: str, headers: dict[str, str], servers: list[IceServer]
 ) -> ClientConnection | VideoFailure:
     """The upgraded connection once the service answered `session.updated`, or why the session did not open."""
@@ -147,6 +147,9 @@ async def _opened(
     except OSError, WebSocketException:
         failure = VideoFailure.UNREACHABLE
     else:
+        # The connection keeps the upgrade's request, whose headers carry both tokens; the session holds them nowhere.
+        assert connection.request is not None  # noqa: S101 - the handshake that just answered set it
+        connection.request.headers.clear()
         return connection
     if connection is not None:
         await connection.close()
@@ -260,7 +263,7 @@ class VideoOpening:
         headers = caller_headers(
             workload_token=workload.get_secret_value(), person_token=exchanged.access_token.get_secret_value()
         )
-        opened = await _opened(self._service.origin, look, headers, servers)
+        opened = await open_connection(self._service.origin, look, headers, servers)
         if isinstance(opened, VideoFailure):
             return opened
         video_looks = self._participation().video_looks

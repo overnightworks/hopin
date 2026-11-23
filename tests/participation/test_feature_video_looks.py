@@ -1,6 +1,7 @@
 """CALL-81 to CALL-83: an agent's video session at HopIn's real `/mcp` and `/ws`, opened on a fake video service on a
 loopback port under a fake issuer and a fake TURN provider, and the fall to its figure when the session ends."""
 
+import asyncio
 import json
 import threading
 from http import HTTPStatus
@@ -9,7 +10,7 @@ import pytest
 from agents.member import LEASE_SECONDS
 from speech_client.wire import VoiceId
 from video_client.session_wire import SessionUpdate
-from video_client.wire import AUTHORIZATION_HEADER, WORKLOAD_TOKEN_HEADER, RefusalCode
+from video_client.wire import AUTHORIZATION_HEADER, WORKLOAD_TOKEN_HEADER, RefusalCode, caller_headers
 
 from hopin.agent import video_session
 from hopin.agent.mcp import ParticipationFeature
@@ -499,6 +500,22 @@ class TestThePlaceEnds:
         assert lines.wait_for_event(ENDED_EVENT, 10)
         [line] = ended_lines(lines)
         assert line["outcome"] == "ok"
+
+
+class TestTheTokensAreHeldNowhereAfterTheUpgrade:
+    def test_the_open_connection_holds_none_of_the_headers_it_upgraded_with(self, fake_video):
+        sent = caller_headers(workload_token="scenario-workload-token", person_token="scenario-person-token")
+
+        async def held_after_the_open():
+            connection = await video_session.open_connection(fake_video.origin, ESTABLISHED, sent, [])
+            try:
+                return [value for _, value in connection.request.headers.raw_items()]
+            finally:
+                await connection.close()
+
+        held = asyncio.run(held_after_the_open())
+
+        assert [value for value in held if value in sent.values()] == []
 
 
 class TestTheVoiceAndTheAcceptNeverWaitOnVideo:
