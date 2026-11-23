@@ -325,11 +325,11 @@ class TestAnAdd:
     ):
         """CALL-51 (CALLING-5): The owner's other seat is another seat: its add meets the open invitation first."""
         groups_of_seat[OWNER] = frozenset({AGENT_ADDERS_GROUP})
-        owner, member = await owner_and_member(link)
+        owner = await link.join(OWNER)
         await agent_calls_and_listens(participation, listeners)
         await let_reads_finish()
-        [offer] = offers_sent_to(member)
-        await add(member, offer["agent_key"])
+        [offer] = offers_sent_to(owner)
+        await add(owner, offer["agent_key"])
         second_seat = await link.join(OWNER, owner.room_id)
 
         await add(second_seat, offer["agent_key"])
