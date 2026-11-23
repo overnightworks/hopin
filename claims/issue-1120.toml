@@ -1,0 +1,7 @@
+claim_id = "b117aed3e64b49518d3007f9f20f28e5"
+agent = "Claude ec75e0df-83db-4de9-9765-71b041e0ffeb"
+role = "builder"
+base = "ff26b2852630163371535b97f7e34b34d8643a2a"
+branch = "claude/issue-1120-hopin-s-in-thread-identity-fake-erases-a"
+scope = ["pyproject.toml", "tests/support/stores.py", "uv.lock"]
+opened_commit = "ad96d60fcf7ed2d90f32b73255df9efc6a2ae1d0"
