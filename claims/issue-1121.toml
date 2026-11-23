@@ -1,8 +1,0 @@
-claim_id = "a35b4d96149549229b17b630756da622"
-agent = "Claude ec75e0df-83db-4de9-9765-71b041e0ffeb"
-role = "builder"
-base = "df8e0525606ead4f133869be37976b965c69d2e0"
-branch = "claude/issue-1121-hopin-pins-quality-v0-24-0"
-scope = [".github/workflows/ci.yml", ".github/workflows/code-scanning.yml", ".github/workflows/release.yml", "pyproject.toml", "uv.lock"]
-opened_commit = "e38bfe97169db83e5b4e4a2d081c7191c4d87dfa"
-whole_reason = "One quality release taken whole: its pins in the three workflows move together, and its new pytest-random rule needs the locked plugin and the seeded calls in the same change to stay green."
