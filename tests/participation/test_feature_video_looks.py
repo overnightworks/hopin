@@ -477,8 +477,9 @@ class TestThePlaceEnds:
 
         assert (session.is_closed(), ended_lines(lines)) == (False, [])
 
+    @pytest.mark.parametrize("agent_joins_again", [False, True], ids=["the-agent-stays-away", "the-agent-joins-again"])
     def test_call_81_a_place_that_ends_while_its_session_opens_closes_the_session_once_it_is_handed_over(
-        self, scene, fake_video, with_a_figure_after, lines
+        self, scene, fake_video, with_a_figure_after, lines, agent_joins_again
     ):
         fake_video.opening.clear()
         opening = threading.Thread(target=scene.call.pass_time, args=(0,))
@@ -488,6 +489,8 @@ class TestThePlaceEnds:
         assert fake_video.upgrade_asked.wait(10)
 
         leaves(scene)
+        if agent_joins_again:
+            assert not accept_with(scene, None).is_error
         fake_video.opening.set()
         opening.join(10)
 

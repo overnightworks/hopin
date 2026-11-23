@@ -61,9 +61,10 @@ class VideoLooks:
         attempt.end()
 
     def opened(self, agent: DialedAgent, session: VideoSession, attempt: StepTimer) -> None:
-        """Keep the session the attempt opened for the agent; a session handed over after the agent's place ended is
-        closed at once."""
-        if self.joined(agent.person, agent.room_id) is None:
+        """Keep the session the attempt opened for the agent; a session handed over after the agent's place ended, even
+        when the same person's agent joined again since, is closed at once."""
+        current = self.joined(agent.person, agent.room_id)
+        if current is None or current.agent_id != agent.agent_id:
             session.close()
             attempt.end()
             return
