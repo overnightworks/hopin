@@ -30,6 +30,8 @@ from video_client.wire import (
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.server import serve
 
+from tests.support.arrivals import Arrivals
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -67,12 +69,12 @@ class Session:
     client_messages: list[str] = field(default_factory=list)
     closed: threading.Event = field(default_factory=threading.Event)
     close_code: int | None = None
-    _outgoing: queue.Queue[ServerEvent | None] = field(default_factory=queue.Queue)
+    _outgoing: queue.Queue[ServerEvent | str | bytes | None] = field(default_factory=queue.Queue)
     _arrived: threading.Condition = field(default_factory=threading.Condition)
 
-    def say(self, event: ServerEvent) -> None:
-        """Send the app a server event."""
-        self._outgoing.put(event)
+    def say(self, message: ServerEvent | str | bytes) -> None:
+        """Send the app a server event, or a message as it is, which is no event when it is not one."""
+        self._outgoing.put(message)
 
     def fail(self, code: RefusalCode) -> None:
         """Send the app an `error` event, as the service does before it closes a failed session."""
@@ -107,11 +109,11 @@ class Session:
 class FakeVideo:
     """The service: `sessions` fills as the app upgrades; `health_status` answers `GET /health`; `refusal` answers the
     next upgrades over HTTP; a clear `health_open` or `opening` holds that answer back, and with `updates` off the
-    service never answers `session.update`."""
+    service never answers `session.update`, and otherwise it answers with `update_reply`."""
 
     def __init__(self, looks: Mapping[str, bool]) -> None:
         self.looks = dict(looks)
-        self.sessions: list[Session] = []
+        self.sessions = Arrivals[Session](WAIT_SECONDS)
         self.health_requests = 0
         self.upgrades = 0
         self.health_asked = threading.Event()
@@ -119,11 +121,11 @@ class FakeVideo:
         self.health_status = HTTPStatus.OK
         self.refusal: Refusal | None = None
         self.updates = True
+        self.update_reply: ServerEvent = SessionUpdated()
         self.health_open = threading.Event()
         self.health_open.set()
         self.opening = threading.Event()
         self.opening.set()
-        self._connected = threading.Condition()
         self._server: Server | None = None
 
     @property
@@ -141,9 +143,7 @@ class FakeVideo:
 
     def next_session(self, number: int = 1) -> Session:
         """Block until the service holds `number` sessions, and answer that one."""
-        with self._connected:
-            assert self._connected.wait_for(lambda: len(self.sessions) >= number, WAIT_SECONDS), "no session came"
-            return self.sessions[number - 1]
+        return self.sessions.wait_for(number)
 
     def health(self) -> Health:
         return Health(
@@ -178,9 +178,7 @@ class FakeVideo:
     def _converse(self, connection: ServerConnection) -> None:
         look = parse_qs(urlsplit(connection.request.path).query)[LOOK_PARAM][0]
         session = Session(dict(connection.request.headers.items()), look)
-        with self._connected:
-            self.sessions.append(session)
-            self._connected.notify_all()
+        self.sessions.arrive(session)
         try:
             connection.send(
                 SessionCreated(session=SessionInfo(id="session-one", look=look, video=PICTURE)).model_dump_json()
@@ -203,7 +201,7 @@ class FakeVideo:
                 connection.close()
                 return
             if outgoing != "":
-                connection.send(outgoing.model_dump_json())
+                connection.send(outgoing if isinstance(outgoing, str | bytes) else outgoing.model_dump_json())
             try:
                 message = connection.recv(timeout=POLL_SECONDS)
             except TimeoutError:
@@ -211,4 +209,4 @@ class FakeVideo:
             session.received(message if isinstance(message, str) else message.decode())
             if self.updates and not answered:
                 answered = True
-                connection.send(SessionUpdated().model_dump_json())
+                connection.send(self.update_reply.model_dump_json())
