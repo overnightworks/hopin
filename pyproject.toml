@@ -6,7 +6,7 @@ requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.16",
     "fastapi>=0.123.7",
-    "overnightworks-agents[backend,mcp-server,redis] @ git+https://github.com/overnightworks/agents@v0.69.0",
+    "overnightworks-agents[backend,mcp-server,redis] @ git+https://github.com/overnightworks/agents@v0.70.0",
     "overnightworks-logline @ git+https://github.com/overnightworks/logline@v1.8.0",
     "overnightworks-speech-client @ git+https://github.com/overnightworks/speech@v0.22.3#subdirectory=packages/client",
     "overnightworks-tandem @ git+https://github.com/overnightworks/tandem@v0.13.1",
