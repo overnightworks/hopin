@@ -19,8 +19,7 @@ class RoomManager:
             if room_id not in self._rooms:
                 return room_id
 
-    def create_room(self, host_peer_id: str, host: Account, room_id: str | None = None) -> Room:
-        room_id = room_id or self.new_room_id()
+    def create_room(self, host_peer_id: str, host: Account, room_id: str) -> Room:
         room = Room(room_id=room_id, host=host)
         room.participants[host_peer_id] = Participant(participant_id=host_peer_id, account=host)
         self._rooms[room_id] = room

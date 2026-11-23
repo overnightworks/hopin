@@ -185,7 +185,7 @@ class RoomRouting:
         room = self._room_manager.get_room(room_id)
         frame = RoomLockedFrame() if locked else RoomUnlockedFrame()
         locking = _telling(room.participant_ids, frame.to_json())
-        locking.edits.append(RoomLockSet(room_id, peer_id, locked=locked))
+        locking.edit(RoomLockSet(room_id, peer_id, locked=locked))
         await self._store.apply(locking)
         if locked:
             await logger.ainfo("room.locked", room_ref=room_reference(room_id), peer_id=peer_id)
@@ -303,11 +303,12 @@ class RoomRouting:
         )
         # The call is over, so it supersedes whatever of the call a seat has not been written yet.
         closing = _telling(recipients, frame.to_json(), Supersedes(types=None))
-        closing.edits.append(RoomEnded(room_id, tuple(recipients)))
+        closing.edit(RoomEnded(room_id, tuple(recipients)))
         await self._store.apply(closing)
         sockets = [socket for peer_id in recipients if (socket := self._seats.find(peer_id)) is not None]
         forgetting = CoreTransition()
-        forgetting.edits.extend(SeatForgotten(peer_id) for peer_id in recipients)
+        for peer_id in recipients:
+            forgetting.edit(SeatForgotten(peer_id))
         self._store.commit_edits(forgetting)
         for socket in sockets:
             await self._seats.close_socket(socket.websocket)
