@@ -39,15 +39,16 @@ class TurnRelay(Protocol):
         """Fresh relay entries with credentials; raises TurnRelayUnavailableError."""
 
 
-def _relay_servers_or_none(turn_relay: TurnRelay) -> list[IceServer]:
-    servers: list[IceServer] = []
+def issued_relay_servers(turn_relay: TurnRelay) -> list[IceServer] | TurnRelayFailure:
+    """Fresh relay entries under the `turn_credentials.ended` step, or why the provider issued none; a blocking call,
+    which a caller on the event loop runs on a worker thread."""
     with StepTimer("turn_credentials.ended", _STEPS) as step:
         try:
-            servers = turn_relay.relay_servers()
+            return turn_relay.relay_servers()
         except TurnRelayUnavailableError as unavailable:
             step.refuse(unavailable.reason)
             step.degraded()
-    return servers
+            return unavailable.reason
 
 
 def create_ice_servers_router(stun_server: str, turn_relay: TurnRelay | None) -> APIRouter:
@@ -56,7 +57,8 @@ def create_ice_servers_router(stun_server: str, turn_relay: TurnRelay | None) ->
     # A sync route runs in FastAPI's threadpool, which the relay's blocking call needs.
     @router.api_route(ICE_SERVERS_PATH, methods=READ_METHODS, response_model_exclude_none=True)
     def ice_servers() -> IceServerList:
-        relay_servers = [] if turn_relay is None else _relay_servers_or_none(turn_relay)
+        issued = [] if turn_relay is None else issued_relay_servers(turn_relay)
+        relay_servers = [] if isinstance(issued, TurnRelayFailure) else issued
         return IceServerList(ice_servers=[IceServer(urls=[stun_server]), *relay_servers])
 
     return router

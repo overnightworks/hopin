@@ -35,6 +35,7 @@ from hopin.participation.speech_in_windows import SpeechInWindows
 from hopin.participation.switches import Switches
 from hopin.participation.telling import send_in_room, tell_joined, tell_left
 from hopin.participation.text import clean_line, clean_name
+from hopin.participation.video_looks import VideoLooks
 from hopin.participation.vocabulary import (
     AGENT_ID_BYTES,
     FEATURE_NAME,
@@ -123,6 +124,7 @@ class Participation(TransitionFeature):
             voices, deadlines, self.speech, self.figures, self._write_line, self._tell_room
         )
         self._seeing = Seeing(hearing, self._places, deadlines, self._tell, self._recipients)
+        self.video_looks = VideoLooks(self._places)
         self._switches = Switches(self._places, hearing, self.speech, self._seeing)
         self._live = LiveAgents()
         self._departed: dict[PeerId, list[DialedAgent]] = {}
@@ -556,9 +558,7 @@ class Participation(TransitionFeature):
         ended = [agent for agent in self._places.joined() if agent.room_id == room_id]
         self._places.drop_room(room_id)
         for agent in ended:
-            self._agent_speech.end(agent)
-            self._seeing.ended(agent)
-            self.figures.agent_ended(agent)
+            self._end_looks_and_voice(agent)
         for person in holders:
             self._on_changed(person)
 
@@ -576,9 +576,7 @@ class Participation(TransitionFeature):
         self._places.clear()
         self.speech.stop_recovery()
         for agent in ended:
-            self._agent_speech.end(agent)
-            self._seeing.ended(agent)
-            self.figures.agent_ended(agent)
+            self._end_looks_and_voice(agent)
         self._departed.clear()
         self._abandoned.clear()
         self._seat_views.clear()
@@ -749,9 +747,13 @@ class Participation(TransitionFeature):
         """The agent's removal, leave or lease end: it frees its place and hears and speaks nothing more."""
         change.release_agent_place(agent.agent_id)
         self._hearing.agent_ended(agent)
+        self._end_looks_and_voice(agent)
+
+    def _end_looks_and_voice(self, agent: DialedAgent) -> None:
         self._agent_speech.end(agent)
         self._seeing.ended(agent)
         self.figures.agent_ended(agent)
+        self.video_looks.agent_ended(agent)
 
     def _is_working(self, key: str) -> bool:
         return self._transitions.is_working(key)
