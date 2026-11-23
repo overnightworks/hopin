@@ -1,0 +1,8 @@
+claim_id = "6ab114b6f45a43e096af0ae4a10f42e1"
+agent = "Claude ec75e0df-83db-4de9-9765-71b041e0ffeb"
+role = "builder"
+base = "0d7a5c897040d115a2d273464e63c867412309f4"
+branch = "claude/issue-1138-video-session-opens-and-falls-back"
+scope = ["README.md", "docs/ARCHITECTURE.md", "docs/call.md", "pyproject.toml", "src/hopin/agent/feature.py", "src/hopin/agent/hearing_token.py", "src/hopin/agent/mcp.py", "src/hopin/agent/speech_settings.py", "src/hopin/agent/tools.py", "src/hopin/agent/video_session.py", "src/hopin/agent/video_settings.py", "src/hopin/app.py", "src/hopin/main.py", "src/hopin/participation/feature.py", "src/hopin/participation/participants.py", "src/hopin/participation/video_looks.py", "src/hopin/participation/vocabulary.py", "src/hopin/stage/feature.py", "src/hopin/web/ice_servers.py", "tests/agent/test_video_settings.py", "tests/participation/conftest.py", "tests/participation/support/figure_scene.py", "tests/participation/test_feature_video_looks.py", "tests/support/dialed_call.py", "tests/support/fake_video.py", "uv.lock"]
+opened_commit = "cc5736ec7f5f6665d55e77823a4bd091dd3d820e"
+whole_reason = "The rights path (the exchange, the workload grant, the relay credential) has no honest caller without the session, and the session has no honest outcome without its fallback and its closed lines."
