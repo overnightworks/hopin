@@ -214,7 +214,7 @@ jobs:
           HOPIN_E2E_SHARDS: 3
           HOPIN_BROWSER_COVERAGE_DIR: ${{ runner.temp }}/browser-coverage-raw
         # pytest-random: browser flows share one server per shard and run in file order.
-        run: pytest -n 2 -m e2e --durations=20 --tracing retain-on-failure --screenshot only-on-failure --output test-results
+        run: pytest -p no:randomly -n 2 -m e2e --durations=20 --tracing retain-on-failure --screenshot only-on-failure --output test-results
 
       - name: Upload the end-to-end coverage data
         if: ${{ !cancelled() }}
@@ -479,9 +479,8 @@ jobs:
       - name: Run a call end to end
         working-directory: ${{ env.COPY }}
         timeout-minutes: 5
-        # pytest-workers: one module and one server, its tests share it, so -n would only add startups.
-        # pytest-random: the call flow shares one server and runs in file order.
-        run: pytest -m e2e tests/e2e/test_call.py --no-cov
+        # pytest-workers: one module and one server, its tests share it, so -n would only add startups. # pytest-random: the call flow shares one server and runs in file order.
+        run: pytest -p no:randomly -m e2e tests/e2e/test_call.py --no-cov
 
   # The quality gate counts a matrix leg by its own name, so the one name it requires is this job: green only when
   # every leg is.
