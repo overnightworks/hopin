@@ -11,6 +11,12 @@ item = "overnightworks/hopin#739"
 date = 2026-11-12
 reason = "renamed to say what holds, only the connector reaches the speech service; the forbidden modules are unchanged"
 
+[[gate.loosened]]
+what = 'import contract "Participation names no agent runtime" ignores hopin.participation.** -> agents'
+item = "overnightworks/agents#1073"
+date = 2026-11-22
+reason = "participation calls agents.calling and agents.member, which import-linter cannot name apart from the agents package"
+
 [[root.allow]]
 entry = "Makefile"
 reason = "make finds its Makefile only in the directory it runs from"
