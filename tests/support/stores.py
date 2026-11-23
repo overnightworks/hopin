@@ -26,14 +26,6 @@ def session_transaction_of(sessions: SessionRecordStore) -> SessionTransaction:
     return lambda: nullcontext(sessions)
 
 
-class ErasableAccountStore(SingleProcessAccountStore):
-    """webauth's single-process accounts with the delete HopIn's Postgres accounts have, which the port lacks."""
-
-    def delete(self, user_id: str) -> bool:
-        with self._tables.guard:
-            return self._tables.accounts.pop(user_id, None) is not None
-
-
 class InThreadIdentity:
     """webauth's single-process stores behind `IdentityStores`, for the tests that run the app in one process.
 
@@ -41,7 +33,7 @@ class InThreadIdentity:
     """
 
     def __init__(self, audit: AuditSink) -> None:
-        self.accounts = ErasableAccountStore()
+        self.accounts = SingleProcessAccountStore()
         self.sessions = SingleProcessSessionStore(self.accounts)
         self.transaction = SingleProcessSignInTransaction(self.sessions, audit=audit)
 
@@ -70,10 +62,8 @@ class InThreadIdentity:
         )
 
     def erase(self, subject: str) -> ErasedIdentity:
-        """In one sign-in entry, like production, which holds the guard against every other entry."""
-        with self.transaction() as stores:
-            ended = stores.sessions.delete_for_user(subject)
-            return ErasedIdentity(accounts=int(self.accounts.delete(subject)), sessions=ended)
+        erased = self.sessions.erase(subject)
+        return ErasedIdentity(accounts=int(erased.account is not None), sessions=len(erased.sessions))
 
     def delete_expired(self, at: datetime) -> int:
         return self.sessions.delete_expired(at)
