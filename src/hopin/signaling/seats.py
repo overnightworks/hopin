@@ -1,3 +1,4 @@
+import hashlib
 import json
 import secrets
 from dataclasses import dataclass, field
@@ -7,26 +8,17 @@ from weakref import WeakSet
 import structlog
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
-from hopin.config.constants import (
-    MAX_LIVE_SEATS_PER_ACCOUNT,
-    PEER_ID_BYTES,
-    RESUME_TOKEN_BYTES,
-    RESUME_WINDOW_SECONDS,
-    SEAT_CLOSED_BY_SERVER_CODE,
-    ResumeRefusalCause,
-)
-from hopin.errors import ResumeRefusedError, TooManyCallsError
-from hopin.signaling.frames import JsonObject, PeerId, ResumeClaim, ResumedFrame, ResumeFrame, error_frame
-from hopin.signaling.replay import ReplayLog, Supersedes
-from hopin.signaling.scheduler import DeadlineKind
+from hopin.config.constants import PEER_ID_BYTES, RESUME_TOKEN_BYTES, SEAT_CLOSED_BY_SERVER_CODE
+from hopin.signaling.frames import RESUME_TOKEN_KEY, TOKEN_BEARING_TYPES, TYPE_KEY, JsonObject, PeerId
+from hopin.signaling.replay import ReplayLog
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Mapping
 
     from starlette.requests import HTTPConnection
 
     from hopin.rooms.models import Account
-    from hopin.signaling.scheduler import Deadlines, TimerHandle
+    from hopin.signaling.scheduler import TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -51,19 +43,41 @@ def mint_resume_token() -> str:
     return secrets.token_urlsafe(RESUME_TOKEN_BYTES)
 
 
+def hash_token(token: str) -> bytes:
+    return hashlib.sha256(token.encode()).digest()
+
+
 @dataclass
-class Peer:
-    """A seat: the account behind it, the socket that currently serves it and what a resume needs."""
+class SeatRecord:
+    """The stored part of a seat: the account behind it, its room, its park, what the browser has sent, the hash of its
+    resume token and the log of what it was sent. The call store's commit is its only writer."""
 
     account: Account
-    websocket: WebSocket
-    resume_token: str = field(default_factory=mint_resume_token, repr=False)
-    log: ReplayLog = field(default_factory=ReplayLog, repr=False)
+    token_hash: bytes = field(repr=False)
+    room_id: str | None = None
+    park: Park | None = None
     received_seq: int = 0
+    log: ReplayLog = field(default_factory=ReplayLog, repr=False)
+
+    def accepts(self, token: str) -> bool:
+        """Whether the token is the seat's, compared by its hash in constant time."""
+        try:
+            claimed = hash_token(token)
+        except UnicodeEncodeError:
+            return False
+        return secrets.compare_digest(claimed, self.token_hash)
+
+
+@dataclass
+class SeatSocket:
+    """The part of a seat that belongs to the socket serving it now; a resume replaces it with the new socket's. Its
+    `unsent_token` is the seat's token as long as no frame that carries it has been written."""
+
+    websocket: WebSocket
+    unsent_token: str | None = field(default=None, repr=False)
     delivered_seq: int = 0
     replaying: bool = False
     writers_started: int = 0
-    park: Park | None = None
     outcome_times: tuple[float, ...] = ()
 
 
@@ -80,97 +94,52 @@ class Connection:
 
 
 class Seats:
-    """The seat registry: who holds which seat, what was sent to it and when a parked one lapses."""
+    """The sockets this process holds for its seats, and what is written to them: the logged frames of a seat's stored
+    record, which only the call store's commit writes."""
 
-    def __init__(
-        self,
-        deadlines: Deadlines,
-        on_seat_lost: Callable[[PeerId], Awaitable[None]],
-        on_seat_changed: Callable[[PeerId], None],
-    ) -> None:
-        self._deadlines = deadlines
-        deadlines.register(DeadlineKind.RESUME_WINDOW, self._expire_park)
-        self._on_seat_lost = on_seat_lost
-        self._on_seat_changed = on_seat_changed
-        self._peers: dict[PeerId, Peer] = {}
+    def __init__(self, records: Mapping[PeerId, SeatRecord]) -> None:
+        self._records = records
+        self._sockets: dict[PeerId, SeatSocket] = {}
         self._closed_by_server: WeakSet[WebSocket] = WeakSet()
 
-    def open_seat(self, account: Account, websocket: WebSocket) -> PeerId:
-        """Opens a seat; a parked seat holds no socket, so only live ones count toward the account's cap."""
-        live_seats = sum(1 for _, peer in self.held_by(account.id) if peer.park is None)
-        if live_seats >= MAX_LIVE_SEATS_PER_ACCOUNT:
-            raise TooManyCallsError
-        peer_id = mint_peer_id()
-        self._peers[peer_id] = Peer(account=account, websocket=websocket)
-        return peer_id
+    def attach(self, peer_id: PeerId, socket: SeatSocket) -> None:
+        """Make the socket the one that serves the seat; the call store's commit does it with the seat's record."""
+        self._sockets[peer_id] = socket
 
-    def find(self, peer_id: PeerId) -> Peer | None:
-        return self._peers.get(peer_id)
+    def detach(self, peer_id: PeerId) -> None:
+        self._sockets.pop(peer_id, None)
 
-    def seat(self, peer_id: PeerId) -> Peer:
-        return self._peers[peer_id]
+    def find(self, peer_id: PeerId) -> SeatSocket | None:
+        return self._sockets.get(peer_id)
 
-    def held_by(self, account_id: str) -> tuple[tuple[PeerId, Peer], ...]:
-        return tuple((peer_id, peer) for peer_id, peer in self._peers.items() if peer.account.id == account_id)
-
-    def forget(self, peer_id: PeerId) -> Peer | None:
-        peer = self._peers.pop(peer_id, None)
-        if peer is not None and peer.park is not None:
-            self._deadlines.cancel(DeadlineKind.RESUME_WINDOW, peer_id)
-        return peer
-
-    async def park(self, peer_id: PeerId, peer: Peer) -> None:
-        self._deadlines.set(DeadlineKind.RESUME_WINDOW, peer_id, RESUME_WINDOW_SECONDS)
-        peer.park = Park(dropped_at=self._deadlines.now())
-        peer.replaying = False
-        self._on_seat_changed(peer_id)
-        await logger.ainfo("seat.parked", peer_id=peer_id)
-
-    async def _expire_park(self, peer_id: str) -> None:
-        await self._on_seat_lost(PeerId(peer_id))
-
-    def account_of(self, peer_id: str) -> Account:
-        return self._peers[PeerId(peer_id)].account
+    def socket_of(self, peer_id: PeerId) -> SeatSocket:
+        return self._sockets[peer_id]
 
     def connection_of(self, peer_id: PeerId) -> HTTPConnection:
-        return self._peers[peer_id].websocket
-
-    async def send_all(self, peer_ids: list[str], data: JsonObject, supersedes: Supersedes | None = None) -> None:
-        """Log the frame for every seat first, so what it supersedes is gone at each before any write, then write."""
-        logged = [PeerId(peer_id) for peer_id in peer_ids if self.log(PeerId(peer_id), data, supersedes)]
-        for peer_id in logged:
-            await self.deliver(peer_id)
-
-    async def send(self, peer_id: str, data: JsonObject, supersedes: Supersedes | None = None) -> None:
-        await self.send_all([peer_id], data, supersedes)
-
-    def log(self, peer_id: PeerId, data: JsonObject, supersedes: Supersedes | None = None) -> bool:
-        """Give the frame the seat's next seq in its log, dropping the frames it supersedes there, and say whether the
-        seat is there to have it."""
-        peer = self._peers.get(peer_id)
-        if peer is None:
-            return False
-        peer.log.append(data, supersedes)
-        return True
+        return self._sockets[peer_id].websocket
 
     async def deliver(self, peer_id: PeerId) -> None:
         """Write the logged frames the seat's socket has not had; held while the seat is parked or replaying."""
         # The browser drops frames at or below the last seq it dispatched, so each write starts in the order of the
         # seq, claimed with no await before it starts; a slow write never holds the next one back, and a writer whose
         # slow write ends leaves the frames after it to the newer writer, so none of them overtakes the newer one's.
-        peer = self._peers.get(peer_id)
-        if peer is None:
+        socket = self._sockets.get(peer_id)
+        record = self._records.get(peer_id)
+        if socket is None or record is None:
             return
-        peer.writers_started += 1
-        writer = peer.writers_started
+        socket.writers_started += 1
+        writer = socket.writers_started
         while (
-            self.find(peer_id) is peer and not peer.replaying and peer.park is None and peer.writers_started == writer
+            self._sockets.get(peer_id) is socket
+            and not socket.replaying
+            and record.park is None
+            and socket.writers_started == writer
         ):
-            pending = peer.log.since(peer.delivered_seq)
+            pending = record.log.since(socket.delivered_seq)
             if not pending:
                 return
-            peer.delivered_seq = pending[0].seq
-            await self.write(peer.websocket, pending[0].frame, peer_id)
+            socket.delivered_seq = pending[0].seq
+            await self.write(socket.websocket, _with_unsent_token(socket, pending[0].frame), peer_id)
 
     @staticmethod
     async def write(websocket: WebSocket, frame: JsonObject, peer_id: str | None = None) -> bool:
@@ -183,43 +152,23 @@ class Seats:
             return False
         return True
 
-    async def resume(self, connection: Connection, frame: ResumeFrame, *, is_first_frame: bool) -> None:
-        try:
-            if not is_first_frame:
-                raise ResumeRefusedError(ResumeRefusalCause.NOT_FIRST_FRAME)
-            claim = frame.require_claim()
-            seat = self._matching_seat(connection, claim)
-            gap = self._gap_before_resume(seat, claim)
-            if gap is not None:
-                await self._release_unresumable_seat(claim.participant_id)
-                raise ResumeRefusedError(gap)
-        except ResumeRefusedError as refusal:
-            await self._refuse_resume(connection, refusal)
-            return
-        await self._take_over_seat(connection, seat, claim)
-
-    def _matching_seat(self, connection: Connection, claim: ResumeClaim) -> Peer:
-        seat = self.find(claim.participant_id)
-        if seat is None:
-            raise ResumeRefusedError(ResumeRefusalCause.UNKNOWN_SEAT)
-        if not _token_matches(claim.token, seat.resume_token):
-            raise ResumeRefusedError(ResumeRefusalCause.CREDENTIAL_MISMATCH)
-        if self.account_of(connection.peer_id).id != seat.account.id:
-            raise ResumeRefusedError(ResumeRefusalCause.WRONG_ACCOUNT)
-        return seat
-
-    @staticmethod
-    def _gap_before_resume(seat: Peer, claim: ResumeClaim) -> ResumeRefusalCause | None:
-        if not seat.log.reaches_back_to(claim.last_seq):
-            return ResumeRefusalCause.SERVER_LOG_TOO_SHORT
-        if claim.sent_floor > seat.received_seq:
-            return ResumeRefusalCause.BROWSER_LOG_TOO_SHORT
-        return None
-
-    async def _release_unresumable_seat(self, peer_id: PeerId) -> None:
-        seat = self.seat(peer_id)
-        await self._on_seat_lost(peer_id)
-        await self.close_socket(seat.websocket)
+    async def replay(self, peer_id: PeerId, socket: SeatSocket, last_seq: int) -> bool:
+        """Write the seat's logged frames after the seq the browser last dispatched, then open the socket to the frames
+        that follow; false when the log no longer reaches back to that seq."""
+        cursor = last_seq
+        while self._sockets.get(peer_id) is socket:
+            record = self._records[peer_id]
+            if not record.log.reaches_back_to(cursor):
+                return False
+            pending = record.log.since(cursor)
+            if not pending:
+                socket.delivered_seq = cursor
+                socket.replaying = False
+                return True
+            if not await self.write(socket.websocket, pending[0].frame):
+                return True
+            cursor = pending[0].seq
+        return True
 
     def closed_by_server(self, websocket: WebSocket) -> bool:
         """Whether the server closed this socket itself, so an abnormal close read from it is no drop to log.
@@ -239,51 +188,13 @@ class Seats:
         except WebSocketDisconnect:
             await logger.ainfo("socket_close.refused", reason="socket_gone")
 
-    async def _refuse_resume(self, connection: Connection, refusal: ResumeRefusedError) -> None:
-        await logger.ainfo("resume.refused", peer_id=connection.peer_id, reason=refusal.cause.value)
-        await self.write(connection.websocket, error_frame(refusal))
 
-    async def _take_over_seat(self, connection: Connection, seat: Peer, claim: ResumeClaim) -> None:
-        superseded = seat.websocket
-        if seat.park is not None:
-            self._deadlines.cancel(DeadlineKind.RESUME_WINDOW, claim.participant_id)
-            seat.park = None
-            self._on_seat_changed(claim.participant_id)
-        self.forget(connection.peer_id)
-        connection.peer_id = claim.participant_id
-        seat.websocket = connection.websocket
-        seat.resume_token = mint_resume_token()
-        seat.replaying = True
-
-        await self.close_socket(superseded)
-        await self.write(
-            connection.websocket, ResumedFrame(resume_token=seat.resume_token, last_seq=seat.received_seq).to_json()
-        )
-        await self._replay(connection.websocket, claim.participant_id, seat, claim.last_seq)
-        await logger.ainfo("seat.resumed", peer_id=claim.participant_id)
-
-    async def _replay(self, websocket: WebSocket, peer_id: PeerId, seat: Peer, last_seq: int) -> None:
-        cursor = last_seq
-        while self.find(peer_id) is seat and seat.websocket is websocket:
-            if not seat.log.reaches_back_to(cursor):
-                await self._release_unresumable_seat(peer_id)
-                return
-            pending = seat.log.since(cursor)
-            if not pending:
-                seat.delivered_seq = cursor
-                seat.replaying = False
-                return
-            if not await self.write(websocket, pending[0].frame):
-                return
-            cursor = pending[0].seq
-
-
-def _token_matches(claimed: str, expected: str) -> bool:
-    try:
-        claimed_bytes = claimed.encode()
-    except UnicodeEncodeError:
-        return False
-    return secrets.compare_digest(claimed_bytes, expected.encode())
+def _with_unsent_token(socket: SeatSocket, frame: JsonObject) -> JsonObject:
+    """The frame as this socket writes it: the first token-bearing one carries the seat's token, which no log keeps."""
+    if socket.unsent_token is None or frame[TYPE_KEY] not in TOKEN_BEARING_TYPES:
+        return frame
+    token, socket.unsent_token = socket.unsent_token, None
+    return {**frame, RESUME_TOKEN_KEY: token}
 
 
 def is_connected(websocket: WebSocket) -> bool:

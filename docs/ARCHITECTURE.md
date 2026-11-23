@@ -72,7 +72,7 @@ Caption: what each part may import, from the `layers` contract in `pyproject.tom
 | `app` | the composition root: wires the packages, names no feature |
 | `main` | starts the server and switches the optional features in |
 
-The feature port is `TransitionFeature` in `signaling`: each optional feature plugs into it and runs on transitions, so the call core compiles and runs without any of them. The browser mirrors it: `GET /api/call-features` names the wired features, and the shell imports them before signaling connects.
+The feature port is `TransitionFeature` in `signaling`: each optional feature plugs into it and runs on transitions, so the call core compiles and runs without any of them. The call core and the features commit through one store, and the commit is the only writer of rooms, seats and seat logs; a seat's log never holds its resume token. The browser mirrors it: `GET /api/call-features` names the wired features, and the shell imports them before signaling connects.
 
 `make frontend` builds the page into `src/hopin/web/build/`; the server refuses to start without it.
 
