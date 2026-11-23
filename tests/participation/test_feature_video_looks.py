@@ -22,14 +22,14 @@ from tests.participation.support.figure_scene import FILE, JOINED, accept_with, 
 from tests.participation.support.figures import SOURCE_PREFIX, digest_of, figure_url, ok
 from tests.support.agent_speak import SENTENCE_SECONDS, speak
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
-from tests.support.fake_video import (
-    CREDENTIAL,
+from tests.support.fake_turn import (
+    PROVIDER_CREDENTIAL,
+    PROVIDER_USERNAME,
     RELAY_URLS,
-    USERNAME,
-    FakeTurnProvider,
-    FakeVideo,
-    refused_with,
+    FakeTransport,
+    provider_answer,
 )
+from tests.support.fake_video import WAIT_SECONDS, FakeVideo, refused_with
 from tests.support.log_lines import captured_lines
 from tests.support.sign_in_settings import TEST_REALM
 from tests.support.speech_origin import AUDIENCE_SCOPE as SPEECH_SCOPE
@@ -63,9 +63,29 @@ def video_service(fake_video):
     return VideoService(fake_video.origin, VIDEO_SCOPE)
 
 
+class TurnGate:
+    """The body of the TURN provider's answer: a clear `issuing` holds it back, and `asked` says a request came."""
+
+    def __init__(self, answer: bytes) -> None:
+        self._answer = answer
+        self.issuing = threading.Event()
+        self.issuing.set()
+        self.asked = threading.Event()
+
+    def __call__(self) -> bytes:
+        self.asked.set()
+        assert self.issuing.wait(WAIT_SECONDS), "a credential request was held for good"
+        return self._answer
+
+
 @pytest.fixture
-def turn_provider():
-    return FakeTurnProvider()
+def turn_gate():
+    return TurnGate(json.dumps(provider_answer()).encode())
+
+
+@pytest.fixture
+def turn_provider(turn_gate):
+    return FakeTransport(body=turn_gate)
 
 
 @pytest.fixture
@@ -172,7 +192,7 @@ class TestAVideoSessionOpens:
 
         assert update.session.ice_transport_policy == "relay"
         [server] = update.session.ice_servers
-        assert (server.urls, server.username, server.credential) == (RELAY_URLS, USERNAME, CREDENTIAL)
+        assert (server.urls, server.username, server.credential) == (RELAY_URLS, PROVIDER_USERNAME, PROVIDER_CREDENTIAL)
 
     def test_call_81_the_accept_leads_to_one_exchange_for_the_video_audience_and_each_exchange_asks_one_scope(
         self, scene, fake_video, with_a_figure_after
@@ -481,9 +501,9 @@ class TestThePlaceEnds:
 class TestTheVoiceAndTheAcceptNeverWaitOnVideo:
     @pytest.mark.parametrize("gate", ["health", "exchange", "grant", "turn", "upgrade"])
     def test_call_81_with_a_step_of_the_open_held_back_the_accept_answers_and_the_sentence_plays_at_once(
-        self, scene, fake_video, turn_provider, with_a_figure_after, gate
+        self, scene, fake_video, turn_gate, with_a_figure_after, gate
     ):
-        release, asked = held_back(gate, scene.call, fake_video, turn_provider)
+        release, asked = held_back(gate, scene.call, fake_video, turn_gate)
         assert not accept_with(scene, None, looks=with_a_figure_after).is_error
         opening = threading.Thread(target=scene.call.pass_time, args=(0,))
         opening.start()
@@ -499,7 +519,7 @@ class TestTheVoiceAndTheAcceptNeverWaitOnVideo:
         assert fake_video.next_session().look == ESTABLISHED
 
 
-def held_back(gate, call, fake_video, turn_provider):
+def held_back(gate, call, fake_video, turn_gate):
     """Hold one step of the open back; what lets it go on and what is set once the open has asked it. The exchange and
     the grant are held for the video's scope alone, so the sentence's own grants pass."""
     match gate:
@@ -513,8 +533,8 @@ def held_back(gate, call, fake_video, turn_provider):
             hold = call.issuer.hold(CLIENT_CREDENTIALS_GRANT, scope=VIDEO_SCOPE)
             return hold.release.set, hold.parked
         case "turn":
-            turn_provider.issuing.clear()
-            return turn_provider.issuing.set, turn_provider.asked
+            turn_gate.issuing.clear()
+            return turn_gate.issuing.set, turn_gate.asked
         case _:
             fake_video.opening.clear()
             return fake_video.opening.set, fake_video.upgrade_asked
@@ -535,7 +555,9 @@ class TestNoCredentialLeaksToALog:
         [workload] = scene.call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT)
         logged = json.dumps(list(lines), default=str)
         assert [
-            secret for secret in (scene.token, video_token, workload, CREDENTIAL, USERNAME) if secret in logged
+            secret
+            for secret in (scene.token, video_token, workload, PROVIDER_CREDENTIAL, PROVIDER_USERNAME)
+            if secret in logged
         ] == []
 
 

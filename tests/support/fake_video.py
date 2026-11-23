@@ -30,13 +30,9 @@ from video_client.wire import (
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.server import serve
 
-from hopin.web.turn_relay import TurnAnswer
-
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from pathlib import Path
 
-    import urllib3
     from video_client.session_wire import ServerEvent
     from websockets.http11 import Request, Response
     from websockets.sync.server import Server, ServerConnection
@@ -214,41 +210,3 @@ class FakeVideo:
             if self.updates and not answered:
                 answered = True
                 connection.send(SessionUpdated().model_dump_json())
-
-
-RELAY_URLS = ["turn:relay.test.invalid:3478?transport=udp", "turns:relay.test.invalid:443?transport=tcp"]
-CREDENTIAL = "relay-credential-of-the-fake-provider"
-USERNAME = "relay-user-of-the-fake-provider"
-
-
-@dataclass
-class FakeTurnProvider:
-    """The TURN provider behind the transport port: it answers each credential request with one relay entry, and a
-    clear `issuing` holds the answer back."""
-
-    status: int = 201
-    calls: list[str] = field(default_factory=list)
-    issuing: threading.Event = field(default_factory=threading.Event)
-    asked: threading.Event = field(default_factory=threading.Event)
-
-    def __post_init__(self) -> None:
-        self.issuing.set()
-
-    def __call__(self, url: str, *, headers: Mapping[str, str], body: bytes, timeout: urllib3.Timeout) -> TurnAnswer:
-        self.calls.append(url)
-        self.asked.set()
-        assert self.issuing.wait(WAIT_SECONDS), "a credential request was held for good"
-        entry = {"urls": RELAY_URLS, "username": USERNAME, "credential": CREDENTIAL}
-        stun = {"urls": ["stun:stun.test.invalid:3478"]}
-        return TurnAnswer(self.status, json.dumps({"iceServers": [stun, entry]}).encode())
-
-
-def turn_on(directory: Path) -> dict[str, str | Path]:
-    """The server settings that switch TURN on, with key files written into `directory`."""
-    (directory / "turn-key-id").write_text("fake-key-id\n")
-    (directory / "turn-api-token").write_text("fake-api-token\n")
-    return {
-        "turn_provider": "cloudflare",
-        "turn_key_id_file": directory / "turn-key-id",
-        "turn_api_token_file": directory / "turn-api-token",
-    }

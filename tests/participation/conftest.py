@@ -32,7 +32,7 @@ from tests.support.agent_speak import speak
 from tests.support.dialed_call import accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.fake_speech import FakeSpeech
-from tests.support.fake_video import turn_on
+from tests.support.fake_turn import turn_on
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.loopback_origin import Origin
 from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver, WitnessFeatureBuilder
