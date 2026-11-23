@@ -1,0 +1,8 @@
+claim_id = "4c975f2ecebd42f385cb82236f5cdc67"
+agent = "Claude ec75e0df-83db-4de9-9765-71b041e0ffeb"
+role = "builder"
+base = "13cfc282f080f847f5812941c229bb5d6d6a2cde"
+branch = "claude/issue-1122-hopin-pins-tandem-v0-15-0"
+scope = ["pyproject.toml", "src/hopin/agent/backend.py", "tests/game/support/fake_agent_backend.py", "uv.lock"]
+opened_commit = "2f2b4456a1e92fe6c69f94504290c3b1940eee01"
+whole_reason = "One dependency bump: agents and tandem pin together, and the game master adapter and its fake follow the agents release they pin."
