@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, cast
 
 from agents.calling import AcceptFacts, CallFacts, Invited, OpenInvitation, OwnerAt, invite
 
-from hopin.participation.frames import AgentOffersFrame, Offer
+from hopin.errors import InvalidMessageError
+from hopin.participation.frames import AgentOffersFrame, AgentRefusedFrame, Offer
 from hopin.participation.group_reads import GroupReads
 from hopin.participation.memberships import AGENT_ADDERS_GROUP, Membership, membership_in
 from hopin.participation.participants import DialedAgent
@@ -21,7 +22,7 @@ if TYPE_CHECKING:
     from hopin.participation.memberships import SeatViews
     from hopin.participation.participants import Person
     from hopin.participation.places import Places
-    from hopin.signaling.frames import PeerId
+    from hopin.signaling.frames import ForeignFrame, PeerId
     from hopin.signaling.transition import RoomView, Transition
 
 
@@ -66,6 +67,19 @@ class Offers:
                 seat.shown = shown
                 seat.full = full
                 transition.send(peer_id, AgentOffersFrame(shown=shown, full=full, offers=list(offers)).to_json())
+
+    def on_add(
+        self, agents: LiveAgents, peer_id: PeerId, frame: ForeignFrame, view: RoomView, transition: Transition
+    ) -> None:
+        """Refuse an add of an agent no registration holds, or read the adder's groups afresh, which then decides it."""
+        agent_key = frame.data.get("agent_key")
+        if not isinstance(agent_key, str):
+            raise InvalidMessageError("An add needs the agent's key")
+        live = None if view.room_id is None else agents.by_key(agent_key)
+        if live is None:
+            transition.send(peer_id, AgentRefusedFrame(AgentRefusal.GONE).to_json())
+            return
+        transition.dispatch(self.group_reads.for_add(peer_id, live))
 
     def call(
         self,

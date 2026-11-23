@@ -4,14 +4,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Final, cast
 
 import structlog
-from agents.calling import (
-    AcceptRefused,
-    Ended,
-    OpenInvitation,
-    check_accept,
-    check_decline,
-    expired,
-)
+from agents.calling import AcceptRefused, Ended, OpenInvitation, check_accept, check_decline, expired
 from agents.member import DeclineInvitationRefusal
 
 from hopin.errors import InvalidMessageError
@@ -325,27 +318,22 @@ class Participation(TransitionFeature):
         """Turn the agent's open invitation into its tile, bound to the owner's seat the invitation names; the tile
         shows the figure only when an allowed source holds it, and the agent keeps `voices` for its sentences."""
         room_id = accepted.place.id
+        room_ref = room_reference(room_id)
         verdict = judge_figure(self._figure_sources, figure)
         outcome = await self._transitions.apply(room_id, partial(self._accept, person, accepted, verdict, voices))
         if isinstance(outcome, DialedAgent):
-            await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_reference(room_id), reason="accepted")
+            await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_ref, reason="accepted")
             if verdict.refusal is not None:
-                await logger.ainfo(
-                    "agent_figure.refused", room_ref=room_reference(room_id), reason=verdict.refusal.value
-                )
+                await logger.ainfo("agent_figure.refused", room_ref=room_ref, reason=verdict.refusal.value)
             if verdict.persona_room_refusal is not None:
                 await logger.ainfo(
-                    "agent_persona_room.refused",
-                    room_ref=room_reference(room_id),
-                    reason=verdict.persona_room_refusal.value,
+                    "agent_persona_room.refused", room_ref=room_ref, reason=verdict.persona_room_refusal.value
                 )
             for gesture, clip_refusal in verdict.clip_refusals.items():
-                await logger.ainfo(
-                    "agent_clip.refused", room_ref=room_reference(room_id), gesture=gesture, reason=clip_refusal.value
-                )
+                await logger.ainfo("agent_clip.refused", room_ref=room_ref, gesture=gesture, reason=clip_refusal.value)
             await self._update_offers(room_id)
         elif outcome is not AgentRefusal.STALE_INVITATION:
-            await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_reference(room_id), reason="refused")
+            await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_ref, reason="refused")
         return outcome
 
     def _accept(
@@ -428,7 +416,7 @@ class Participation(TransitionFeature):
                 if self._on_remove(peer_id, frame, view, transition) is not None:
                     transition.follow(self._offer)
             case ParticipationSignal.AGENT_ADD:
-                self._on_add(peer_id, frame, view, transition)
+                self._offers.on_add(self._live, peer_id, frame, view, transition)
             case ParticipationSignal.LINE_FOR_AGENTS:
                 self._on_line_for_agents(peer_id, frame, view)
             case ParticipationSignal.AGENT_HEARING if self._hearing.enabled:
@@ -626,17 +614,6 @@ class Participation(TransitionFeature):
         self._remove(view, agent, transition)
         return agent.room_id
 
-    def _on_add(self, peer_id: PeerId, frame: ForeignFrame, view: RoomView, transition: Transition) -> None:
-        """Refuse an add of an agent no registration holds, or read the adder's groups afresh, which then decides it."""
-        agent_key = frame.data.get("agent_key")
-        if not isinstance(agent_key, str):
-            raise InvalidMessageError("An add needs the agent's key")
-        live = None if view.room_id is None else self._live.by_key(agent_key)
-        if live is None:
-            transition.send(peer_id, AgentRefusedFrame(AgentRefusal.GONE).to_json())
-            return
-        transition.dispatch(self._offers.group_reads.for_add(peer_id, live))
-
     def _close_lapsed(self, view: RoomView, person: Person, now: datetime) -> Ended | None:
         """End the person's invitation in the room when the wall clock lapsed it, before a call decides on the room
         without it; the end its inviter has yet to hear of, or nothing."""
@@ -648,13 +625,7 @@ class Participation(TransitionFeature):
         return lapsed
 
     def _invite(
-        self,
-        view: RoomView,
-        inviter: PeerId,
-        live: LiveAgent,
-        now: datetime,
-        *,
-        inviter_is_member: bool,
+        self, view: RoomView, inviter: PeerId, live: LiveAgent, now: datetime, *, inviter_is_member: bool
     ) -> AgentRefusal | None:
         """Call the agent as the calling standard decides on the facts of the call now: the refusal, or nothing when an
         invitation stands. A repeated call by the seat that made the open invitation changes nothing."""
