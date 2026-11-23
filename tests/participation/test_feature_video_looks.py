@@ -248,16 +248,16 @@ class TestAVideoSessionOpens:
 
 class TestNoSessionOpens:
     @pytest.mark.parametrize(
-        "looks",
+        ("looks", "video_look_is_ready"),
         [
-            pytest.param([figure_look(figure_url()), FIRST], id="a-figure-look-before-the-video-look"),
-            pytest.param([FIRST], id="a-video-look-the-health-does-not-offer-ready"),
+            pytest.param([figure_look(figure_url()), FIRST], True, id="a-figure-look-before-a-ready-video-look"),
+            pytest.param([FIRST], False, id="a-video-look-the-health-does-not-offer-ready"),
         ],
     )
     def test_call_81_with_no_ready_video_look_ahead_of_its_figure_no_session_opens_and_no_line_is_written(
-        self, scene, fake_video, figure_served, lines, looks
+        self, scene, fake_video, figure_served, lines, looks, video_look_is_ready
     ):
-        fake_video.looks[ESTABLISHED] = False
+        fake_video.looks[ESTABLISHED] = video_look_is_ready
         accepted(scene, looks)
 
         assert (fake_video.upgrades, ended_lines(lines), exchanges_for(scene.call, VIDEO_SCOPE)) == (0, [], [])
