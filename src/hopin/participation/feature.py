@@ -591,7 +591,7 @@ class Participation(TransitionFeature):
             )
         self._offer(view, transition)
         if lapsed is not None:
-            # After the offers: the outcome marks the row the offers list the agent on again.
+            # After the final offers, so no later offers frame clears the outcome.
             self._tell_outcome(view, adding.agent.person, lapsed, transition)
         if refusal is not None:
             # After the offers: every offers frame a seat gets after a refusal is a later one, which clears it.
@@ -686,8 +686,7 @@ class Participation(TransitionFeature):
         self._on_changed(person)
 
     def _tell_outcome(self, view: RoomView, person: Person, ended: Ended, transition: Transition) -> None:
-        """Tell the inviter the outcome, after the offers: they list the agent as available again, and the outcome
-        marks that row."""
+        """Tell the inviter the outcome; callers send it after the final offers, so no later offers frame clears it."""
         agent = self._live.by_person[person]
         send_in_room(
             view, transition, [PeerId(ended.inviter)], AgentInvitationEndedFrame(agent.key, agent.name, ended.outcome)
