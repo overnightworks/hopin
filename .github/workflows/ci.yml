@@ -64,7 +64,7 @@ jobs:
       - name: Test with coverage
         env:
           COVERAGE_FILE: .coverage.unit
-        run: pytest -q -n auto -m "not e2e and not shared_stores"
+        run: pytest -n auto -m "not e2e and not shared_stores"
 
       - name: Upload the unit coverage data
         if: ${{ !cancelled() }}
@@ -133,7 +133,7 @@ jobs:
           HOPIN_TEST_REDIS_URL: redis://localhost:6379
           HOPIN_TEST_POSTGRES_URL: postgresql://postgres:${{ github.run_id }}@localhost:5432/postgres
           COVERAGE_FILE: .coverage.shared-stores
-        run: pytest -q -n auto -m shared_stores
+        run: pytest -n auto -m shared_stores
 
       - name: Upload the shared-stores coverage data
         if: ${{ !cancelled() }}
@@ -213,7 +213,8 @@ jobs:
           HOPIN_E2E_SHARD: ${{ matrix.shard }}
           HOPIN_E2E_SHARDS: 3
           HOPIN_BROWSER_COVERAGE_DIR: ${{ runner.temp }}/browser-coverage-raw
-        run: pytest -n 2 -m e2e --durations=20 --tracing retain-on-failure --screenshot only-on-failure --output test-results
+        # pytest-random: browser flows share one server per shard and run in file order.
+        run: pytest -p no:randomly -n 2 -m e2e --durations=20 --tracing retain-on-failure --screenshot only-on-failure --output test-results
 
       - name: Upload the end-to-end coverage data
         if: ${{ !cancelled() }}
@@ -468,7 +469,7 @@ jobs:
 
       - name: Run the unit tests
         working-directory: ${{ env.COPY }}
-        run: pytest -q -n auto -m "not e2e and not shared_stores" --no-cov
+        run: pytest -n auto -m "not e2e and not shared_stores" --no-cov
 
       - name: Install Chromium
         working-directory: ${{ env.COPY }}
@@ -478,8 +479,8 @@ jobs:
       - name: Run a call end to end
         working-directory: ${{ env.COPY }}
         timeout-minutes: 5
-        # pytest-workers: one module and one server, its tests share it, so -n would only add startups.
-        run: pytest -q -m e2e tests/e2e/test_call.py --no-cov
+        # pytest-workers: one module and one server, its tests share it, so -n would only add startups. # pytest-random: the call flow shares one server and runs in file order.
+        run: pytest -p no:randomly -m e2e tests/e2e/test_call.py --no-cov
 
   # The quality gate counts a matrix leg by its own name, so the one name it requires is this job: green only when
   # every leg is.
@@ -595,7 +596,7 @@ jobs:
     permissions:
       contents: read
       actions: read
-    uses: overnightworks/quality/.github/workflows/gate.yml@34c82adba7820c036634b18ed01486da78e00c73 # v0.23.0
+    uses: overnightworks/quality/.github/workflows/gate.yml@0cff5e74b3a9b106490723264468271a23d5579d # v0.24.0
     with:
       coverage-artifact: coverage
     secrets:
