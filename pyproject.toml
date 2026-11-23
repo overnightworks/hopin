@@ -10,6 +10,7 @@ dependencies = [
     "overnightworks-logline @ git+https://github.com/overnightworks/logline@v1.9.0",
     "overnightworks-speech-client @ git+https://github.com/overnightworks/speech@v0.24.0#subdirectory=packages/client",
     "overnightworks-tandem @ git+https://github.com/overnightworks/tandem@v0.15.0",
+    "overnightworks-video-client @ git+https://github.com/overnightworks/video@v0.3.0#subdirectory=packages/client",
     "overnightworks-webauth[postgres] @ git+https://github.com/overnightworks/webauth@v0.46.0",
     "psycopg[binary]>=3.2",
     "pydantic>=2.10",
@@ -38,6 +39,7 @@ no-binary-package = [
     "overnightworks-logline",
     "overnightworks-speech-client",
     "overnightworks-tandem",
+    "overnightworks-video-client",
     "overnightworks-webauth",
 ]
 # Their build backends run with these exact tools, as hatchling is pinned above.
@@ -248,6 +250,7 @@ forbidden_modules = [
     "agent_runtime_client",  # stays forbidden beside agents, because quality's gate counts a struck forbidden module as a loosening
     "speech_client",
     "speech_runtime_client",
+    "video_client",
     "httpx2",
 ]
 
@@ -258,7 +261,7 @@ type = "forbidden"
 # Participation holds who is in a call, with no AI in it; the connector adapts it to the runtime's tools.
 source_modules = ["hopin.participation"]
 # agent_runtime_client stays forbidden beside agents, because quality's gate counts a struck forbidden module as a loosening.
-forbidden_modules = ["agents", "agent_runtime_client", "speech_client", "speech_runtime_client", "httpx2"]
+forbidden_modules = ["agents", "agent_runtime_client", "speech_client", "speech_runtime_client", "video_client", "httpx2"]
 
 [[tool.importlinter.contracts]]
 id = "agent-service-only-through-the-game"
@@ -275,9 +278,9 @@ allow_indirect_imports = true
 id = "speech-service-only-through-the-connector"
 name = "Only the connector reaches the speech service"
 type = "forbidden"
-# The speech client is the connector's alone, under either of its distribution names.
+# The speech client, under either of its distribution names, and the video client are the connector's alone; the video service shares this contract.
 source_modules = ["hopin.main", "hopin.app"]
-forbidden_modules = ["speech_client", "speech_runtime_client"]
+forbidden_modules = ["speech_client", "speech_runtime_client", "video_client"]
 # main imports hopin.agent to switch the game in; only a direct import is the violation.
 allow_indirect_imports = true
 

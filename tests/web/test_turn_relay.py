@@ -1,7 +1,6 @@
 import json
 import secrets
 import traceback
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import pytest
@@ -13,7 +12,15 @@ from hopin.app import create_app
 from hopin.config.constants import ICE_SERVERS_PATH
 from hopin.config.secret_files import StartRefusedError
 from hopin.web.ice_servers import TurnRelayFailure, TurnRelayUnavailableError
-from hopin.web.turn_relay import TurnAnswer, build_turn_relay
+from hopin.web.turn_relay import build_turn_relay
+from tests.support.fake_turn import (
+    RELAY_URLS,
+    STUN_ENTRY,
+    FakeTransport,
+    TurnKeys,
+    provider_answer,
+    turn_on,
+)
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.log_lines import captured_lines, ended_steps
 from tests.support.page_build import fixture_page_build
@@ -22,23 +29,14 @@ from tests.support.signed_in import cookie_header, seed_member
 from tests.support.stores import single_process_stores
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
     from pathlib import Path
 
-    import urllib3
 
 pytestmark = pytest.mark.integration
 
 ENDPOINT = "https://rtc.live.cloudflare.com/v1/turn/keys/{key_id}/credentials/generate-ice-servers"
 PADDED_RFC_TOKEN = "aZ09._~+/-=="
 FETCH_ACCEPT = {"accept": "application/json"}
-STUN_ENTRY = {"urls": ["stun:stun.cloudflare.com:3478"]}
-RELAY_URLS = [
-    "turn:turn.cloudflare.com:3478?transport=udp",
-    "turn:turn.cloudflare.com:3478?transport=tcp",
-    "turns:turn.cloudflare.com:5349?transport=tcp",
-    "turns:turn.cloudflare.com:443?transport=tcp",
-]
 UNREADABLE_FILE_STATES = {
     "missing": None,
     "unreadable": "directory",
@@ -48,43 +46,10 @@ UNREADABLE_FILE_STATES = {
 }
 
 
-def provider_answer(urls=RELAY_URLS, *, username="provider-user", credential="provider-credential"):
-    return {"iceServers": [STUN_ENTRY, {"urls": urls, "username": username, "credential": credential}]}
-
-
-@dataclass
-class FakeTransport:
-    """The provider's side of the seam: records each call and answers the scenario."""
-
-    status: int = 201
-    body: bytes | Callable[[], bytes] = field(
-        default_factory=lambda: json.dumps(provider_answer()).encode(), repr=False
-    )
-    calls: list[tuple[str, Mapping[str, str], bytes]] = field(default_factory=list, repr=False)
-
-    def __call__(self, url: str, *, headers: Mapping[str, str], body: bytes, timeout: urllib3.Timeout) -> TurnAnswer:
-        self.calls.append((url, headers, body))
-        return TurnAnswer(self.status, self.body() if callable(self.body) else self.body)
-
-
-@dataclass
-class TurnKeys:
-    key_id: str = field(default_factory=lambda: secrets.token_hex(16))
-    api_token: str = field(default_factory=lambda: secrets.token_urlsafe(48), repr=False)
-
-
 @pytest.fixture
 def turn_settings(sign_in_settings, tmp_path):
     def build(keys: TurnKeys | None = None, **overrides):
-        keys = keys or TurnKeys()
-        (tmp_path / "turn-key-id").write_text(keys.key_id + "\n")
-        (tmp_path / "turn-api-token").write_text(keys.api_token + "\n")
-        return sign_in_settings(
-            turn_provider="cloudflare",
-            turn_key_id_file=tmp_path / "turn-key-id",
-            turn_api_token_file=tmp_path / "turn-api-token",
-            **overrides,
-        ).settings
+        return sign_in_settings(**turn_on(tmp_path, keys), **overrides).settings
 
     return build
 

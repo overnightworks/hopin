@@ -49,9 +49,10 @@ class _IssuedCode:
 
 @dataclass(frozen=True)
 class GrantHold:
-    """Parks every grant of one type: `parked` is set when one waits, `release` lets them all go on,
-    and `answered` is set once a parked grant has its answer."""
+    """Parks every grant of one type, of one scope when it names one: `parked` is set when one waits, `release` lets
+    them all go on, and `answered` is set once a parked grant has its answer."""
 
+    scope: str | None = None
     parked: threading.Event = field(default_factory=threading.Event)
     release: threading.Event = field(default_factory=threading.Event)
     answered: threading.Event = field(default_factory=threading.Event)
@@ -137,9 +138,9 @@ class FakeIssuer:
             if answer is not None and answer.status == HTTPStatus.OK and request.form["grant_type"] == grant_type
         ]
 
-    def hold(self, grant_type: str) -> GrantHold:
-        """Park every later grant of this type until the hold is released."""
-        hold = GrantHold()
+    def hold(self, grant_type: str, *, scope: str | None = None) -> GrantHold:
+        """Park every later grant of this type, and of this scope when one is named, until the hold is released."""
+        hold = GrantHold(scope)
         self._holds[grant_type] = hold
         return hold
 
@@ -197,7 +198,7 @@ class FakeIssuer:
             return self._refusal(HTTPStatus.UNAUTHORIZED, "invalid_client")
         grant_type = request.form["grant_type"]
         hold = self._holds.get(grant_type)
-        if hold is None:
+        if hold is None or hold.scope not in (None, request.form.get("scope")):
             return self._grant(grant_type, request)
         hold.parked.set()
         assert hold.release.wait(GRANT_HOLD_CAP_SECONDS), f"a held {grant_type} grant was never released"

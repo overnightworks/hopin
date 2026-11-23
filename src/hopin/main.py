@@ -48,6 +48,7 @@ from hopin.agent.mcp import PLACE_SUBSCRIPTION_WAIT_SECONDS, ParticipationFeatur
 from hopin.agent.settings import AgentSettings  # game
 from hopin.agent.speech_settings import SpeechSettings
 from hopin.agent.verdict_check import BackendOf, add_command, configured_agreements  # game
+from hopin.agent.video_settings import VideoSettings
 from hopin.app import create_app
 from hopin.auth.sign_in import LoggingAuditSink
 from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
@@ -93,6 +94,7 @@ SETTINGS_CLASSES: tuple[type[BaseSettings], ...] = (
     AgentSettings,  # game
     ParticipationSettings,
     SpeechSettings,
+    VideoSettings,
     StageSettings,  # stage
 )
 
@@ -139,6 +141,7 @@ def build_application(
 ) -> FastAPI:
     participation = ParticipationSettings()
     speech = SpeechSettings()
+    video = VideoSettings()
     voices = VoiceStore()
     return create_app(
         settings,
@@ -153,6 +156,7 @@ def build_application(
                 participation.figure_sources,
                 hearing=speech.hearing_service,
                 speaking=speech.speaking_service,
+                video=video.service,
                 voices=voices,
                 redis=shared_stores.async_redis,
                 realm=realm,

@@ -4,7 +4,8 @@ Every timer that outlives a connection is a deadline of a named `DeadlineKind` b
 registers one handler per kind, sets a deadline by `(kind, key)` with a time from now and cancels it by the same pair.
 Setting a key again replaces the deadline, and the clock is `Deadlines.now()`. A timer owned by a live connection or by
 the process stays a process timer on `Scheduler`: a socket's session recheck (`signaling/handler.py`), the hearing
-socket's recheck, the session sweep (`app.py`) and the renewal of an agent's hearing token. `InMemoryDeadlines` holds
+socket's recheck, the session sweep (`app.py`), the renewal of an agent's hearing token and the open of an agent's
+video session. `InMemoryDeadlines` holds
 the deadlines in this process and runs them on the `Scheduler`; the tests drive both with a manual clock.
 
 A timer runs as a unit of its own, in a trace of its own and not in the one of the frame that scheduled it.
@@ -36,7 +37,8 @@ class Clock(Protocol):
 
 class Scheduler(Clock, Protocol):
     """Timers owned by a live connection or by the process: the socket recheck, the hearing socket's recheck, the
-    session sweep and the renewal of an agent's hearing token after the call that found it due. Every other timer
+    session sweep, the renewal of an agent's hearing token after the call that found it due and the open of an agent's
+    video session after its accept. Every other timer
     outlives a connection and is a deadline of a named kind on `Deadlines`."""
 
     def call_later(self, delay_seconds: float, callback: Callable[[], Awaitable[None]]) -> TimerHandle:

@@ -104,8 +104,10 @@ class CallFeatureBuilder(Protocol):
         deadlines: Deadlines,
         request_language: RequestLanguage,
         page_build: PageBuild,
+        turn_relay: TurnRelay | None,
     ) -> BuiltCallFeature:
-        """The feature, its router and its bearer resource."""
+        """The feature, its router and its bearer resource; `turn_relay` is the TURN credential source, none with TURN
+        off."""
 
 
 class _ExpiredSessionSweep:
@@ -267,6 +269,7 @@ def _build_features(
     deadlines: Deadlines,
     request_language: RequestLanguage,
     page_build: PageBuild,
+    turn_relay: TurnRelay | None,
 ) -> list[BuiltCallFeature]:
     return [
         builder(
@@ -277,6 +280,7 @@ def _build_features(
             deadlines=deadlines,
             request_language=request_language,
             page_build=page_build,
+            turn_relay=turn_relay,
         )
         for builder in call_features
     ]
@@ -317,6 +321,7 @@ def _assemble_app(
         deadlines,
         request_language,
         page_build,
+        turn_relay,
     )
     bearer = _bearer_of(built_features)
     app, signaling_handler = _new_app(settings, identity, sign_in_configs.web_auth, timers, deadlines, built_features)

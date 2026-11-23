@@ -22,6 +22,8 @@ from speech_client.wire import REALTIME_PATH, RefusalCode, refusal
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.server import serve
 
+from tests.support.arrivals import Arrivals
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from http import HTTPStatus
@@ -183,13 +185,12 @@ class FakeSpeech:
     origin that speaks (its health and its sounds), the service's one origin serves both."""
 
     def __init__(self, speaking_port: int | None = None) -> None:
-        self.sessions: list[Session] = []
+        self.sessions = Arrivals[Session](WAIT_SECONDS)
         self._speaking_port = speaking_port
         self._front: _Front | None = None
         self.refusal: Refusal | None = None
         self.opening = threading.Event()
         self.opening.set()
-        self._connected = threading.Condition()
         self._server: Server | None = None
 
     @property
@@ -212,9 +213,7 @@ class FakeSpeech:
 
     def next_session(self, number: int = 1) -> Session:
         """Block until the service holds `number` sessions, and answer the newest."""
-        with self._connected:
-            assert self._connected.wait_for(lambda: len(self.sessions) >= number, WAIT_SECONDS), "no session came"
-            return self.sessions[number - 1]
+        return self.sessions.wait_for(number)
 
     def _maybe_refuse(self, connection: ServerConnection, request: Request) -> Response | None:
         assert request.path.startswith(REALTIME_PATH)
@@ -228,9 +227,7 @@ class FakeSpeech:
 
     def _converse(self, connection: ServerConnection) -> None:
         session = Session(dict(connection.request.headers.items()))
-        with self._connected:
-            self.sessions.append(session)
-            self._connected.notify_all()
+        self.sessions.arrive(session)
         try:
             connection.send(SessionCreated(session=TranscriptionSession(type="transcription")).model_dump_json())
             self._serve(connection, session)

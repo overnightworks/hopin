@@ -24,6 +24,7 @@ from agents.mcp_server.hearing import MemberHearing
 from agents.mcp_server.redis_place_store import RedisPlaceStore
 from agents.mcp_wire import MCP_ENDPOINT_PATH
 from agents.member import (
+    ACCEPT_INVITATION_TOOL,
     GESTURE_TOOL,
     INVITATION_SECONDS,
     LEASE_SECONDS,
@@ -58,7 +59,15 @@ from hopin.agent.hearing_route import HearingRoute
 from hopin.agent.hearing_token import HearingTokens
 from hopin.agent.issuer_error import grant_refusal_reason
 from hopin.agent.speaking import SPEAK_DEADLINE_SECONDS, SPEAK_MAX_BYTES, SPEECH_STREAM, AgentVoice, SpeechRenderer
-from hopin.agent.tools import CALL_KIND, CallerTool, participation_tools, refusal_to_serve, refused
+from hopin.agent.tools import (
+    CALL_KIND,
+    CallerTool,
+    participation_tools,
+    refusal_to_serve,
+    refused,
+    video_looks_of_accept,
+)
+from hopin.agent.video_session import VideoOpening
 from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS, REDIS_AGENTS_KEY_PREFIX
 from hopin.participation.feature import Participation
 from hopin.participation.figure_transport import get_figure_over_https
@@ -90,11 +99,13 @@ if TYPE_CHECKING:
     from webauth.ports import SessionTransaction
 
     from hopin.agent.speech_settings import SpeechService
+    from hopin.agent.video_settings import VideoService
     from hopin.config.settings import RealmSettings
     from hopin.participation.chat_window import WindowRead, WindowTalkedOver
     from hopin.participation.places import PlaceStanding
     from hopin.signaling.features import TransitionFeature
     from hopin.signaling.scheduler import Deadlines, Scheduler
+    from hopin.web.ice_servers import TurnRelay
     from hopin.web.page_build import PageBuild
     from hopin.web.request_language import RequestLanguage
 
@@ -295,11 +306,19 @@ class _LeaseRenewingFront:
         await self.front(scope, receive, send)
 
 
-def _as_person_tool(tool: CallerTool) -> PersonTool:
+def _as_person_tool(tool: CallerTool, opening: VideoOpening | None) -> PersonTool:
+    """The tool as the front serves it; an accept that is accepted starts the agent's video session, when video is on,
+    once the tool has answered."""
+
     async def handler(request: PersonRequest, arguments: JsonObject) -> ToolOutcome:
         caller = _caller_of(request)
         refusal = refusal_to_serve(tool.declaration.name, caller)
-        return refused(refusal) if refusal is not None else await tool.handler(caller, arguments)
+        if refusal is not None:
+            return refused(refusal)
+        outcome = await tool.handler(caller, arguments)
+        if opening is not None and tool.declaration.name == ACCEPT_INVITATION_TOOL and not outcome.is_error:
+            opening.after_accept(caller.person, video_looks_of_accept(arguments), HTTPConnection(request.scope))
+        return outcome
 
     return PersonTool(tool.declaration, handler)
 
@@ -439,6 +458,7 @@ class ParticipationFeature:
     figure_transport: FigureTransport = get_figure_over_https
     hearing: SpeechService | None = None
     speaking: SpeechService | None = None
+    video: VideoService | None = None
     voices: VoiceStore = field(default_factory=VoiceStore)
     subscription_wait_seconds: float = PLACE_SUBSCRIPTION_WAIT_SECONDS
 
@@ -462,6 +482,7 @@ class ParticipationFeature:
         deadlines: Deadlines,
         request_language: RequestLanguage,
         page_build: PageBuild,
+        turn_relay: TurnRelay | None,
     ) -> BuiltParticipationFeature:
         del request_language, page_build
         built = _BuiltParticipation(
@@ -480,7 +501,8 @@ class ParticipationFeature:
             self._store_within(CLIP_MAX_BYTES, CLIP_CACHE_BYTES, "clip_fetch.ended"),
             self._store_within(PERSONA_ROOM_MAX_BYTES, PERSONA_ROOM_CACHE_BYTES, "persona_room_fetch.ended"),
         )
-        front = self._front(built, relying_party, voice)
+        opening = self._opening(relying_party, turn_relay, built, scheduler, auth_config)
+        front = self._front(built, relying_party, voice, opening)
 
         @asynccontextmanager
         async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -489,6 +511,8 @@ class ParticipationFeature:
                     await self._enter_bounded(stack, front)
                     yield
             finally:
+                if opening is not None:
+                    await opening.shut_down()
                 await built.shut_down()
                 for store in stores:
                     store.shut_down()
@@ -546,10 +570,34 @@ class ParticipationFeature:
             logger.error(PLACE_SUBSCRIPTION_TIMED_OUT_EVENT, wait_ms=wait_ms)
             raise
 
+    def _opening(
+        self,
+        relying_party: OidcRelyingParty,
+        turn_relay: TurnRelay | None,
+        built: _BuiltParticipation,
+        scheduler: Scheduler,
+        auth_config: WebAuthConfig,
+    ) -> VideoOpening | None:
+        """The open of an agent's video session: only with the video service, TURN and agents' speaking all on."""
+        if self.video is None or turn_relay is None or self.speaking is None:
+            return None
+        return VideoOpening(
+            self.video,
+            relying_party=relying_party,
+            turn_relay=turn_relay,
+            participation=built.current,
+            scheduler=scheduler,
+            wall_clock=auth_config.wall_clock,
+        )
+
     def _front(
-        self, built: _BuiltParticipation, relying_party: OidcRelyingParty, voice: AgentVoice | None
+        self,
+        built: _BuiltParticipation,
+        relying_party: OidcRelyingParty,
+        voice: AgentVoice | None,
+        opening: VideoOpening | None,
     ) -> McpPersonFront:
-        tools = [_as_person_tool(tool) for tool in participation_tools(built.current, voice)]
+        tools = [_as_person_tool(tool, opening) for tool in participation_tools(built.current, voice)]
         return McpPersonFront(
             tools,
             resolve_person=partial(_principal_of, relying_party.issuer),

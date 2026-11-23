@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from hopin.signaling.frames import ForeignFrame, PeerId
     from hopin.signaling.scheduler import Deadlines, Scheduler
     from hopin.signaling.transition import RoomView, Transition
+    from hopin.web.ice_servers import TurnRelay
     from hopin.web.page_build import PageBuild
     from hopin.web.request_language import RequestLanguage
 
@@ -197,8 +198,9 @@ class StageFeature:
         deadlines: Deadlines,
         request_language: RequestLanguage,
         page_build: PageBuild,
+        turn_relay: TurnRelay | None,
     ) -> BuiltStageFeature:
-        del relying_party, session_transaction, auth_config, scheduler, deadlines
+        del relying_party, session_transaction, auth_config, scheduler, deadlines, turn_relay
         transitions = StageTransitions(self.apps)
         router = create_start_link_router(self.apps, transitions.room_showing, page_build, request_language)
         return BuiltStageFeature(transitions, router)

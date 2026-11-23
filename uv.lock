@@ -467,6 +467,7 @@ dependencies = [
     { name = "overnightworks-logline" },
     { name = "overnightworks-speech-client" },
     { name = "overnightworks-tandem" },
+    { name = "overnightworks-video-client" },
     { name = "overnightworks-webauth", extra = ["postgres"] },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
@@ -506,6 +507,7 @@ requires-dist = [
     { name = "overnightworks-logline", git = "https://github.com/overnightworks/logline?rev=v1.9.0" },
     { name = "overnightworks-speech-client", git = "https://github.com/overnightworks/speech?subdirectory=packages%2Fclient&rev=v0.24.0" },
     { name = "overnightworks-tandem", git = "https://github.com/overnightworks/tandem?rev=v0.15.0" },
+    { name = "overnightworks-video-client", git = "https://github.com/overnightworks/video?subdirectory=packages%2Fclient&rev=v0.3.0" },
     { name = "overnightworks-webauth", extras = ["postgres"], git = "https://github.com/overnightworks/webauth?rev=v0.46.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pydantic", specifier = ">=2.10" },
@@ -987,6 +989,14 @@ source = { git = "https://github.com/overnightworks/tandem?rev=v0.15.0#a0721f9e1
 dependencies = [
     { name = "overnightworks-logline" },
     { name = "redis" },
+]
+
+[[package]]
+name = "overnightworks-video-client"
+version = "0.3.0"
+source = { git = "https://github.com/overnightworks/video?subdirectory=packages%2Fclient&rev=v0.3.0#ba7b370809473413f68b9294cb1b32e9693017b6" }
+dependencies = [
+    { name = "pydantic" },
 ]
 
 [[package]]
