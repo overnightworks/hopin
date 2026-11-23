@@ -105,6 +105,7 @@ export async function installWith(
                 sponsor: frame.sponsor,
                 figure: frame.figure,
                 gestures: frame.gestures,
+                room: frame.room,
                 framing: framing ?? frame.framing,
                 hearing:
                     hearing === undefined

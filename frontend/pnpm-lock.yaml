@@ -212,8 +212,8 @@ importers:
         specifier: https://github.com/overnightworks/design/releases/download/v0.40.0/overnightworks-design-0.40.0.tgz
         version: https://github.com/overnightworks/design/releases/download/v0.40.0/overnightworks-design-0.40.0.tgz(svelte@5.57.3(@typescript-eslint/types@8.73.0))
       overnightworks-figure:
-        specifier: https://github.com/overnightworks/figure/releases/download/v0.9.0/overnightworks-figure-0.9.0.tgz
-        version: https://github.com/overnightworks/figure/releases/download/v0.9.0/overnightworks-figure-0.9.0.tgz
+        specifier: https://github.com/overnightworks/figure/releases/download/v0.10.0/overnightworks-figure-0.10.0.tgz
+        version: https://github.com/overnightworks/figure/releases/download/v0.10.0/overnightworks-figure-0.10.0.tgz
       overnightworks-speech-browser:
         specifier: https://github.com/overnightworks/speech/releases/download/v0.22.3/overnightworks-speech-browser-0.22.3.tgz
         version: https://github.com/overnightworks/speech/releases/download/v0.22.3/overnightworks-speech-browser-0.22.3.tgz
@@ -1273,9 +1273,9 @@ packages:
     peerDependencies:
       svelte: ^5.20.0
 
-  overnightworks-figure@https://github.com/overnightworks/figure/releases/download/v0.9.0/overnightworks-figure-0.9.0.tgz:
-    resolution: {integrity: sha512-7rHxd0F7MD/J5FXST5hIOShwlga1UAzneAnoY4DGywhOw0YL5TATM04+YPom+SgJMbd4WLX169rwxhZ5eyGrHQ==, tarball: https://github.com/overnightworks/figure/releases/download/v0.9.0/overnightworks-figure-0.9.0.tgz}
-    version: 0.9.0
+  overnightworks-figure@https://github.com/overnightworks/figure/releases/download/v0.10.0/overnightworks-figure-0.10.0.tgz:
+    resolution: {integrity: sha512-LMXd9551XbEbzalvOOYVp4ejOb8Jzj0gOIS18J0RAkcnF2LU9iO0aHCfuqK8BPZs83QmuAcR0QsStGP+7qyDqw==, tarball: https://github.com/overnightworks/figure/releases/download/v0.10.0/overnightworks-figure-0.10.0.tgz}
+    version: 0.10.0
     hasBin: true
 
   overnightworks-speech-browser@https://github.com/overnightworks/speech/releases/download/v0.22.3/overnightworks-speech-browser-0.22.3.tgz:
@@ -2675,7 +2675,7 @@ snapshots:
     dependencies:
       svelte: 5.57.3(@typescript-eslint/types@8.73.0)
 
-  overnightworks-figure@https://github.com/overnightworks/figure/releases/download/v0.9.0/overnightworks-figure-0.9.0.tgz:
+  overnightworks-figure@https://github.com/overnightworks/figure/releases/download/v0.10.0/overnightworks-figure-0.10.0.tgz:
     dependencies:
       '@pixiv/three-vrm': 3.5.5(three@0.187.0)
       '@pixiv/three-vrm-animation': 3.5.5(three@0.187.0)

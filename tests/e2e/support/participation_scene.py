@@ -81,17 +81,24 @@ class Scene:
         assert self.agent.standings() == []
 
     def member_adds_and_the_agent_accepts(
-        self, figure: dict[str, str] | None = None, voices: Sequence[str] | None = None
+        self,
+        figure: dict[str, str] | None = None,
+        voices: Sequence[str] | None = None,
+        looks: Sequence[dict[str, Any]] | None = None,
     ) -> None:
-        self.member_adds_and_accepts(self.agent, figure, voices)
+        self.member_adds_and_accepts(self.agent, figure, voices, looks)
 
     def member_adds_and_accepts(
-        self, agent: OwnAccountAgent, figure: dict[str, str] | None = None, voices: Sequence[str] | None = None
+        self,
+        agent: OwnAccountAgent,
+        figure: dict[str, str] | None = None,
+        voices: Sequence[str] | None = None,
+        looks: Sequence[dict[str, Any]] | None = None,
     ) -> None:
         """The member adds the agent from its offer and the agent accepts the invitation, naming the voices it would
         speak with if it has some."""
         self.member_adds(agent)
-        accepted = agent.accept(agent.invitation_within(INVITATION_WAKE_SECONDS), figure, voices)
+        accepted = agent.accept(agent.invitation_within(INVITATION_WAKE_SECONDS), figure, voices, looks)
         assert accepted["name"] == agent.name
 
     def member_adds(self, agent: OwnAccountAgent) -> None:

@@ -5,7 +5,9 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from speech_client.wire import VoiceId
 
+from hopin.agent.speech_settings import SpeechService
 from hopin.participation.memberships import AGENT_ADDERS_GROUP
+from hopin.participation.settings import ParticipationSettings
 from tests.e2e.support.dialed_agent import (
     AGENT_NAME,
     OWNER_SUBJECT,
@@ -17,9 +19,10 @@ from tests.e2e.support.mesh_pair import ConnectedPair, pair_connector
 from tests.e2e.support.participation_scene import Scene
 from tests.e2e.support.server import UNREACHABLE_HEARING, RunningServer, loopback_sign_in, running_hopin
 from tests.e2e.support.speaker import Speaker, speaking_hopin
+from tests.participation.support.figures import SOURCE_PREFIX, FigureOrigin
 from tests.support.fake_speech import FakeSpeech
 from tests.support.loopback_origin import Origin
-from tests.support.speech_origin import offering
+from tests.support.speech_origin import AUDIENCE_SCOPE, offering
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -133,6 +136,25 @@ def speech_origin() -> Iterator[Origin]:
 def voicing_server(tmp_path_factory: pytest.TempPathFactory, speech_origin: Origin) -> Iterator[RunningServer]:
     """HopIn whose agents speak through `speech_origin`."""
     with speaking_hopin(tmp_path_factory, "voice", speech_origin.base_url) as server:
+        yield server
+
+
+@pytest.fixture(scope="module")
+def figure_server(
+    tmp_path_factory: pytest.TempPathFactory, figure_origin: FigureOrigin, speech_origin: Origin
+) -> Iterator[RunningServer]:
+    """HopIn with participation that allows figures from the test source, fetched through `figure_origin`, and lets
+    agents speak through `speech_origin`."""
+    loopback = loopback_sign_in(tmp_path_factory.mktemp("figure-sign-in"))
+    with running_hopin(
+        loopback,
+        tmp_path_factory.mktemp("figure-tls"),
+        participation=True,
+        speaks=True,
+        speech=SpeechService(speech_origin.base_url, VoiceId.THORSTEN, AUDIENCE_SCOPE),
+        figure_sources=ParticipationSettings(figure_sources=[SOURCE_PREFIX]).figure_sources,
+        figure_transport=figure_origin,
+    ) as server:
         yield server
 
 

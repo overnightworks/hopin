@@ -175,10 +175,11 @@ interface AgentFigureSpot {
     key: string;
     path: string | undefined;
     gestures?: AgentGestureClips;
+    room?: string;
     framing?: string;
 }
 
-/** A Svelte action on an agent tile's video layer: `data-figure` holds how its figure stands, `data-figure-end` why it ended, and a new path draws afresh; the clips go with the path they came with. */
+/** A Svelte action on an agent tile's video layer: `data-figure` holds how its figure stands, `data-figure-end` why it ended, and a new path draws afresh; the clips and the room go with the path they came with. */
 export function agentFigure(host: HTMLElement, spot: AgentFigureSpot) {
     // The key is the tile's own and never changes while its action lives.
     const { key } = spot;
@@ -191,7 +192,8 @@ export function agentFigure(host: HTMLElement, spot: AgentFigureSpot) {
         drawnFigures.delete(key);
     }
 
-    function draw(figure: string | undefined, gestures: AgentGestureClips | undefined, framing: string | undefined) {
+    function draw(spotted: AgentFigureSpot) {
+        const { path: figure, gestures, room, framing } = spotted;
         stop();
         delete host.dataset.figureEnd;
         if (figureDrawer === null || figure === undefined) {
@@ -210,19 +212,20 @@ export function agentFigure(host: HTMLElement, spot: AgentFigureSpot) {
             },
             gestures,
             framing,
+            room,
         );
         drawnFigures.set(key, { handle: drawn, listensTo: null });
         if (thinkingKeys.has(key)) drawn.think(true);
         refreshListening();
     }
 
-    draw(drawnPath, spot.gestures, spot.framing);
+    draw(spot);
     return {
         // Svelte calls update with the unchanged path whenever the tile's entry re-renders; only a new path draws afresh.
         update(next: AgentFigureSpot) {
             if (next.path === drawnPath) return;
             drawnPath = next.path;
-            draw(next.path, next.gestures, next.framing);
+            draw(next);
         },
         destroy: stop,
     };

@@ -13,7 +13,7 @@ from agents.member import (
 )
 
 from hopin.agent.tools import LEAVE_CALL, SAY
-from hopin.config.constants import CALL_FEATURES_PATH
+from hopin.config.constants import CALL_FEATURES_PATH, IMMUTABLE_ASSET_CACHE_CONTROL
 from hopin.participation.figures import figure_refusal
 from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from hopin.participation.vocabulary import (
@@ -30,11 +30,16 @@ from hopin.rooms.reference import room_reference
 from tests.participation.support.figure_scene import (
     FILE,
     JOINED,
+    REFUSED_EVENT,
     accept_invitation,
     accept_with,
     figure_of,
     joined_with,
     offered_tools,
+    read_figure,
+    reads_and_origin_fetches,
+    refusals_in,
+    status_of_a_served_file_once_the_agent_has_left,
 )
 from tests.participation.support.figures import (
     SOURCE_PREFIX,
@@ -47,7 +52,6 @@ from tests.participation.support.figures import (
 )
 from tests.participation.support.tool_calls import call_in
 from tests.support.dialed_call import LISTEN_TIMEOUT_SECONDS, RESOURCE_UPDATED, TOOLS_LIST_CHANGED
-from tests.support.signed_in import cookie_header
 
 pytestmark = pytest.mark.integration
 
@@ -57,23 +61,14 @@ THINKING = ParticipationSignal.AGENT_THINKING.value
 TURN_STATE = ParticipationSignal.AGENT_TURN_STATE.value
 SECOND_OWNER = "subject-second-owner"
 CLIP = glb(b"wave" * 8)
-REFUSED_EVENT = "agent_figure.refused"
 CLIP_REFUSED_EVENT = "agent_clip.refused"
 WAVE = "wave"
+RELEASE_ASSETS = "https://release-assets.example.test/personas/wave.vrma"
 
 
 @pytest.fixture
 def sources():
     return [SOURCE_PREFIX]
-
-
-def read_figure(scene, path, method="GET", **headers):
-    cookie = {"cookie": cookie_header(scene.member_login.set_cookie_headers)}
-    return scene.call.client.request(method, path, headers=cookie | headers)
-
-
-def refusals_in(logs, event=REFUSED_EVENT):
-    return [entry for entry in logs if entry["event"] == event]
 
 
 def clip_of_wave():
@@ -225,7 +220,7 @@ class TestTheRoute:
             served.headers["content-type"],
             served.headers["x-content-type-options"],
             served.headers["cache-control"],
-        ) == ("model/gltf-binary", "nosniff", "private, max-age=31536000, immutable")
+        ) == ("model/gltf-binary", "nosniff", IMMUTABLE_ASSET_CACHE_CONTROL)
 
     def test_a_head_answers_the_headers_without_the_body(self, scene, figure_origin):
         path = joined_with(scene, figure_origin.serve(figure_url(), ok(FILE)))
@@ -358,14 +353,12 @@ class TestThePersonasClips:
             served.headers["content-type"],
             served.headers["x-content-type-options"],
             served.headers["cache-control"],
-        ) == ("model/gltf-binary", "nosniff", "private, max-age=31536000, immutable")
+        ) == ("model/gltf-binary", "nosniff", IMMUTABLE_ASSET_CACHE_CONTROL)
 
     def test_a_clip_is_fetched_once_for_every_read(self, scene, figure_origin):
         path = joined_with_clip(scene, figure_origin)
 
-        reads = [read_figure(scene, path).content for _ in range(2)]
-
-        assert (reads, figure_origin.requested.count(clip_of_wave())) == ([CLIP] * 2, 1)
+        assert reads_and_origin_fetches(scene, figure_origin, path, clip_of_wave()) == ([CLIP] * 2, 1)
 
     @pytest.mark.parametrize(
         ("url", "code"),
@@ -402,15 +395,14 @@ class TestThePersonasClips:
 
         assert ("figure" in joined, "gestures" in joined) == (False, False)
 
-    def test_a_clip_that_redirects_outside_the_allowed_sources_is_a_bad_gateway_and_the_other_host_is_not_asked(
-        self, scene, figure_origin
-    ):
-        elsewhere = figure_url("wave.vrma").replace("figures.", "other.")
+    def test_a_clip_whose_source_redirects_the_way_github_does_is_served(self, scene, figure_origin):
+        released = f"{RELEASE_ASSETS}?sp=r&sig=a%2Bb"
+        figure_origin.serve(released, ok(CLIP))
 
-        clip_path = joined_with_clip(scene, figure_origin, answer=redirect(elsewhere))
-        served = read_figure(scene, clip_path)
+        path = joined_with_clip(scene, figure_origin, answer=redirect(released))
+        served = read_figure(scene, path)
 
-        assert (served.status_code, figure_origin.requested.count(elsewhere)) == (502, 0)
+        assert (served.status_code, served.content) == (200, CLIP)
 
     @pytest.mark.parametrize(
         ("clip", "answer"),
@@ -451,12 +443,8 @@ class TestThePersonasClips:
 
     def test_once_the_agent_has_gone_its_clip_is_not_found_though_the_cache_holds_it(self, scene, figure_origin):
         path = joined_with_clip(scene, figure_origin)
-        assert read_figure(scene, path).status_code == 200
 
-        scene.call.call(scene.token, LEAVE_CALL, {"room": scene.owner.room_id})
-        scene.member.frame_of_type(ParticipationSignal.AGENT_LEFT.value)
-
-        assert read_figure(scene, path).status_code == 404
+        assert status_of_a_served_file_once_the_agent_has_left(scene, path) == 404
 
     def test_a_read_of_a_clip_without_a_session_is_refused_by_the_gate(self, scene, figure_origin):
         path = joined_with_clip(scene, figure_origin)

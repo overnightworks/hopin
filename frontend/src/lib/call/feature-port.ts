@@ -56,13 +56,14 @@ export interface AgentFigureHandle {
 /** The same-origin paths of a persona's clips, by the name of the gesture each replaces. */
 export type AgentGestureClips = Readonly<Record<string, string>>;
 
-/** Draws the figure at the same-origin `path` into `host`, with the clips at `gestures` where it has any, seen in the framing named `framing` from its first frame (the figure's own default when none), and reports whether it is `DRAWN` or `ENDED`, an end with the `reason` it ended for; the tile shows its symbol until `DRAWN`. */
+/** Draws the figure at the same-origin `path` into `host`, with the clips at `gestures` where it has any, behind it the persona's room read from the same-origin path `room` when it has one, seen in the framing named `framing` from its first frame (the figure's own default when none), and reports whether it is `DRAWN` or `ENDED`, an end with the `reason` it ended for; the tile shows its symbol until `DRAWN`. */
 export type AgentFigureDrawer = (
     host: HTMLElement,
     path: string,
     show: (figure: AgentFigure, reason?: string) => void,
     gestures?: AgentGestureClips,
     framing?: string,
+    room?: string,
 ) => AgentFigureHandle;
 
 /** The switch on an agent's tile that lets the agent hear the person: the tile shows `on` and hands each press, as the value it asks for, to `onChange`; it holds no state of its own. */
@@ -83,13 +84,14 @@ export interface AgentSeeing {
     onChange: (on: boolean) => void;
 }
 
-/** What the stage shows of an agent in the call: a tile with its name, an AI badge and what it is doing; a dialed-in agent also names its sponsor and offers a remove action to whoever may use it, and one with a figure names the same-origin path that serves it the paths of the clips it brings and the framing its agent has taken; a tile with `hearing`, `listening` or `seeing` carries the person's switch for the agent, and a tile with `looking` shows the mark of a look. */
+/** What the stage shows of an agent in the call: a tile with its name, an AI badge and what it is doing; a dialed-in agent also names its sponsor and offers a remove action to whoever may use it, and one with a figure names the same-origin path that serves it the paths of the clips it brings, the path of the room it is seen in and the framing its agent has taken; a tile with `hearing`, `listening` or `seeing` carries the person's switch for the agent, and a tile with `looking` shows the mark of a look. */
 export interface AgentTile {
     name: string;
     activity: AgentActivity;
     sponsor?: string;
     figure?: string;
     gestures?: AgentGestureClips;
+    room?: string;
     framing?: string;
     hearing?: AgentHearing;
     listening?: AgentListening;

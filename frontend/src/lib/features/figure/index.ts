@@ -49,6 +49,7 @@ function drawFigure(
     drawing: FigureDrawing,
     clipPaths: AgentGestureClips,
     firstFraming: string | undefined,
+    roomPath: string | undefined,
 ): AgentFigureHandle {
     const fetching = new AbortController();
     let canvas: HTMLCanvasElement | undefined;
@@ -58,6 +59,8 @@ function drawFigure(
     let thinking = false;
     // A framing the page names that figure does not know is dropped by the figure itself.
     let framing = firstFraming as FigureFraming | undefined;
+    // The persona's room once its bytes have arrived; the figure is never held for them.
+    let roomBytes: Uint8Array | undefined;
     let over = false;
     // A function, so the checks after an await do not read as settled.
     const hasEnded = () => over;
@@ -98,7 +101,19 @@ function drawFigure(
         return Object.fromEntries(fetched.filter((clip) => clip !== null));
     }
 
+    // A room that cannot be fetched is left out: figure shows none and nothing is called.
+    function fetchRoom(path: string) {
+        fetchBytes(path, fetching.signal).then(
+            (bytes) => {
+                roomBytes = bytes;
+                handle?.room(bytes);
+            },
+            () => undefined,
+        );
+    }
+
     async function run() {
+        if (roomPath !== undefined) fetchRoom(roomPath);
         const [bytes, gestures, { mount }] = await Promise.all([
             fetchBytes(path, fetching.signal),
             fetchClips(),
@@ -112,7 +127,13 @@ function drawFigure(
         canvas.style.height = "100%";
         host.prepend(canvas);
         const mountedIn = framing;
-        const mounted = await mount(canvas, bytes, { onSignal: heard, gestures, framing: mountedIn });
+        const mountedRoom = roomBytes;
+        const mounted = await mount(canvas, bytes, {
+            onSignal: heard,
+            gestures,
+            framing: mountedIn,
+            room: mountedRoom,
+        });
         if (hasEnded()) {
             mounted.dispose();
             return;
@@ -120,6 +141,8 @@ function drawFigure(
         handle = mounted;
         // A framing taken while the figure mounted is shown now.
         if (framing !== undefined && framing !== mountedIn) handle.frame(framing);
+        // A room that arrived while the figure mounted is shown now.
+        if (roomBytes !== undefined && roomBytes !== mountedRoom) handle.room(roomBytes);
         if (speaker !== null) handle.listen(speaker);
         if (sentence !== null) speakTo(handle, sentence);
         if (thinking) handle.think(true);
@@ -159,8 +182,8 @@ export function install(core: FeatureCore): Promise<void> {
     const drawing: FigureDrawing = import("overnightworks-figure/draw");
     // A failed import is reported by each figure that awaits it; one that fails before the first drawer awaits it is no unhandled rejection.
     drawing.catch(() => undefined);
-    const draws: AgentFigureDrawer = (host, path, show, gestures, framing) =>
-        drawFigure(host, path, show, drawing, gestures ?? {}, framing);
+    const draws: AgentFigureDrawer = (host, path, show, gestures, framing, room) =>
+        drawFigure(host, path, show, drawing, gestures ?? {}, framing, room);
     core.drawAgentFigures(draws);
     return Promise.resolve();
 }

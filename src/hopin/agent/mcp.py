@@ -4,8 +4,8 @@ serve it.
 The front reads the kind of agent from the admitted request and serves an agent with an own account its standing as a
 resource, signalling it on every change of a place. It runs inside the app's lifespan. Every admitted call of an own
 account, the opening of a listen included, renews its lease. The chat window of a call's place is mapped to the
-library's window and read as a resource by the principal whose agent it is. The figure and clip routes answer any
-signed-in member the verified file of a digest a joined agent names: the first read fetches it through
+library's window and read as a resource by the principal whose agent it is. The figure, clip and persona room routes
+answer any signed-in member the verified file of a digest a joined agent names: the first read fetches it through
 `participation.figures`, and the file is kept in memory.
 """
 
@@ -71,6 +71,9 @@ from hopin.participation.vocabulary import (
     CLIP_PATH,
     FIGURE_PATH,
     HEARING_PATH,
+    PERSONA_ROOM_CACHE_BYTES,
+    PERSONA_ROOM_MAX_BYTES,
+    PERSONA_ROOM_PATH,
     VOICE_PATH,
 )
 from hopin.participation.voice import VoiceStore, voice_endpoint
@@ -399,17 +402,26 @@ def _file_endpoint(
 
 
 def _add_file_routes(
-    router: APIRouter, store: FigureStore, clip_store: FigureStore, participation: Callable[[], Participation]
+    router: APIRouter,
+    stores: tuple[FigureStore, FigureStore, FigureStore],
+    participation: Callable[[], Participation],
 ) -> None:
-    """The figure and clip routes, each answering only a file the current participation names."""
+    """The figure, clip and persona room routes, each answering only a file the current participation names; `stores`
+    holds the store of each kind in that order."""
+    figures, clips, persona_rooms = stores
     router.add_api_route(
         f"{FIGURE_PATH}/{{sha256}}",
-        _file_endpoint(store, lambda sha256: participation().figures.named(sha256)),
+        _file_endpoint(figures, lambda sha256: participation().figures.named(sha256)),
         methods=READ_METHODS,
     )
     router.add_api_route(
         f"{CLIP_PATH}/{{sha256}}",
-        _file_endpoint(clip_store, lambda sha256: participation().figures.named_clips(sha256)),
+        _file_endpoint(clips, lambda sha256: participation().figures.named_clips(sha256)),
+        methods=READ_METHODS,
+    )
+    router.add_api_route(
+        f"{PERSONA_ROOM_PATH}/{{sha256}}",
+        _file_endpoint(persona_rooms, lambda sha256: participation().figures.named_persona_rooms(sha256)),
         methods=READ_METHODS,
     )
 
@@ -463,8 +475,11 @@ class ParticipationFeature:
         )
         hearing_tokens = self._hearing_tokens(deadlines, scheduler, auth_config)
         voice = self._voice(relying_party, hearing_tokens)
-        store = FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic))
-        clip_store = self._clip_store()
+        stores = (
+            FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic)),
+            self._store_within(CLIP_MAX_BYTES, CLIP_CACHE_BYTES, "clip_fetch.ended"),
+            self._store_within(PERSONA_ROOM_MAX_BYTES, PERSONA_ROOM_CACHE_BYTES, "persona_room_fetch.ended"),
+        )
         front = self._front(built, relying_party, voice)
 
         @asynccontextmanager
@@ -475,8 +490,8 @@ class ParticipationFeature:
                     yield
             finally:
                 await built.shut_down()
-                store.shut_down()
-                clip_store.shut_down()
+                for store in stores:
+                    store.shut_down()
 
         router = APIRouter(lifespan=lifespan)
         # No methods named, so every method reaches the front, which refuses all but POST itself.
@@ -486,23 +501,17 @@ class ParticipationFeature:
                 endpoint=_LeaseRenewingFront(front, relying_party.issuer, built.current, hearing_tokens),
             )
         )
-        _add_file_routes(router, store, clip_store, built.current)
+        _add_file_routes(router, stores, built.current)
         self._add_voice_route(router, built.current)
         self._add_hearing_route(router, built.current, relying_party, scheduler, hearing_tokens)
         return BuiltParticipationFeature(built.participation, router, self._resource())
 
-    def _clip_store(self) -> FigureStore:
-        """The store of the clips, with its own byte bound, cache and step line apart from the figure's."""
+    def _store_within(self, max_bytes: int, cache_bytes: int, step_event: str) -> FigureStore:
+        """The store of one kind of file beside the figure's, with its own byte bound, cache and step line."""
         return FigureStore(
-            partial(
-                fetch_figure,
-                self.figure_transport,
-                monotonic=time.monotonic,
-                max_bytes=CLIP_MAX_BYTES,
-                redirect_sources=self.figure_sources,
-            ),
-            cache_bytes=CLIP_CACHE_BYTES,
-            step_event="clip_fetch.ended",
+            partial(fetch_figure, self.figure_transport, monotonic=time.monotonic, max_bytes=max_bytes),
+            cache_bytes=cache_bytes,
+            step_event=step_event,
         )
 
     def _add_hearing_route(
