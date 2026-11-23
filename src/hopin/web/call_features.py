@@ -8,7 +8,7 @@ from hopin.config.constants import CALL_FEATURES_PATH, READ_METHODS
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from hopin.signaling.transition import TransitionHost
+    from hopin.signaling.features import TransitionHost
 
 
 class CallFeatureList(BaseModel):

@@ -102,28 +102,32 @@ class TestRoom:
         assert not room.has_free_seat_for(account_named("p1"), SEAT_LIMIT)
 
 
+def hosted_room(manager, host_name):
+    return manager.create_room(host_name, account_named(host_name), manager.new_room_id())
+
+
 class TestRoomManager:
     @pytest.fixture
     def manager(self):
         return RoomManager(max_participants_per_room=3)
 
     def test_create_room_returns_room(self, manager):
-        room = manager.create_room("host1", account_named("host1"))
+        room = hosted_room(manager, "host1")
         assert isinstance(room, Room)
         assert room.host == account_named("host1")
 
     def test_create_room_adds_host_as_participant(self, manager):
-        room = manager.create_room("host1", account_named("host1"))
+        room = hosted_room(manager, "host1")
         assert "host1" in room.participants
         assert room.participant_count == 1
 
     def test_create_room_generates_valid_id(self, manager):
-        room = manager.create_room("host1", account_named("host1"))
+        room = hosted_room(manager, "host1")
         assert len(room.room_id) == ROOM_ID_LENGTH
         assert room.room_id.isalnum()
 
     def test_get_room_returns_existing_room(self, manager):
-        created = manager.create_room("h1", account_named("h1"))
+        created = hosted_room(manager, "h1")
         fetched = manager.get_room(created.room_id)
         assert fetched.room_id == created.room_id
 
@@ -132,20 +136,20 @@ class TestRoomManager:
             manager.get_room("nonexistent")
 
     def test_add_participant_adds_to_room(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         updated = manager.add_participant(room.room_id, "p1", account_named("p1"))
         assert updated.participant_count == 2
         assert "p1" in updated.participants
 
     def test_add_participant_raises_when_locked(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         room.locked = True
         room_id = room.room_id
         with pytest.raises(RoomLockedError):
             manager.add_participant(room_id, "p1", ACCOUNT_P1)
 
     def test_add_participant_locked_and_full_raises_locked(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         manager.add_participant(room.room_id, "p1", account_named("p1"))
         manager.add_participant(room.room_id, "p2", account_named("p2"))
         room.locked = True
@@ -154,7 +158,7 @@ class TestRoomManager:
             manager.add_participant(room_id, "p3", ACCOUNT_P3)
 
     def test_add_participant_raises_when_full(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         manager.add_participant(room.room_id, "p1", account_named("p1"))
         manager.add_participant(room.room_id, "p2", account_named("p2"))
         room_id = room.room_id
@@ -167,25 +171,25 @@ class TestRoomManager:
             manager.add_participant("nonexistent", "p1", ACCOUNT_P1)
 
     def test_set_room_locked_by_host(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         updated = manager.set_room_locked(room.room_id, account_named("h1"), locked=True)
         assert updated.locked is True
 
     def test_set_room_unlocked_by_host(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         manager.set_room_locked(room.room_id, account_named("h1"), locked=True)
         updated = manager.set_room_locked(room.room_id, account_named("h1"), locked=False)
         assert updated.locked is False
 
     def test_add_participant_host_account_passes_the_lock(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         room.locked = True
         updated = manager.add_participant(room.room_id, "h1-second-device", account_named("h1"))
         assert "h1-second-device" in updated.participants
 
     def test_add_participant_stranger_cannot_take_the_away_hosts_seat(self, manager):
         """CALL-07: Add participant stranger cannot take the away hosts seat."""
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         manager.add_participant(room.room_id, "p1", account_named("p1"))
         manager.remove_participant(room.room_id, "h1")
         manager.add_participant(room.room_id, "p2", account_named("p2"))
@@ -194,7 +198,7 @@ class TestRoomManager:
             manager.add_participant(room_id, "p3", ACCOUNT_P3)
 
     def test_add_participant_returning_host_takes_the_reserved_seat(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         manager.add_participant(room.room_id, "p1", account_named("p1"))
         manager.remove_participant(room.room_id, "h1")
         manager.add_participant(room.room_id, "p2", account_named("p2"))
@@ -202,7 +206,7 @@ class TestRoomManager:
         assert updated.host_present
 
     def test_add_agent_takes_a_place_a_person_could_have_taken(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         manager.add_agent(room.room_id, "agent0")
         manager.add_participant(room.room_id, "p1", ACCOUNT_P1)
         second_person = account_named("p2")
@@ -210,7 +214,7 @@ class TestRoomManager:
             manager.add_participant(room.room_id, "p2", second_person)
 
     def test_add_agent_raises_when_people_fill_the_places(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         manager.add_participant(room.room_id, "p1", ACCOUNT_P1)
         manager.add_participant(room.room_id, "p2", account_named("p2"))
         with pytest.raises(RoomFullError) as refusal:
@@ -218,7 +222,7 @@ class TestRoomManager:
         assert refusal.value.capacity == SEAT_LIMIT
 
     def test_remove_agent_frees_the_place(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         manager.add_agent(room.room_id, "agent0")
         manager.add_agent(room.room_id, "agent1")
         manager.remove_agent(room.room_id, "agent0")
@@ -229,46 +233,46 @@ class TestRoomManager:
         manager.remove_agent("nonexistent", "agent0")
 
     def test_set_room_locked_by_non_host_raises(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         manager.add_participant(room.room_id, "p1", account_named("p1"))
         room_id = room.room_id
         with pytest.raises(NotHostError):
             manager.set_room_locked(room_id, ACCOUNT_P1, locked=True)
 
     def test_remove_participant_removes_from_room(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         manager.add_participant(room.room_id, "p1", account_named("p1"))
         updated = manager.remove_participant(room.room_id, "p1")
         assert updated.participant_count == 1
         assert "p1" not in updated.participants
 
     def test_remove_participant_ignores_unknown(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         updated = manager.remove_participant(room.room_id, "unknown")
         assert updated.participant_count == 1
 
     def test_remove_room_deletes_it(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         manager.remove_room(room.room_id)
         with pytest.raises(RoomNotFoundError):
             manager.get_room(room.room_id)
 
     def test_remove_room_ignores_unknown(self, manager):
-        room = manager.create_room("h1", account_named("h1"))
+        room = hosted_room(manager, "h1")
         manager.remove_room("nonexistent")
         assert manager.get_room(room.room_id).room_id == room.room_id
 
     def test_unique_room_ids(self, manager):
-        rooms = [manager.create_room(f"h{i}", account_named(f"h{i}")) for i in range(20)]
+        rooms = [hosted_room(manager, f"h{i}") for i in range(20)]
         ids = {r.room_id for r in rooms}
         assert len(ids) == 20
 
     def test_retries_generation_on_id_collision(self, manager, monkeypatch):
-        taken = manager.create_room("h1", account_named("h1")).room_id
+        taken = hosted_room(manager, "h1").room_id
         fresh_id = "z" * ROOM_ID_LENGTH
         attempted_ids = iter([*taken, *fresh_id])
         monkeypatch.setattr("hopin.rooms.manager.secrets.choice", lambda _alphabet: next(attempted_ids))
 
-        room = manager.create_room("h2", account_named("h2"))
+        room = hosted_room(manager, "h2")
 
         assert room.room_id == fresh_id

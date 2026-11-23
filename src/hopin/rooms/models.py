@@ -13,11 +13,20 @@ class Participant:
     account: Account
 
 
+@dataclass(frozen=True)
+class HostGrace:
+    """The wait for a host who left: which of the host's seats left and when the room ends if no host is back."""
+
+    host_peer_id: str
+    deadline: float
+
+
 @dataclass
 class Room:
     room_id: str
     host: Account
     locked: bool = False
+    grace: HostGrace | None = None
     participants: dict[str, Participant] = field(default_factory=dict)
     agent_ids: set[str] = field(default_factory=set)
 
@@ -31,7 +40,15 @@ class Room:
 
     @property
     def host_present(self) -> bool:
-        return any(self.is_hosted_by(participant.account) for participant in self.participants.values())
+        return self.host_present_without(None)
+
+    def host_present_without(self, participant_id: str | None) -> bool:
+        """Whether a seat of the host's account other than the named one is in the room."""
+        return any(
+            self.is_hosted_by(participant.account)
+            for participant in self.participants.values()
+            if participant.participant_id != participant_id
+        )
 
     @property
     def has_guests(self) -> bool:

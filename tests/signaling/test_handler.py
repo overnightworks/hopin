@@ -79,13 +79,13 @@ async def join_unknown_room(_link, _room_manager, _sender):
 
 
 async def join_locked_room(_link, room_manager, _sender):
-    room = room_manager.create_room("host1", account_named("host1"))
+    room = room_manager.create_room("host1", account_named("host1"), room_manager.new_room_id())
     room_manager.set_room_locked(room.room_id, account_named("host1"), locked=True)
     return {"type": SignalType.JOIN.value, "room_id": room.room_id}
 
 
 async def join_full_room(_link, room_manager, _sender):
-    room = room_manager.create_room("host1", account_named("host1"))
+    room = room_manager.create_room("host1", account_named("host1"), room_manager.new_room_id())
     for index in range(ROOM_LIMIT - 1):
         room_manager.add_participant(room.room_id, f"member{index}", account_named(f"member{index}"))
     return {"type": SignalType.JOIN.value, "room_id": room.room_id}
@@ -225,7 +225,7 @@ class TestJoinExistingRoom:
         self, link, room_manager
     ):
         room, browsers = await seat_in_room(link, room_manager, "host1", "p1")
-        other_room = room_manager.create_room("host2", account_named("host2"))
+        other_room = room_manager.create_room("host2", account_named("host2"), room_manager.new_room_id())
 
         await deliver(browsers["p1"], join_message(other_room.room_id))
         await deliver(browsers["p1"], join_message())

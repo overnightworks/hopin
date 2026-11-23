@@ -85,13 +85,13 @@ class TestHomePage:
 
 class TestCallPage:
     def test_returns_html_for_a_known_room(self, client, room_manager):
-        room = room_manager.create_room("h1", Account(id="h1", name="h1"))
+        room = room_manager.create_room("h1", Account(id="h1", name="h1"), room_manager.new_room_id())
         response = client.get(f"{CALL_PATH}/{room.room_id}")
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/html")
 
     def test_answers_the_same_shell_for_a_known_room(self, client, room_manager):
-        room = room_manager.create_room("h1", Account(id="h1", name="h1"))
+        room = room_manager.create_room("h1", Account(id="h1", name="h1"), room_manager.new_room_id())
 
         response = client.get(f"{CALL_PATH}/{room.room_id}")
 
