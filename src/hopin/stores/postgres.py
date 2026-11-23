@@ -7,8 +7,10 @@ engine hides statement parameters and never sets `echo`, which keeps `sqlalchemy
 never by the driver's text, which quotes the host and the parameters.
 
 The accounts and sessions are `PostgresIdentity`: each entry is one transaction on the engine, so a sign-in survives a
-restart and every process admits the same session. A failure of the database in an entry is webauth's
-`SessionStoreError`, which carries no statement, parameter or address.
+restart and every process admits the same session. A database that cannot be reached raises webauth's
+`StoreUnavailableError`, which webauth answers `503` with `Retry-After` to a request that needs a session; every other
+failure of the database in an entry is its `SessionStoreError`, a `500`. Neither carries a statement, parameter or
+address.
 """
 
 from contextlib import contextmanager
@@ -147,9 +149,10 @@ def with_database_readiness(shared_stores: SharedStores, engine: Engine) -> Shar
 class PostgresIdentity:
     """The accounts and sessions over the engine, as `IdentityStores`.
 
-    Each entry is `database_errors_as_store_errors()` around `engine.begin()`, so a connection that cannot open and a
-    commit that fails raise `SessionStoreError` like a failed statement. A sign-in entry takes the advisory lock of
-    every process first; the audit events of a block that ends without an exception reach the sink before the commit.
+    Each entry is `database_errors_as_store_errors()` around `engine.begin()`: an unreachable database at open or commit
+    raises `StoreUnavailableError`, and every other database failure raises `SessionStoreError`. A sign-in entry takes
+    the advisory lock of every process first; the audit events of a block that ends without an exception reach the sink
+    before the commit.
     """
 
     engine: Engine

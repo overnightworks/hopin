@@ -18,7 +18,7 @@ from starlette.websockets import WebSocketDisconnect
 from webauth.config import WebAuthConfig, installed_web_auth_config
 from webauth.dependencies import session_id_from_request
 from webauth.oidc_login import new_session_id
-from webauth.ports import AccountKind
+from webauth.ports import AccountKind, StoreUnavailableError
 from webauth.postgres import SessionStoreError
 
 from hopin.app import create_app
@@ -463,11 +463,12 @@ class TestExpiredSessionSweep:
         asyncio.run(scheduler.advance(SESSION_SWEEP_SECONDS))
         assert sessions.load(expired.id) is not None
 
+    @pytest.mark.parametrize("failure", [SessionStoreError, StoreUnavailableError])
     def test_a_sweep_the_store_refuses_deletes_nothing_and_the_next_cycle_retries_it(
-        self, swept, scheduler, monkeypatch
+        self, swept, scheduler, monkeypatch, failure
     ):
         app, sessions, expired, _ = swept
-        outage = [SessionStoreError()]
+        outage = [failure()]
         delete_expired = sessions.delete_expired
 
         def refused_once(now):

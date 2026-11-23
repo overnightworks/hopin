@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 import pytest
-from webauth.postgres import SessionStoreError
+from webauth.ports import StoreUnavailableError
 
 from hopin.auth.sign_in import LoggingAuditSink
 from hopin.config.settings import DatabaseSettings
@@ -47,8 +47,8 @@ def enter_session_read(identity):
     ],
     ids=["sign-in entry", "session read", "records", "expiry sweep"],
 )
-def test_a_database_that_cannot_be_reached_raises_the_stores_error_and_leaks_no_connection_detail(identity, call):
-    with pytest.raises(SessionStoreError) as refusal:
+def test_a_database_that_cannot_be_reached_raises_the_unavailable_error_and_leaks_no_connection_detail(identity, call):
+    with pytest.raises(StoreUnavailableError) as refusal:
         call(identity)
 
     details = (REFUSING_HOST, DATABASE_USER, DATABASE_PASSWORD)

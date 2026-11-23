@@ -12,6 +12,7 @@ from webauth.policies import (
     SecurityHeadersPolicy,
     default_content_security_policy,
 )
+from webauth.ports import StoreUnavailableError
 from webauth.postgres import SessionStoreError
 from webauth.web_auth import WebAuthStores
 
@@ -129,7 +130,7 @@ class _ExpiredSessionSweep:
             removed = await asyncio.to_thread(
                 self._identity.delete_expired, datetime.fromtimestamp(int(self._wall_clock()), UTC)
             )
-        except SessionStoreError:
+        except SessionStoreError, StoreUnavailableError:
             logger.warning("sessions.sweep_refused")
         else:
             if removed:
