@@ -9,6 +9,7 @@ from agents.member import (
     PlaceRef,
 )
 
+from hopin.agent.tools import CALL_KIND
 from hopin.participation.group_reads import GROUPS_READ_TASK_NAME
 from hopin.participation.participants import OwnAccount
 from hopin.participation.vocabulary import ParticipationSignal
@@ -110,13 +111,13 @@ def control_shown_to(browser):
 
 def acceptance_of(room_id, invitation_id, epoch):
     """The arguments of an accept of that invitation in the room, as the agents contract parses them."""
-    return AcceptInvitationArguments(place=PlaceRef(kind="call", id=room_id), invitation=invitation_id, epoch=epoch)
+    return AcceptInvitationArguments(place=PlaceRef(kind=CALL_KIND, id=room_id), invitation=invitation_id, epoch=epoch)
 
 
 def busy_decline_of(room_id, invitation_id, epoch):
     """The arguments of a decline of that invitation in the room with the reason busy."""
     return DeclineInvitationArguments(
-        place=PlaceRef(kind="call", id=room_id),
+        place=PlaceRef(kind=CALL_KIND, id=room_id),
         invitation=invitation_id,
         epoch=epoch,
         reason=DeclineInvitationReason.BUSY,

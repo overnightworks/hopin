@@ -84,14 +84,15 @@ class Offers:
         if current is None or current.generation != live.generation:
             return AgentRefusal.GONE
         room_id = cast("str", view.room_id)  # the inviter sits in it
-        seats = view.seats_in(live.owner_subject)
-        bound_to = seats[0] if seats else live.owner_subject  # an owner with no seat has nothing to bind to
+        owner_seat = _owner_seat(view, live.owner_subject)
+        # An owner with no seat, or two, has no seat to bind to; the standard then refuses on where the owner is.
+        bound_to = live.owner_subject if owner_seat is None else owner_seat
         facts = CallFacts(
             inviter=inviter,
             inviter_present=view.room_of(inviter) is not None,
             inviter_is_member=inviter_is_member,
             agent_listens=self._listens_to_standing(live.person),
-            agent_seated=isinstance(self._places.get(live.person, room_id), DialedAgent),
+            agent_seated=self._agent_seated(live, room_id),
             owner=live.owner_subject,
             owner_at=owner_at(view, live.owner_subject, bound_to),
             bound_to=bound_to,
@@ -107,9 +108,12 @@ class Offers:
             holds_lease=True,  # the agent's registration is its lease
             owner=live.owner_subject,
             owner_at=owner_at(view, live.owner_subject, invitation.bound_to),
-            agent_seated=isinstance(self._places.get(live.person, cast("str", view.room_id)), DialedAgent),
+            agent_seated=self._agent_seated(live, cast("str", view.room_id)),
             seat_free=view.has_free_place,
         )
+
+    def _agent_seated(self, live: LiveAgent, room_id: str) -> bool:
+        return isinstance(self._places.get(live.person, room_id), DialedAgent)
 
     def _read_groups(self, view: RoomView, transition: Transition) -> None:
         """Read the groups of each seat whose membership in the agent adders group is unknown or failed to read, unless
@@ -140,9 +144,7 @@ class Offers:
             return ()
         offers = []
         for live in agents.by_person.values():
-            if isinstance(_sole_seat(view, live.owner_subject), AgentRefusal) or not self._listens_to_standing(
-                live.person
-            ):
+            if _owner_seat(view, live.owner_subject) is None or not self._listens_to_standing(live.person):
                 continue
             place = self._places.get(live.person, room_id)
             if isinstance(place, OpenInvitation) and place.inviter == peer_id:
@@ -155,18 +157,15 @@ class Offers:
 def owner_at(view: RoomView, owner_subject: str, bound_to: str) -> OwnerAt:
     """Where the owner is by the call's presence rule: at the one seat the invitation is or will be bound to, away when
     that seat waits to resume, elsewhere on any other seats, and absent on none."""
-    seats = view.seats_in(owner_subject)
-    if not seats:
+    if not view.seats_in(owner_subject):
         return OwnerAt.ABSENT
-    if seats != (bound_to,):
+    seat = _owner_seat(view, owner_subject)
+    if seat is None or seat != bound_to:
         return OwnerAt.ELSEWHERE
-    return OwnerAt.AWAY if view.is_parked(seats[0]) else OwnerAt.AT_BINDING
+    return OwnerAt.AWAY if view.is_parked(seat) else OwnerAt.AT_BINDING
 
 
-def _sole_seat(view: RoomView, owner_subject: str) -> PeerId | AgentRefusal:
+def _owner_seat(view: RoomView, owner_subject: str) -> PeerId | None:
+    """The one seat the owner holds in the call, or none when it holds no seat or two."""
     seats = view.seats_in(owner_subject)
-    if not seats:
-        return AgentRefusal.NO_SEAT
-    if len(seats) > 1:
-        return AgentRefusal.TWO_SEATS
-    return seats[0]
+    return seats[0] if len(seats) == 1 else None
