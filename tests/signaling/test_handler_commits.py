@@ -53,6 +53,27 @@ def commits(monkeypatch):
     return made
 
 
+@pytest.fixture
+def held_refusal(commits, monkeypatch):
+    """Sends the guest a relay to nobody and returns once the server holds at its refusal log, commits cleared."""
+
+    async def send_held_relay(host, guest):
+        refusal_log = Hold()
+
+        async def held_log(event, **_fields):
+            if event == "relay.refused":
+                await refusal_log.hold()
+
+        monkeypatch.setattr("hopin.signaling.routing.logger", SimpleNamespace(ainfo=held_log))
+        guest.sent_count += 1
+        guest.socket.push(text_frame({**note_for(host, "hi"), "target": "nobody", "seq": guest.sent_count}))
+        await refusal_log.reached()
+        commits.clear()
+        return refusal_log
+
+    return send_held_relay
+
+
 def relay(host, guest):
     return guest, note_for(host, "hi"), (host,)
 
@@ -111,19 +132,10 @@ class TestFrameSequence:
         assert telling.woken == (guest.peer_id,)
 
     async def test_another_seats_commit_leaves_the_seq_of_a_frame_that_changes_nothing_to_its_own_empty_commit(
-        self, link, commits, monkeypatch
+        self, link, commits, held_refusal
     ):
         host, guest = await host_and_guest(link)
-        refusal_log = Hold()
-
-        async def held_log(*_args, **_kwargs):
-            await refusal_log.hold()
-
-        monkeypatch.setattr("hopin.signaling.routing.logger", SimpleNamespace(ainfo=held_log))
-        guest.sent_count += 1
-        guest.socket.push(text_frame({**note_for(host, "hi"), "target": "nobody", "seq": guest.sent_count}))
-        await refusal_log.reached()
-        commits.clear()
+        refusal_log = await held_refusal(host, guest)
 
         await host.say({"type": SignalType.MEDIA_STATE.value, "audio": True, "video": False})
         refusal_log.release.set()
@@ -134,20 +146,10 @@ class TestFrameSequence:
         assert after[-1].received[guest.peer_id] == guest.sent_count
 
     async def test_a_frame_that_changes_nothing_is_dropped_with_its_seat_when_the_call_ends_meanwhile(
-        self, link, commits, monkeypatch
+        self, link, commits, held_refusal
     ):
         host, guest = await host_and_guest(link)
-        refusal_log = Hold()
-
-        async def held_log(event, **_fields):
-            if event == "relay.refused":
-                await refusal_log.hold()
-
-        monkeypatch.setattr("hopin.signaling.routing.logger", SimpleNamespace(ainfo=held_log))
-        guest.sent_count += 1
-        guest.socket.push(text_frame({**note_for(host, "hi"), "target": "nobody", "seq": guest.sent_count}))
-        await refusal_log.reached()
-        commits.clear()
+        refusal_log = await held_refusal(host, guest)
 
         await host.say({"type": SignalType.END_ROOM.value})
         refusal_log.release.set()
