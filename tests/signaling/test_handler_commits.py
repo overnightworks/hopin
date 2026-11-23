@@ -1,13 +1,16 @@
 """The call core writes a browser frame's seq in the commit that applies the frame."""
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 import pytest
 import pytest_asyncio
 
 from hopin.config.constants import ConnectionOutcome, SignalType
+from hopin.errors import HopInError
 from hopin.signaling.transition import InMemoryCallStore
-from tests.signaling.support.browsers import Link, host_and_guest, note_for
+from tests.signaling.support.browsers import Hold, Link, host_and_guest, note_for
+from tests.support.signaling_fakes import text_frame
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -17,6 +20,7 @@ class Commit:
     woken: tuple[str, ...]
     received: dict[str, int]
     """The seq each seat of the test had received after the commit; a seat the commit ended is absent."""
+    refused: bool = False
 
 
 @pytest_asyncio.fixture
@@ -33,9 +37,16 @@ def commits(monkeypatch):
     commit = InMemoryCallStore.commit
 
     def recording_commit(store, view, change):
-        woken = commit(store, view, change)
-        seats = [seat for name in ("host", "guest") for seat in store.held_by(name)]
-        made.append(Commit(woken, {peer_id: record.received_seq for peer_id, record in seats}))
+        woken = ()
+        refused = False
+        try:
+            woken = commit(store, view, change)
+        except HopInError:
+            refused = True
+            raise
+        finally:
+            seats = [seat for name in ("host", "guest") for seat in store.held_by(name)]
+            made.append(Commit(woken, {peer_id: record.received_seq for peer_id, record in seats}, refused))
         return woken
 
     monkeypatch.setattr(InMemoryCallStore, "commit", recording_commit)
@@ -86,3 +97,38 @@ class TestFrameSequence:
         [first, *_] = commits
         assert first.received[sender.peer_id] == sender.sent_count
         assert first.woken == tuple(browser.peer_id for browser in woken)
+
+    async def test_a_refused_edit_leaves_the_seq_to_the_commit_that_tells_of_the_refusal(self, link, commits):
+        _host, guest = await host_and_guest(link)
+        commits.clear()
+
+        await guest.say({"type": SignalType.LOCK_ROOM.value})
+
+        refusal, telling = commits
+        assert refusal.refused
+        assert refusal.received[guest.peer_id] == guest.sent_count - 1
+        assert telling.received[guest.peer_id] == guest.sent_count
+        assert telling.woken == (guest.peer_id,)
+
+    async def test_another_seats_commit_leaves_the_seq_of_a_frame_that_changes_nothing_to_its_own_empty_commit(
+        self, link, commits, monkeypatch
+    ):
+        host, guest = await host_and_guest(link)
+        refusal_log = Hold()
+
+        async def held_log(*_args, **_kwargs):
+            await refusal_log.hold()
+
+        monkeypatch.setattr("hopin.signaling.routing.logger", SimpleNamespace(ainfo=held_log))
+        guest.sent_count += 1
+        guest.socket.push(text_frame({**note_for(host, "hi"), "target": "nobody", "seq": guest.sent_count}))
+        await refusal_log.reached()
+        commits.clear()
+
+        await host.say({"type": SignalType.MEDIA_STATE.value, "audio": True, "video": False})
+        refusal_log.release.set()
+        await link.settle(guest.socket)
+
+        during, *after = commits
+        assert during.received[guest.peer_id] == guest.sent_count - 1
+        assert after[-1].received[guest.peer_id] == guest.sent_count

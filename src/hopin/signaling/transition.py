@@ -323,7 +323,7 @@ class InMemoryCallStore:
         self._records: dict[PeerId, SeatRecord] = {}
         self._seats = Seats(MappingProxyType(self._records))
         self._sections: dict[str, dict[str, object]] = {}
-        self._unwritten_seqs: dict[PeerId, int] = {}
+        self._unwritten_seqs: dict[PeerId, tuple[int, asyncio.Task[object] | None]] = {}
 
     @property
     def seats(self) -> Seats:
@@ -366,10 +366,10 @@ class InMemoryCallStore:
         return self.load(self.room_of(peer_id))
 
     def receive(self, peer_id: PeerId, seq: int) -> None:
-        """Note the seq of the browser's frame about to be applied. The commit that applies the frame writes it with the
-        frame's changes, so a frame is never counted received without its effect; the first commit of every action runs
-        before it awaits. A frame that changes nothing is settled by `settle_received`."""
-        self._unwritten_seqs[peer_id] = seq
+        """Note the seq of the browser's frame about to be applied. Only a commit made by the task that handles the
+        frame writes it, after the frame's edits applied, so a frame is never counted received without its effect and
+        another seat's commit never takes it. A frame that changes nothing is settled by `settle_received`."""
+        self._unwritten_seqs[peer_id] = (seq, asyncio.current_task())
 
     def settle_received(self, peer_id: PeerId) -> None:
         """Commit the seq of a frame that no commit has written, which changed nothing."""
@@ -378,11 +378,12 @@ class InMemoryCallStore:
 
     def commit(self, view: RoomView, change: Change) -> tuple[PeerId, ...]:
         """Write the change's edits, sections and agent places and log each frame it sends for its seat, and name the
-        seats to wake. The seqs of the browser frames noted since the last commit are written first."""
-        self._write_received_seqs()
+        seats to wake. The seq of the browser frame this task handles is written once the edits applied, so a refused
+        edit leaves it to the commit that tells the browser of the refusal."""
         if isinstance(change, CoreTransition):
             for edit in change.edits:
                 self._apply(edit)
+        self._write_received_seqs()
         if view.room_id is None:
             if change.puts or change.seated_agents:  # pragma: no cover - a hook keeps state only in its room
                 raise ValueError("A transition of no room keeps no state")
@@ -410,8 +411,9 @@ class InMemoryCallStore:
         await self.wake_committed([Committed(self.commit(RoomView(), transition))])
 
     def _write_received_seqs(self) -> None:
-        unwritten, self._unwritten_seqs = self._unwritten_seqs, {}
-        for peer_id, seq in unwritten.items():
+        handling = asyncio.current_task()
+        for peer_id in [peer_id for peer_id, (_, task) in self._unwritten_seqs.items() if task is handling]:
+            seq, _ = self._unwritten_seqs.pop(peer_id)
             self._records[peer_id].received_seq = seq
 
     def _log(self, peer_id: PeerId, frame: JsonObject, supersedes: Supersedes | None) -> bool:
