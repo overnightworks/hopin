@@ -28,7 +28,7 @@ import asyncio
 from dataclasses import dataclass, field, replace
 from functools import partial
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Protocol, assert_never, cast
+from typing import TYPE_CHECKING, Protocol, assert_never, cast, get_args
 
 import structlog
 
@@ -214,12 +214,6 @@ class SeatTakenOver:
 
 
 @dataclass(frozen=True)
-class ReceivedAdvanced:
-    peer_id: PeerId
-    seq: int
-
-
-@dataclass(frozen=True)
 class RoomCreated:
     room_id: str
     host_peer_id: PeerId
@@ -262,7 +256,8 @@ class HostGraceCleared:
     room_id: str
 
 
-type SeatEdit = SeatOpened | SeatForgotten | SeatParked | SeatTakenOver | ReceivedAdvanced
+type SeatEdit = SeatOpened | SeatForgotten | SeatParked | SeatTakenOver
+_SEAT_EDITS = get_args(SeatEdit.__value__)
 type RoomEdit = (
     RoomCreated | ParticipantAdded | ParticipantRemoved | RoomLockSet | RoomEnded | HostGraceStarted | HostGraceCleared
 )
@@ -328,6 +323,7 @@ class InMemoryCallStore:
         self._records: dict[PeerId, SeatRecord] = {}
         self._seats = Seats(MappingProxyType(self._records))
         self._sections: dict[str, dict[str, object]] = {}
+        self._unwritten_seqs: dict[PeerId, int] = {}
 
     @property
     def seats(self) -> Seats:
@@ -369,9 +365,21 @@ class InMemoryCallStore:
         """The view of the room the seat sits in."""
         return self.load(self.room_of(peer_id))
 
+    def receive(self, peer_id: PeerId, seq: int) -> None:
+        """Note the seq of the browser's frame about to be applied. The commit that applies the frame writes it with the
+        frame's changes, so a frame is never counted received without its effect; the first commit of every action runs
+        before it awaits. A frame that changes nothing is settled by `settle_received`."""
+        self._unwritten_seqs[peer_id] = seq
+
+    def settle_received(self, peer_id: PeerId) -> None:
+        """Commit the seq of a frame that no commit has written, which changed nothing."""
+        if peer_id in self._unwritten_seqs:
+            self.commit_edits(CoreTransition())
+
     def commit(self, view: RoomView, change: Change) -> tuple[PeerId, ...]:
         """Write the change's edits, sections and agent places and log each frame it sends for its seat, and name the
-        seats to wake."""
+        seats to wake. The seqs of the browser frames noted since the last commit are written first."""
+        self._write_received_seqs()
         if isinstance(change, CoreTransition):
             for edit in change.edits:
                 self._apply(edit)
@@ -401,6 +409,11 @@ class InMemoryCallStore:
         """Commit a transition of the call core and wake the seats it sent to."""
         await self.wake_committed([Committed(self.commit(RoomView(), transition))])
 
+    def _write_received_seqs(self) -> None:
+        unwritten, self._unwritten_seqs = self._unwritten_seqs, {}
+        for peer_id, seq in unwritten.items():
+            self._records[peer_id].received_seq = seq
+
     def _log(self, peer_id: PeerId, frame: JsonObject, supersedes: Supersedes | None) -> bool:
         """Give the frame the seat's next seq in its log, dropping the frames it supersedes there, and say whether the
         seat is there to have it."""
@@ -411,10 +424,10 @@ class InMemoryCallStore:
         return True
 
     def _apply(self, edit: Edit) -> None:
-        if isinstance(edit, SeatOpened | SeatForgotten | SeatParked | SeatTakenOver | ReceivedAdvanced):
-            self._apply_to_seats(edit)
+        if isinstance(edit, _SEAT_EDITS):
+            self._apply_to_seats(cast("SeatEdit", edit))
         else:
-            self._apply_to_rooms(edit)
+            self._apply_to_rooms(cast("RoomEdit", edit))
 
     def _apply_to_seats(self, edit: SeatEdit) -> None:
         match edit:
@@ -440,8 +453,6 @@ class InMemoryCallStore:
                 self._seats.attach(peer_id, socket)
                 if parked:
                     self._on_seat_changed(peer_id)
-            case ReceivedAdvanced(peer_id, seq):
-                self._records[peer_id].received_seq = seq
             case _:  # pragma: no cover - the type checker proves the match exhaustive
                 assert_never(edit)
 

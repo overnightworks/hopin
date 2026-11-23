@@ -264,7 +264,7 @@ class SignalingHandler:
                 return
             if incoming.sequence <= self._store.record_of(peer_id).received_seq:
                 return
-            self._routing.advance_received(peer_id, incoming.sequence)
+            self._store.receive(peer_id, incoming.sequence)
 
         try:
             if isinstance(incoming.frame, InvalidMessageError):
@@ -272,6 +272,8 @@ class SignalingHandler:
             await self._dispatch(peer_id, incoming.frame)
         except HopInError as exc:
             await self._send_error(peer_id, exc)
+        finally:
+            self._store.settle_received(peer_id)
 
     async def _dispatch(self, peer_id: PeerId, frame: DispatchedFrame) -> None:
         match frame:

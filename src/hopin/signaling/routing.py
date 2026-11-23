@@ -45,7 +45,6 @@ from hopin.signaling.transition import (
     HostGraceStarted,
     ParticipantAdded,
     ParticipantRemoved,
-    ReceivedAdvanced,
     RoomCreated,
     RoomEnded,
     RoomLockSet,
@@ -126,13 +125,6 @@ class RoomRouting:
         )
         self._store.commit_edits(opening)
         return peer_id
-
-    def advance_received(self, peer_id: PeerId, seq: int) -> None:
-        """Write the seq of the browser's frame about to be applied; a frame that changes nothing else commits only
-        this."""
-        advancing = CoreTransition()
-        advancing.edit(ReceivedAdvanced(peer_id, seq))
-        self._store.commit_edits(advancing)
 
     async def send_error(self, peer_id: PeerId, error: HopInError) -> None:
         await self._store.apply(_telling([peer_id], error_frame(error)))
