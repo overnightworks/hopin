@@ -221,6 +221,27 @@ class VoiceFailure(StrEnum):
     UNREADABLE_AUDIO = "unreadable_audio"
 
 
+class VideoFailure(StrEnum):
+    """Why an agent's video session ended for good before its place did, or never opened; the code its
+    `video_session.ended` line carries. The refusals of the upgrade carry the video service's own codes."""
+
+    HEALTH_UNREAD = "health_unread"
+    TOKEN_EXCHANGE_REFUSED = "token_exchange_refused"  # noqa: S105 - name of a failure kind and no credential
+    WORKLOAD_TOKEN_REFUSED = "workload_token_refused"  # noqa: S105 - name of a failure kind and no credential
+    TURN_CREDENTIAL_UNAVAILABLE = "turn_credential_unavailable"
+    UNAUTHORIZED = "unauthorized"
+    FORBIDDEN = "forbidden"
+    INVALID_REQUEST = "invalid_request"
+    UNAVAILABLE = "unavailable"
+    BUSY = "busy"
+    REFUSED = "refused"
+    UNREACHABLE = "unreachable"
+    PAST_DEADLINE = "past_deadline"
+    ERROR = "error"
+    CLOSED = "closed"
+    MALFORMED = "malformed"
+
+
 class VoiceRefusedError(Exception):
     """The voice refuses a sentence before any sound is asked for; `reason` is the code its speak line carries."""
 

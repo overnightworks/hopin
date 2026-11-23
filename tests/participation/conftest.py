@@ -32,6 +32,7 @@ from tests.support.agent_speak import speak
 from tests.support.dialed_call import accept_arguments, serving_dialed_call
 from tests.support.fake_issuer import FakeIssuer
 from tests.support.fake_speech import FakeSpeech
+from tests.support.fake_video import turn_on
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.loopback_origin import Origin
 from tests.support.signaling_fakes import RecordingFeature, SocketAccountResolver, WitnessFeatureBuilder
@@ -112,6 +113,18 @@ def fake_speech_hearing(fake_speech):
 @pytest.fixture
 def speaking_service():
     """The speech service agents speak through; none until a module about speaking names one."""
+    return
+
+
+@pytest.fixture
+def video_service():
+    """The video service agents open sessions on; none until a module about video names one."""
+    return
+
+
+@pytest.fixture
+def turn_provider():
+    """The TURN provider behind the transport port; none leaves TURN off."""
     return
 
 
@@ -279,9 +292,12 @@ def adding_call(
     figure_transport,
     hearing_service,
     speaking_service,
+    video_service,
+    turn_provider,
+    tmp_path,
 ):
     """HopIn with participation wired into its calls."""
-    sign_in = sign_in_settings()
+    sign_in = sign_in_settings(**({} if turn_provider is None else turn_on(tmp_path)))
     with serving_dialed_call(
         sign_in,
         FakeIssuer(sign_in),
@@ -290,6 +306,8 @@ def adding_call(
         figure_transport=figure_transport,
         hearing=hearing_service,
         speaking=speaking_service,
+        video=video_service,
+        turn_transport=turn_provider,
         monotonic_clock=issuer_clock,
         shared_stores=shared_stores,
     ) as call:
