@@ -1,8 +1,0 @@
-claim_id = "41d0aac5a8b54a528e667544797c51ce"
-agent = "Claude ec75e0df-83db-4de9-9765-71b041e0ffeb"
-role = "builder"
-base = "ff26b2852630163371535b97f7e34b34d8643a2a"
-branch = "claude/issue-1133-every-writer-of-the-call-core-commits-th"
-scope = ["docs/ARCHITECTURE.md", "pyproject.toml", "src/hopin/rooms/manager.py", "src/hopin/rooms/models.py", "src/hopin/signaling/features.py", "src/hopin/signaling/frames.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/routing.py", "src/hopin/signaling/seats.py", "src/hopin/signaling/transition.py", "src/hopin/web/call_features.py", "tests/game/test_table.py", "tests/signaling/test_handler.py", "tests/signaling/test_handler_commits.py", "tests/signaling/test_handler_resume.py", "tests/test_rooms.py", "tests/web/test_routes.py"]
-opened_commit = "58b0e327ed41d76acffb3c2e59388a49533a8c3f"
-whole_reason = "A single writer is one invariant: with only part of the writers moved, two paths write the same seat log, and neither the token-free log nor the done_when holds."
