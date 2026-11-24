@@ -1,5 +1,5 @@
 claim_id = "ac3dc73aa81d45cb86e5ee2a9fcb9b85"
-agent = "Claude ec75e0df-83db-4de9-9765-71b041e0ffeb"
+agent = "Claude 18fc7749-8e84-4084-9354-f9dd1455e6cc"
 role = "builder"
 base = "0d7a5c897040d115a2d273464e63c867412309f4"
 branch = "claude/issue-1141-quality-0-25-0"
