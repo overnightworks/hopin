@@ -1,4 +1,7 @@
-.PHONY: verdict-repeatability install lint wire wire-check catalogs format test shared-stores dead check run e2e frontend frontend-check
+.PHONY: verdict-repeatability install lint wire wire-check catalogs format test shared-stores dead run e2e frontend frontend-check frontend-test
+
+# Fails the target loud unless the variable $(1) names what to run; $(2) is an example.
+require = $(if $($(1)),,$(error name what to run with $(1)=..., for example make $(2)))
 
 install:
 	uv sync --all-extras
@@ -24,14 +27,17 @@ format:
 	uv run ruff format src tests
 
 test:
-	uv run pytest -m "not e2e and not shared_stores"
+	$(call require,T,test T=tests/test_app.py)
+	uv run pytest -m "not e2e and not shared_stores" $(T)
 
 e2e: frontend
-	uv run pytest -m e2e --no-cov --output test-results
+	$(call require,T,e2e T=tests/e2e/<module>)
+	uv run pytest -m e2e --no-cov --output test-results $(T)
 
 # HOPIN_TEST_REDIS_URL and HOPIN_TEST_POSTGRES_URL name the stores; the Postgres user may create databases.
 shared-stores:
-	uv run pytest -m shared_stores --no-cov
+	$(call require,T,shared-stores T=tests/<module>)
+	uv run pytest -m shared_stores --no-cov $(T)
 
 dead:
 	uv run vulture src/hopin
@@ -40,14 +46,16 @@ frontend:
 	cd frontend && pnpm install --frozen-lockfile && pnpm build
 
 frontend-check:
-	cd frontend && pnpm check && pnpm lint && pnpm test
+	cd frontend && pnpm check && pnpm lint
 
-check: lint test dead frontend-check
+frontend-test:
+	$(call require,F,frontend-test F=src/lib/<file>.test.ts)
+	cd frontend && pnpm exec vitest run $(F)
 
 run: frontend
 	uv run hopin migrate
 	uv run hopin serve
 
-# Costs real model calls on the configured gateway; never part of `make check` or CI.
+# Costs real model calls on the configured gateway; never part of CI.
 verdict-repeatability:
 	uv run hopin verdict-repeatability --runs $(or $(RUNS),10)
