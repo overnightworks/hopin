@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 GAME_ENVIRONMENT = {
     "HOPIN_AGENT__GATEWAY__ORIGIN": "http://gateway.test:4000",
     "HOPIN_AGENT__GATEWAY__KEY_FILE": "/nonexistent/gateway-key",
-    "HOPIN_AGENT__API_GROUP": "/services/scenario/api",
+    "REALM_AI_GROUP": "/services/scenario/api",
 }
 
 
