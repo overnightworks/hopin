@@ -1,5 +1,5 @@
 claim_id = "aa382157cafb4138ac6ae12cfe76b9b2"
-agent = "Claude ec75e0df-83db-4de9-9765-71b041e0ffeb"
+agent = "Claude 18fc7749-8e84-4084-9354-f9dd1455e6cc"
 role = "builder"
 base = "f9b1c86cf7d6d53115dcae1f325b05cafc7a5086"
 branch = "claude/issue-1151-realm-ai-and-speech-keys"
