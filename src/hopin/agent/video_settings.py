@@ -32,5 +32,6 @@ class VideoSettings(BaseSettings):
 
     @model_validator(mode="after")
     def _origin_is_plain_http_and_names_its_scope(self) -> VideoSettings:
-        check_origin_names_its_scope(self.model_config["env_prefix"], self.origin, self.audience_scope)
+        prefix = self.model_config["env_prefix"]
+        check_origin_names_its_scope(prefix, self.origin, f"{prefix}AUDIENCE_SCOPE", self.audience_scope)
         return self

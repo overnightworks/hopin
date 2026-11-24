@@ -44,6 +44,7 @@ from pydantic_settings.exceptions import SettingsError
 
 from hopin.agent.backend import gateway_backend  # game
 from hopin.agent.feature import configured_game_feature  # game
+from hopin.agent.fleet_keys import FleetKeyedSettings
 from hopin.agent.mcp import PLACE_SUBSCRIPTION_WAIT_SECONDS, ParticipationFeature
 from hopin.agent.settings import AgentSettings  # game
 from hopin.agent.speech_settings import SpeechSettings
@@ -238,12 +239,17 @@ def refusal_lines(settings_class: type[BaseSettings], invalid: ValidationError) 
     """One line per invalid setting, named by its environment variable; a value never appears."""
     prefix = settings_class.model_config["env_prefix"]
     delimiter = settings_class.model_config.get("env_nested_delimiter")
+    environment_keys = settings_class.environment_keys if issubclass(settings_class, FleetKeyedSettings) else {}
     lines = []
     for error in invalid.errors(include_url=False, include_context=False, include_input=False):
         if not error["loc"]:
             lines.append(error["msg"].removeprefix(MODEL_VALIDATOR_MESSAGE_PREFIX))
             continue
         state = "missing" if error["type"] == "missing" else "malformed"
+        location = tuple(str(part) for part in error["loc"])
+        if (key := environment_keys.get(location)) is not None:
+            lines.append(f"{key} is {state}")
+            continue
         if delimiter is None:
             name = str(error["loc"][0])
         elif state == "missing" and len(error["loc"]) == 1:
@@ -251,6 +257,10 @@ def refusal_lines(settings_class: type[BaseSettings], invalid: ValidationError) 
         else:
             name = delimiter.join(str(part) for part in error["loc"])
         lines.append(f"{prefix}{name}".upper() + f" is {state}")
+        if state == "missing":
+            lines.extend(
+                f"{key} is missing" for mapped, key in environment_keys.items() if mapped[: len(location)] == location
+            )
     return "\n".join(lines) + "\n"
 
 

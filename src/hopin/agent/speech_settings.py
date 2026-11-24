@@ -1,16 +1,20 @@
 from dataclasses import dataclass
-from typing import Annotated, Final
+from typing import Annotated, ClassVar, Final
 from urllib.parse import urlsplit
 
 from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 from speech_client.wire import VOICES, Language, VoiceId
 
+from hopin.agent.fleet_keys import FleetKeyedSettings
 from hopin.words import SOURCE_LANGUAGE
 
 # RFC 6749 section 3.3: a scope token is one or more printable ASCII characters other than space, `"` and `\`.
 type ScopeToken = Annotated[str, Field(pattern=r"^[\x21\x23-\x5b\x5d-\x7e]+$")]
 
+
+# The fleet's key for the speech service's audience scope, which the platform's Deployment hands every app.
+SPEECH_SCOPE_KEY: Final = "REALM_SPEECH_SCOPE"
 
 # The language of HopIn's page, which an agent's sentence without a language is spoken in.
 PAGE_LANGUAGE: Final = Language(SOURCE_LANGUAGE)
@@ -25,12 +29,14 @@ class SpeechService:
     audience_scope: str
 
 
-class SpeechSettings(BaseSettings):
+class SpeechSettings(FleetKeyedSettings):
     """The speech service HopIn speaks and hears through; without an origin the voice is off, and hearing and agents'
     speaking are off until each is turned on."""
 
     # Read like the server's own settings, and a refusal never echoes an input.
     model_config = SettingsConfigDict(env_prefix="HOPIN_SPEECH__", hide_input_in_errors=True)
+
+    environment_keys: ClassVar = {("audience_scope",): SPEECH_SCOPE_KEY}
 
     origin: str | None = None
     voice: VoiceId = VoiceId.THORSTEN
@@ -57,7 +63,9 @@ class SpeechSettings(BaseSettings):
 
     @model_validator(mode="after")
     def _origin_is_plain_http_and_names_its_scope(self) -> SpeechSettings:
-        check_origin_names_its_scope(self.model_config["env_prefix"], self.origin, self.audience_scope)
+        check_origin_names_its_scope(
+            self.model_config["env_prefix"], self.origin, SPEECH_SCOPE_KEY, self.audience_scope
+        )
         return self
 
     @model_validator(mode="after")
@@ -72,20 +80,21 @@ class SpeechSettings(BaseSettings):
         if (self.hearing or self.speaking) and self.service is None:
             prefix = self.model_config["env_prefix"]
             raise ValueError(
-                f"{prefix}ORIGIN and {prefix}AUDIENCE_SCOPE are required when {prefix}HEARING or {prefix}SPEAKING is on"
+                f"{prefix}ORIGIN and {SPEECH_SCOPE_KEY} are required when {prefix}HEARING or {prefix}SPEAKING is on"
             )
         return self
 
 
-def check_origin_names_its_scope(prefix: str, origin: str | None, audience_scope: str | None) -> None:
+def check_origin_names_its_scope(prefix: str, origin: str | None, scope_key: str, audience_scope: str | None) -> None:
     """Refuse an origin that is no plain http origin, and an origin without its audience scope; a service without an
-    origin is off and needs neither. The message names the setting and never echoes the value."""
+    origin is off and needs neither. The message names the settings by `prefix` and `scope_key` and never echoes the
+    value."""
     if origin is None:
         return
     if not _is_plain_http_origin(origin):
         raise ValueError(f"{prefix}ORIGIN must be http://host[:port] with no path, query or fragment")
     if audience_scope is None:
-        raise ValueError(f"{prefix}AUDIENCE_SCOPE is required when {prefix}ORIGIN is set")
+        raise ValueError(f"{scope_key} is required when {prefix}ORIGIN is set")
 
 
 def _is_plain_http_origin(origin: str) -> bool:

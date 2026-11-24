@@ -12,7 +12,7 @@ pytestmark = pytest.mark.integration
 SPEECH_ENVIRONMENT = {
     "HOPIN_SPEECH__ORIGIN": "http://speech.test:8090",
     "HOPIN_SPEECH__VOICE": VoiceId.KERSTIN.value,
-    "HOPIN_SPEECH__AUDIENCE_SCOPE": "scenario-audience",
+    "REALM_SPEECH_SCOPE": "scenario-audience",
 }
 SECRET_SHAPED = f"not-a-value-{secrets.token_hex(8)}"
 MALFORMED_SETTINGS = [
@@ -21,8 +21,8 @@ MALFORMED_SETTINGS = [
     pytest.param("HOPIN_SPEECH__ORIGIN", f"http://speech.test:{SECRET_SHAPED}", id="an-origin-with-a-bad-port"),
     pytest.param("HOPIN_SPEECH__VOICE", "", id="an-empty-voice"),
     pytest.param("HOPIN_SPEECH__VOICE", f"not-a-catalogue-voice-{SECRET_SHAPED}", id="a-voice-outside-the-catalogue"),
-    pytest.param("HOPIN_SPEECH__AUDIENCE_SCOPE", f"two {SECRET_SHAPED}", id="a-scope-with-a-space"),
-    pytest.param("HOPIN_SPEECH__AUDIENCE_SCOPE", "", id="an-empty-scope"),
+    pytest.param("REALM_SPEECH_SCOPE", f"two {SECRET_SHAPED}", id="a-scope-with-a-space"),
+    pytest.param("REALM_SPEECH_SCOPE", "", id="an-empty-scope"),
 ]
 
 
@@ -39,7 +39,7 @@ def test_the_three_speech_settings_load_from_their_environment(speech_environmen
     assert (speech.origin, speech.voice, speech.audience_scope) == (
         SPEECH_ENVIRONMENT["HOPIN_SPEECH__ORIGIN"],
         SPEECH_ENVIRONMENT["HOPIN_SPEECH__VOICE"],
-        SPEECH_ENVIRONMENT["HOPIN_SPEECH__AUDIENCE_SCOPE"],
+        SPEECH_ENVIRONMENT["REALM_SPEECH_SCOPE"],
     )
 
 
@@ -53,9 +53,17 @@ def test_without_an_origin_the_voice_is_off_and_its_voice_has_a_default(speech_e
 
 
 def test_an_origin_without_an_audience_scope_fails_when_the_settings_load(speech_environment):
-    speech_environment.delenv("HOPIN_SPEECH__AUDIENCE_SCOPE")
+    speech_environment.delenv("REALM_SPEECH_SCOPE")
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="REALM_SPEECH_SCOPE"):
+        SpeechSettings()
+
+
+def test_the_old_speech_scope_key_alone_no_longer_satisfies_the_setting(speech_environment):
+    speech_environment.delenv("REALM_SPEECH_SCOPE")
+    speech_environment.setenv("HOPIN_SPEECH__AUDIENCE_SCOPE", "scenario-audience")
+
+    with pytest.raises(ValidationError, match="REALM_SPEECH_SCOPE"):
         SpeechSettings()
 
 
@@ -105,7 +113,7 @@ def test_hearing_on_names_the_configured_service(speech_environment):
     assert speech.hearing_service is not None
 
 
-@pytest.mark.parametrize("missing", ["HOPIN_SPEECH__ORIGIN", "HOPIN_SPEECH__AUDIENCE_SCOPE"])
+@pytest.mark.parametrize("missing", ["HOPIN_SPEECH__ORIGIN", "REALM_SPEECH_SCOPE"])
 def test_hearing_on_without_an_origin_and_an_audience_scope_fails_when_the_settings_load(speech_environment, missing):
     speech_environment.setenv("HOPIN_SPEECH__HEARING", "true")
     speech_environment.delenv(missing)
@@ -129,7 +137,7 @@ def test_speaking_on_names_the_configured_service(speech_environment):
     assert speech.speaking_service is not None
 
 
-@pytest.mark.parametrize("missing", ["HOPIN_SPEECH__ORIGIN", "HOPIN_SPEECH__AUDIENCE_SCOPE"])
+@pytest.mark.parametrize("missing", ["HOPIN_SPEECH__ORIGIN", "REALM_SPEECH_SCOPE"])
 def test_speaking_on_without_an_origin_and_an_audience_scope_fails_when_the_settings_load(speech_environment, missing):
     speech_environment.setenv("HOPIN_SPEECH__SPEAKING", "true")
     speech_environment.delenv(missing)

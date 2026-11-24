@@ -18,7 +18,7 @@ services:
       HOPIN_TURN_API_TOKEN_FILE: /run/secrets/turn_api_token
       HOPIN_AGENT__GATEWAY__ORIGIN: http://litellm-front:4000
       HOPIN_AGENT__GATEWAY__KEY_FILE: /run/secrets/litellm_key
-      HOPIN_AGENT__API_GROUP: /services/agent-service/api
+      REALM_AI_GROUP: /services/agent-service/api
     secrets:
       - oidc_client_secret
       - session_secret
