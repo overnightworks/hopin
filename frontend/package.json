@@ -36,7 +36,7 @@
         "overnightworks-speech-browser": "https://github.com/overnightworks/speech/releases/download/v0.25.0/overnightworks-speech-browser-0.25.0.tgz",
         "prettier": "^3.10.1",
         "prettier-plugin-svelte": "^4.1.1",
-        "svelte": "^5.57.2",
+        "svelte": "^5.58.0",
         "svelte-check": "^4.7.8",
         "typescript": "^6.0.0",
         "typescript-eslint": "^8.73.0",
