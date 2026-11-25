@@ -1,0 +1,8 @@
+claim_id = "e92a5eebc74a43b6958107d1f7eccfc4"
+agent = "Claude d5675b31-a45d-4271-bf2b-646107f6a4c5"
+role = "builder"
+base = "335b839ec9c9741377bbf6c6fb8b6d12ac49da6a"
+branch = "claude/issue-1153-speech-0-25-0"
+scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "pyproject.toml", "uv.lock"]
+opened_commit = "d0bf660cae19c189951382785ed368b091373d5b"
+whole_reason = "One release's two pins, the Python client and the browser tarball, move together with their lockfiles."
