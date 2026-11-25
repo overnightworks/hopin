@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
     from playwright.sync_api import Page
 
-    from tests.e2e.support.dialed_agent import DialedMember, OwnAgent
+    from tests.e2e.support.dialed_agent import OwnAccountAgent, OwnAgent
     from tests.e2e.support.mesh_pair import ConnectedPair
     from tests.e2e.support.participation_scene import Scene
     from tests.e2e.support.server import RunningServer
@@ -30,7 +30,7 @@ READERS_NOTE = "#chatReaders"
 HEARD_LINE = "#chatMessages .chat-msg.other"
 
 
-def lines_read(agent: DialedMember, room: str) -> list[tuple[Any, ...]]:
+def lines_read(agent: OwnAgent | OwnAccountAgent, room: str) -> list[tuple[Any, ...]]:
     return [(line.seq, line.kind, line.name, line.text, line.own) for line in agent.window(room).entries]
 
 
@@ -77,7 +77,7 @@ def test_call_54_a_persons_own_agent_is_woken_by_a_line_and_reads_it(
     room = room_of_link(link)
     agent = own_agent_of(member_of(host).account.id)
     agent.dial_in(room, "Claude")
-    agent.listen()
+    agent.listen(room)
     guest.click("#chatBtn")
     expect(guest.locator(READERS_NOTE)).to_contain_text("Claude")
 
@@ -97,7 +97,7 @@ def test_call_71_a_line_said_in_a_cut_reaches_people_at_once_and_the_agent_once_
     room = room_of_link(connected_pair.invite_link)
     agent = own_agent_of(member_of(host).account.id)
     agent.dial_in(room, "Claude")
-    agent.listen()
+    agent.listen(room)
     guest.click("#chatBtn")
     expect(guest.locator(READERS_NOTE)).to_contain_text("Claude")
 

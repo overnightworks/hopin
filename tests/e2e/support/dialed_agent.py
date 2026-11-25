@@ -1,11 +1,12 @@
 import json
 import secrets
 import threading
-from contextlib import ExitStack
+from contextlib import ExitStack, asynccontextmanager
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 import httpx2
-from agents.mcp_client import ResourceWake, open_member_session
+from agents.mcp_client import MemberSession, ResourceWake, open_member_session
 from agents.mcp_wire import MCP_ENDPOINT_PATH
 from agents.member import (
     GESTURE_TOOL,
@@ -15,6 +16,7 @@ from agents.member import (
     DeclineInvitationArguments,
     DeclineInvitationReason,
     PlaceRef,
+    PlaceWindow,
     SetTurnStateArguments,
     Standing,
     StandingState,
@@ -23,6 +25,9 @@ from agents.member import (
 from agents.member_outcomes import DeclineOutcome
 from anyio.from_thread import start_blocking_portal
 from design.words import text as kit_text
+from mcp import Client
+from mcp.client.streamable_http import streamable_http_client
+from mcp.shared.subscriptions import ResourceUpdated
 from playwright.sync_api import Page, expect
 from pydantic import SecretStr
 
@@ -32,12 +37,12 @@ from tests.e2e.support.people import PHONE
 from tests.support.sign_in_settings import TEST_REALM
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import AsyncIterator, Awaitable, Callable
     from concurrent.futures import Future
+    from contextlib import AbstractAsyncContextManager
 
     from agents.member import (
         AcceptInvitationRefusal,
-        PlaceWindow,
         SpeakAnswer,
         SpeakRefusal,
     )
@@ -119,12 +124,11 @@ class Agent:
         self._agent.close()
 
 
-class DialedMember:
-    """A scripted member of HopIn's MCP endpoint that holds a token as the runner does, through the agents library's
-    member session. The session runs on the event loop of a blocking portal, so the browser keeps its owning thread;
-    `close` ends the stream and the session."""
+class PortalAgent[Session]:
+    """A scripted client of HopIn's MCP endpoint whose session runs on the event loop of a blocking portal, so the
+    browser keeps its owning thread; `close` ends the stream and the session."""
 
-    def __init__(self, server: RunningServer, token: str):
+    def __init__(self, opened: AbstractAsyncContextManager[Session]):
         self._woken_by: set[str] = set()
         self._woken = threading.Condition()
         self._hearing: Future[None] | None = None
@@ -132,12 +136,6 @@ class DialedMember:
         self._stack = ExitStack()
         try:
             self._portal = self._stack.enter_context(start_blocking_portal())
-            opened = open_member_session(
-                f"{server.base_url}{MCP_ENDPOINT_PATH}",
-                lambda: SecretStr(token),
-                # The loopback certificate is self-signed.
-                transport=httpx2.AsyncHTTPTransport(verify=False),
-            )
             self._session = self._stack.enter_context(self._portal.wrap_async_context_manager(opened))
         except BaseException:
             self._stack.close()
@@ -153,32 +151,22 @@ class DialedMember:
     def _run[Answer](self, call: Callable[..., Awaitable[Answer]], *arguments: Any) -> Answer:
         return self._later(call, *arguments).result(REQUEST_SECONDS)
 
-    async def _hear(self, *, task_status: TaskStatus[None]) -> None:
-        async with self._session.listen() as wakes:
-            task_status.started()
-            async for wake in wakes:
-                if isinstance(wake, ResourceWake):
-                    with self._woken:
-                        self._woken_by.add(wake.uri)
-                        self._woken.notify_all()
+    def _hear_with(self, hear: Callable[..., Awaitable[None]]) -> None:
+        """Replace the stream with `hear` and return once it has started, which the server has acknowledged."""
+        self.stop_listening()
+        self.forget_wakes()
+        self._hearing, _ = self._portal.start_task(hear)
+
+    def _woke_by(self, uri: str) -> None:
+        with self._woken:
+            self._woken_by.add(uri)
+            self._woken.notify_all()
 
     def stop_listening(self) -> None:
         """End the stream and keep the session: the server counts the agent as listening until its allowance passes."""
         if self._hearing is not None:
             self._hearing.cancel()
             self._hearing = None
-
-    def listen(self) -> None:
-        """Replace the stream with one on the standing and return once the server has acknowledged it."""
-        self.stop_listening()
-        self.forget_wakes()
-        self._hearing, _ = self._portal.start_task(self._hear)
-
-    def woken_within(self, seconds: float) -> bool:
-        """Whether the stream has woken the agent for any resource, waiting up to `seconds` for it; a notice that the
-        agent's tools changed wakes no resource."""
-        with self._woken:
-            return self._woken.wait_for(lambda: bool(self._woken_by), seconds)
 
     def woken_by_within(self, uri: str, seconds: float) -> bool:
         """Whether the stream has woken the agent for the resource at `uri`, waiting up to `seconds` for it."""
@@ -191,6 +179,44 @@ class DialedMember:
     def forget_wakes(self) -> None:
         with self._woken:
             self._woken_by.clear()
+
+    def close(self) -> None:
+        self.stop_listening()
+        for future in self._pending:
+            future.cancel()
+        self._stack.close()
+
+
+class DialedMember(PortalAgent[MemberSession]):
+    """A scripted member of HopIn's MCP endpoint that holds a token as the runner does, through the agents library's
+    member session."""
+
+    def __init__(self, server: RunningServer, token: str):
+        super().__init__(
+            open_member_session(
+                f"{server.base_url}{MCP_ENDPOINT_PATH}",
+                lambda: SecretStr(token),
+                # The loopback certificate is self-signed.
+                transport=httpx2.AsyncHTTPTransport(verify=False),
+            )
+        )
+
+    async def _hear(self, *, task_status: TaskStatus[None]) -> None:
+        async with self._session.listen() as wakes:
+            task_status.started()
+            async for wake in wakes:
+                if isinstance(wake, ResourceWake):
+                    self._woke_by(wake.uri)
+
+    def listen(self) -> None:
+        """Replace the stream with one on the standing and return once the server has acknowledged it."""
+        self._hear_with(self._hear)
+
+    def woken_within(self, seconds: float) -> bool:
+        """Whether the stream has woken the agent for any resource, waiting up to `seconds` for it; a notice that the
+        agent's tools changed wakes no resource."""
+        with self._woken:
+            return self._woken.wait_for(lambda: bool(self._woken_by), seconds)
 
     def tools_notices(self) -> int:
         return self._session.tools_notices()
@@ -228,12 +254,6 @@ class DialedMember:
     ) -> Future[SpeakAnswer | SpeakRefusal]:
         """Start the sentence and return at once with its answer to come."""
         return self._later(self._session.speak, call_place(room), text, None, interrupted)
-
-    def close(self) -> None:
-        self.stop_listening()
-        for future in self._pending:
-            future.cancel()
-        self._stack.close()
 
 
 class OwnAccountAgent(DialedMember):
@@ -309,8 +329,22 @@ class OwnAccountAgent(DialedMember):
         assert declined is DeclineOutcome.SENT, declined
 
 
-class OwnAgent(DialedMember):
-    """A person's own agent, signed in with the person's token as the client does that holds it."""
+@asynccontextmanager
+async def _plain_client(url: str, token: str) -> AsyncIterator[Client]:
+    http = httpx2.AsyncClient(
+        headers={"authorization": f"Bearer {token}"},
+        timeout=httpx2.Timeout(REQUEST_SECONDS, read=None),
+        verify=False,  # the loopback certificate is self-signed
+        trust_env=False,
+    )
+    async with http, Client(streamable_http_client(url, http_client=http)) as client:
+        yield client
+
+
+class OwnAgent(PortalAgent[Client]):
+    """A person's own agent, signed in with the person's token as the client does that holds it. It stays on the plain
+    MCP client: it is that client and never the runner, and it listens on its window's URI, as the app offers the
+    standing only to an agent with an account of its own."""
 
     def __init__(self, server: RunningServer, account_id: str):
         token = server.issuer.access_token(
@@ -320,13 +354,33 @@ class OwnAgent(DialedMember):
             scope=TEST_REALM.mcp_scope,
             groups=(str(TEST_REALM.login_group), str(TEST_REALM.mcp_group)),
         )
-        super().__init__(server, token)
+        super().__init__(_plain_client(f"{server.base_url}{MCP_ENDPOINT_PATH}", token))
 
-    def dial_in(self, room: str, name: str) -> dict[str, Any]:
-        return self.call(JOIN_CALL, {"room": room, "name": name})
+    async def _hear(self, room: str, *, task_status: TaskStatus[None]) -> None:
+        window = place_window_uri(call_place(room))
+        async with self._session.listen(resource_subscriptions=[window]) as events:
+            task_status.started()
+            async for event in events:
+                if isinstance(event, ResourceUpdated):
+                    self._woke_by(event.uri)
 
-    def say(self, room: str, text: str) -> dict[str, Any]:
-        return self.call(SAY, {"room": room, "text": text})
+    def listen(self, room: str) -> None:
+        """Replace the stream with one on the room's window and return once the server has acknowledged it."""
+        self._hear_with(partial(self._hear, room))
+
+    def window(self, room: str) -> PlaceWindow:
+        read = self._run(self._session.read_resource, place_window_uri(call_place(room)))
+        return PlaceWindow.model_validate_json(read.contents[0].text)
+
+    def dial_in(self, room: str, name: str) -> None:
+        self._call(JOIN_CALL, {"room": room, "name": name})
+
+    def say(self, room: str, text: str) -> None:
+        self._call(SAY, {"room": room, "text": text})
+
+    def _call(self, tool: str, arguments: dict[str, Any]) -> None:
+        result = self._run(self._session.call_tool, tool, arguments)
+        assert not result.is_error, result.content
 
 
 def assert_tiles_clear_of_the_controls(person: Page, tiles: int, form_factor: dict[str, Any]) -> None:
