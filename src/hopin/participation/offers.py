@@ -108,7 +108,7 @@ class Offers:
             agent_listens=self._listens_to_standing(live.person),
             agent_seated=self._agent_seated(live, room_id),
             owner=live.owner_subject,
-            owner_at=owner_at(view, live.owner_subject, bound_to),
+            owner_at=_owner_at(view, live.owner_subject, bound_to),
             bound_to=bound_to,
             seat_free=view.has_free_place,
         )
@@ -121,7 +121,7 @@ class Offers:
         return AcceptFacts(
             holds_lease=True,  # the agent's registration is its lease
             owner=live.owner_subject,
-            owner_at=owner_at(view, live.owner_subject, invitation.bound_to),
+            owner_at=_owner_at(view, live.owner_subject, invitation.bound_to),
             agent_seated=self._agent_seated(live, cast("str", view.room_id)),
             seat_free=view.has_free_place,
         )
@@ -168,7 +168,7 @@ class Offers:
         return tuple(offers)
 
 
-def owner_at(view: RoomView, owner_subject: str, bound_to: str) -> OwnerAt:
+def _owner_at(view: RoomView, owner_subject: str, bound_to: str) -> OwnerAt:
     """Where the owner is by the call's presence rule: at the one seat the invitation is or will be bound to, away when
     that seat waits to resume, elsewhere on any other seats, and absent on none."""
     if not view.seats_in(owner_subject):

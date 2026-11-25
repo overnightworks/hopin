@@ -12,8 +12,7 @@ SETTINGS_MODULE = SOURCE / "agent" / "settings.py"
 CLIENT_CONFIG = f"{CLIENT}.config"
 # The tools name only the client's tool contract and the member records, the MCP module only the MCP profile, the
 # member records and the tool contract, the hearing adapter only the hearing record, the member records and the tool
-# contract. This test holds the agent connector modules' parts, because import-linter squashes an external package to
-# its root. Participation is held by its import contract.
+# contract. This test holds the agent connector modules' parts; participation is held by its import contract.
 CLIENT_PARTS_OF = {
     SOURCE / "agent" / "tools.py": {f"{CLIENT}.member", f"{CLIENT}.tools"},
     SOURCE / "agent" / "mcp.py": {
