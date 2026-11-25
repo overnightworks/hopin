@@ -60,7 +60,7 @@ from agents.member import (
     gesture_tool,
     member_arguments,
 )
-from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolImage, ToolOutcome
+from agents.tools import JsonObject, ToolDeclaration, ToolEffect, ToolImage, ToolOutcome, tool_parameters
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from hopin.agent.speaking import LanguageUnavailableError, StyleUnavailableError, known_voices
@@ -207,7 +207,7 @@ _ACCEPT_INVITATION_DECLARATION: Final = ToolDeclaration(
         "Accept an invitation from your standing: you join the call as a participant of your own, under your name. "
         "Pass the standing's place and the invitation's id and epoch."
     ),
-    parameters=AcceptInvitationArguments.model_json_schema(),
+    parameters=tool_parameters(AcceptInvitationArguments),
     effect=ToolEffect.SIDE_EFFECTING,
 )
 _DECLINE_INVITATION_DECLARATION: Final = ToolDeclaration(
@@ -217,7 +217,7 @@ _DECLINE_INVITATION_DECLARATION: Final = ToolDeclaration(
         "called you sees that you are busy. Pass the standing's place, the invitation's id and epoch and the reason "
         "busy. It is refused as stale_invitation when the invitation is not yours or no longer stands."
     ),
-    parameters=DeclineInvitationArguments.model_json_schema(),
+    parameters=tool_parameters(DeclineInvitationArguments),
     effect=ToolEffect.SIDE_EFFECTING,
 )
 _SAY_DECLARATION: Final = ToolDeclaration(
@@ -262,7 +262,7 @@ _SPEAK_DECLARATION: Final = ToolDeclaration(
         "written in the chat as your line instead, after the sentences before it have played, and the answer is "
         "written: true; the window's voice_state says whether your voice works there."
     ),
-    parameters=SpeakArguments.model_json_schema(),
+    parameters=tool_parameters(SpeakArguments),
     effect=ToolEffect.SIDE_EFFECTING,
 )
 _STOP_SPEAKING_DECLARATION: Final = ToolDeclaration(
@@ -275,7 +275,7 @@ _STOP_SPEAKING_DECLARATION: Final = ToolDeclaration(
         "you are not joined there or your person's seat is away. It ends a hold, whose id you may name as "
         "interrupted; an id that is not the hold is refused as not_interrupted."
     ),
-    parameters=StopSpeakingArguments.model_json_schema(),
+    parameters=tool_parameters(StopSpeakingArguments),
     effect=ToolEffect.SIDE_EFFECTING,
 )
 _CONTINUE_SPEAKING_DECLARATION: Final = ToolDeclaration(
@@ -287,7 +287,7 @@ _CONTINUE_SPEAKING_DECLARATION: Final = ToolDeclaration(
         "not_interrupted when no hold stands or the id is another one and as not_active when you are not joined there "
         "or your person's seat is away."
     ),
-    parameters=ContinueSpeakingArguments.model_json_schema(),
+    parameters=tool_parameters(ContinueSpeakingArguments),
     effect=ToolEffect.SIDE_EFFECTING,
 )
 
@@ -299,7 +299,7 @@ _SET_TURN_STATE_DECLARATION: Final = ToolDeclaration(
         "until your next speak, gesture or statement there, or two minutes. It is refused as not_held when you hold "
         "no place there."
     ),
-    parameters=SetTurnStateArguments.model_json_schema(),
+    parameters=tool_parameters(SetTurnStateArguments),
     effect=ToolEffect.SIDE_EFFECTING,
 )
 
@@ -324,7 +324,7 @@ _LOOK_DECLARATION: Final = ToolDeclaration(
         "a few seconds and "
         "as unavailable when the picture could not be used. Your person can see on your tile each time you look."
     ),
-    parameters=LookArguments.model_json_schema(),
+    parameters=tool_parameters(LookArguments),
     effect=ToolEffect.SIDE_EFFECTING,
 )
 
