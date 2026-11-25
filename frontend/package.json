@@ -35,7 +35,7 @@
         "overnightworks-figure": "https://github.com/overnightworks/figure/releases/download/v0.10.0/overnightworks-figure-0.10.0.tgz",
         "overnightworks-speech-browser": "https://github.com/overnightworks/speech/releases/download/v0.25.0/overnightworks-speech-browser-0.25.0.tgz",
         "prettier": "^3.10.1",
-        "prettier-plugin-svelte": "^4.1.1",
+        "prettier-plugin-svelte": "^4.2.0",
         "svelte": "^5.57.2",
         "svelte-check": "^4.7.8",
         "typescript": "^6.0.0",
