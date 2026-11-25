@@ -1,0 +1,7 @@
+claim_id = "1cf571a70161406883e65708cd0f6c07"
+agent = "Claude d5675b31-a45d-4271-bf2b-646107f6a4c5"
+role = "builder"
+base = "335b839ec9c9741377bbf6c6fb8b6d12ac49da6a"
+branch = "claude/issue-1167-member-tools-inline-schemas"
+scope = ["src/hopin/agent/tools.py", "tests/participation/test_feature_tool_kinds.py"]
+opened_commit = "591933cb421af1d8b476ecd42f1ecafb08bbcb36"
