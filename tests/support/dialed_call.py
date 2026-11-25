@@ -347,6 +347,11 @@ class DialedCall:
         """Shut the call's features down as the app's lifespan does, while the sockets of the test are still open."""
         self.client.portal.call(self._signaling_handler().shut_down)
 
+    def stop(self):
+        """Close the sockets and run the app's lifespan shutdown, as the app's stop does."""
+        self.sockets.close()
+        self.client.__exit__(None, None, None)
+
     def end_room_after(self, room_id, before):
         """End the call's room for participation on the app's own loop in the same turn as `before`, which runs first:
         what `before` queues for a reader of the loop is already waiting when the end is set."""
@@ -477,13 +482,17 @@ def serving_dialed_call(
     figure_transport=None,
     hearing=None,
     speaking=None,
+    video=None,
+    turn_transport=None,
     monotonic_clock=time.monotonic,
     shared_stores=None,
 ) -> Iterator[DialedCall]:
     """HopIn serving participation; `figure_transport` is the figures' source, and a figure fetch without one fails the
     test. `hearing` is the speech service agents hear through and `speaking` the one they speak through, none with
-    the setting off. `shared_stores` are the processes' shared stores, a Redis of the test's own in memory unless a test
-    names the real ones."""
+    the setting off; `video` is the video service agents open sessions on and `turn_transport` the TURN provider's
+    port, which the sign-in settings must switch on for it to be asked.
+    `shared_stores` are the processes' shared stores, a Redis of the test's own in memory unless a test names the real
+    ones."""
     stores = single_process_stores()
     stores.sessions = WatchedSessions(stores.sessions)
     scheduler = ManualScheduler()
@@ -496,6 +505,7 @@ def serving_dialed_call(
             figure_transport or _no_figure_source,
             hearing=hearing,
             speaking=speaking,
+            video=video,
             voices=voices,
             redis=shared_stores.async_redis,
             realm=TEST_REALM,
@@ -514,6 +524,7 @@ def serving_dialed_call(
             participation,
         ),
         monotonic_clock=monotonic_clock,
+        **({} if turn_transport is None else {"turn_transport": turn_transport}),
     )
     with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as client, ExitStack() as sockets:
         audience = client.get(METADATA_PATH).json()["resource"]

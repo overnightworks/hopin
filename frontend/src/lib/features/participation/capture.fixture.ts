@@ -32,6 +32,7 @@ export function fakeCaptures() {
             stop: () => {
                 fake.stopped = true;
             },
+            send: () => false,
         };
     };
     return {

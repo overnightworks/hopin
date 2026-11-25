@@ -115,7 +115,7 @@ class TestMain:
         for name, value in sign_in_settings().environment.items():
             monkeypatch.setenv(name, value)
         monkeypatch.setenv("HOPIN_SPEECH__ORIGIN", "http://speech.test:8090")
-        monkeypatch.setenv("HOPIN_SPEECH__AUDIENCE_SCOPE", "scenario-audience")
+        monkeypatch.setenv("REALM_SPEECH_SCOPE", "scenario-audience")
         monkeypatch.setenv("HOPIN_SPEECH__HEARING", hearing)
         served = TestClient(
             build_application(
@@ -269,6 +269,12 @@ class TestMain:
                 "sentinel-speech",
                 "HOPIN_SPEECH__ORIGIN must be",
                 id="malformed_speech_origin",
+            ),
+            pytest.param(
+                "REALM_SPEECH_SCOPE",
+                "sentinel scope",
+                "REALM_SPEECH_SCOPE is malformed",
+                id="malformed_speech_scope",
             ),
             pytest.param(
                 "HOPIN_TURN_PROVIDER",

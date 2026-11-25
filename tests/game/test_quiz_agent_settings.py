@@ -17,7 +17,7 @@ pytestmark = pytest.mark.integration
 GATEWAY_ENVIRONMENT = {
     "HOPIN_AGENT__GATEWAY__ORIGIN": "http://gateway.test:4000",
     "HOPIN_AGENT__GATEWAY__KEY_FILE": "/run/secrets/scenario-key",
-    "HOPIN_AGENT__API_GROUP": "/services/scenario/api",
+    "REALM_AI_GROUP": "/services/scenario/api",
 }
 CA_FILE = "HOPIN_AGENT__GATEWAY__CA_FILE"
 SECRET_SHAPED = f"not-a-value-{secrets.token_hex(8)}"
@@ -28,7 +28,7 @@ MALFORMED_SETTINGS = [
     pytest.param("HOPIN_AGENT__GATEWAY__ORIGIN", f"https://{SECRET_SHAPED}.test", id="https-without-a-ca-file"),
     pytest.param(CA_FILE, f"/run/secrets/{SECRET_SHAPED}", id="http-with-a-ca-file"),
     pytest.param("HOPIN_AGENT__GATEWAY__KEY_FILE", f"secrets/{SECRET_SHAPED}", id="a-relative-key-file"),
-    pytest.param("HOPIN_AGENT__API_GROUP", "", id="an-empty-group"),
+    pytest.param("REALM_AI_GROUP", "", id="an-empty-group"),
 ]
 
 
@@ -44,7 +44,15 @@ def test_the_three_settings_load_as_the_clients_agent_section(agent_environment)
 
     assert agent.gateway.origin == GATEWAY_ENVIRONMENT["HOPIN_AGENT__GATEWAY__ORIGIN"]
     assert str(agent.gateway.key_file) == GATEWAY_ENVIRONMENT["HOPIN_AGENT__GATEWAY__KEY_FILE"]
-    assert agent.api_group == GATEWAY_ENVIRONMENT["HOPIN_AGENT__API_GROUP"]
+    assert agent.api_group == GATEWAY_ENVIRONMENT["REALM_AI_GROUP"]
+
+
+def test_the_old_group_key_alone_no_longer_satisfies_the_setting(agent_environment):
+    agent_environment.delenv("REALM_AI_GROUP")
+    agent_environment.setenv("HOPIN_AGENT__API_GROUP", "/services/scenario/api")
+
+    with pytest.raises(ValidationError):
+        AgentSettings()
 
 
 def test_a_missing_key_file_does_not_refuse_the_start(agent_environment):
@@ -82,7 +90,7 @@ def test_the_quiz_agent_file_and_a_voice_wait_end_inside_the_tables_deadline():
 
 def test_the_game_reads_the_speech_settings_beside_the_agent_ones(agent_environment):
     agent_environment.setenv("HOPIN_SPEECH__ORIGIN", "http://speech.test:8090")
-    agent_environment.setenv("HOPIN_SPEECH__AUDIENCE_SCOPE", "scenario-audience")
+    agent_environment.setenv("REALM_SPEECH_SCOPE", "scenario-audience")
 
     assert configured_game_feature(VoiceStore()).sign_in_scopes == ("scenario-audience",)
 

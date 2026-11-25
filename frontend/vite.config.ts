@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => ({
     // Svelte's mount needs its browser build under Vitest; the page build resolves as before.
     resolve: mode === "test" ? { conditions: ["browser"] } : undefined,
     test: {
+        sequence: { shuffle: true },
         environment: "node",
         include: ["src/**/*.test.ts"],
         coverage: {

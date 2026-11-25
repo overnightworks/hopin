@@ -16,26 +16,18 @@ names the browser modules of every wired feature. `main.py` passes the game and 
 
 from abc import ABC, abstractmethod
 from collections import Counter
+from functools import partial
 from typing import TYPE_CHECKING
 
 from hopin.config.constants import SignalType
 from hopin.config.secret_files import StartRefusedError
-from hopin.signaling.transition import TransitionHost
+from hopin.signaling.transition import Change, Committed, FeatureTransitions, Transition
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
     from hopin.signaling.frames import ForeignFrame, PeerId
-    from hopin.signaling.transition import (
-        Change,
-        FeatureTransitions,
-        InMemoryCallStore,
-        LiveSeats,
-        RoomView,
-        Transition,
-        Work,
-        WorkRoom,
-    )
+    from hopin.signaling.transition import InMemoryCallStore, LiveSeats, RoomView, Work, WorkRoom
 
 
 class TransitionFeature(ABC):
@@ -99,6 +91,61 @@ class TransitionFeature(ABC):
 
     async def shut_down(self) -> None:  # noqa: B027 - optional and a no-op for a feature without one
         """Release what the feature holds, once its work and its steps have ended."""
+
+
+class TransitionHost:
+    """Runs a feature where the call core calls its hooks: each hook it is offered is one transition of the seat's
+    room, and the work those transitions dispatch runs here, where the seats' sockets are held."""
+
+    def __init__(self, feature: TransitionFeature, store: InMemoryCallStore, live_seats: LiveSeats) -> None:
+        self._feature = feature
+        self._transitions = FeatureTransitions(feature, store, live_seats)
+        feature.attach(self._transitions)
+
+    @property
+    def feature(self) -> TransitionFeature:
+        return self._feature
+
+    @property
+    def browser_modules(self) -> tuple[str, ...]:
+        return self._feature.browser_modules
+
+    @property
+    def signal_types(self) -> Mapping[str, str]:
+        return self._feature.signal_types
+
+    async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
+        view = self._transitions.seat_view(peer_id)
+        return await self._transitions.run(view, partial(self._feature.on_frame, view, peer_id, frame))
+
+    async def seat_joined(self, peer_id: PeerId) -> None:
+        view = self._transitions.seat_view(peer_id)
+        await self._transitions.run(view, partial(self._feature.seat_joined, view, peer_id))
+
+    def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> list[Committed]:
+        """Apply the feature's `seat_left` to the room the seat left and commit it, leaving its seats to be woken
+        together with the departure that tells the room."""
+        view = self._transitions.view(room_id).naming(peer_id, name)
+        transition = Transition()
+        self._feature.seat_left(view, peer_id, transition)
+        return self._transitions.commit(view, transition)
+
+    def seat_changed(self, peer_id: PeerId) -> None:
+        """Apply the feature's `seat_changed` to the view of the seat's room now and commit it at once; it cannot send,
+        so no seat waits to be woken."""
+        view = self._transitions.seat_view(peer_id)
+        change = Change()
+        self._feature.seat_changed(view, peer_id, change)
+        self._transitions.commit(view, change)
+
+    def room_ended(self, room_id: str) -> None:
+        self._transitions.room_ended(room_id)
+        self._feature.room_ended(room_id)
+
+    async def shut_down(self) -> None:
+        """Stop the feature's work, wait until it has ended, then shut the feature down."""
+        await self._transitions.shut_down()
+        await self._feature.shut_down()
 
 
 class FeatureClashError(StartRefusedError):

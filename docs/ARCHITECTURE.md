@@ -26,6 +26,7 @@ flowchart LR
     H -. TURN credentials .-> R
     H -. quiz run .-> AG[LiteLLM gateway]
     H -. spoken sentences and heard sound .-> SP[Speech service]
+    H -. an agent's video session .-> VS[Video service, optional]
 ```
 
 Caption: who talks to whom, from `auth/`, `web/turn_relay.py` and `agent/`. A chat line or file between people passes no hop but the mesh's data channels, never HopIn. The session gate (`auth/gate.py`) guards every route and `/ws`.
@@ -51,6 +52,7 @@ flowchart TB
     stores -.-> PG[Postgres]
     agent -.-> LL[LiteLLM gateway]
     agent -.-> SP[Speech service]
+    agent -.-> VS[Video service]
     web -.-> TU[TURN provider]
 ```
 
@@ -68,11 +70,11 @@ Caption: what each part may import, from the `layers` contract in `pyproject.tom
 | `game` | optional: one quiz per call |
 | `participation` | optional: the agents a person dials in or calls, with no AI in it; `agents.calling` decides the call and the end of an invitation |
 | `stage` | optional: the table of a registered app that a call shows, and its start link `/c/new`, which sends a member to the open call showing a table or starts one |
-| `agent` | optional connector: the MCP surface of a person's agents and the quiz agent; the only speaker to LiteLLM and the speech service |
+| `agent` | optional connector: the MCP surface of a person's agents and the quiz agent; the only speaker to LiteLLM, the speech service and the video service |
 | `app` | the composition root: wires the packages, names no feature |
 | `main` | starts the server and switches the optional features in |
 
-The feature port is `TransitionFeature` in `signaling`: each optional feature plugs into it and runs on transitions, so the call core compiles and runs without any of them. The browser mirrors it: `GET /api/call-features` names the wired features, and the shell imports them before signaling connects.
+The feature port is `TransitionFeature` in `signaling`: each optional feature plugs into it and runs on transitions, so the call core compiles and runs without any of them. The call core and the features commit through one store, and the commit is the only writer of rooms, seats and seat logs; a seat's log never holds its resume token. The browser mirrors it: `GET /api/call-features` names the wired features, and the shell imports them before signaling connects.
 
 `make frontend` builds the page into `src/hopin/web/build/`; the server refuses to start without it.
 
@@ -165,10 +167,11 @@ Each line: what the party sees and what HopIn trusts of it.
 - **The TURN provider** sees who connects to whom, when and how much, never media content; HopIn trusts only its credential answer, over https, and it bills the operator.
 - **Each registered app's frame** (`HOPIN_STAGE_APPS`) is a sandboxed page of another origin; it cannot use camera, microphone or screen, and HopIn reads from it only a checked `ready`. The operator's registry is the only source of origins the page may frame.
 - **A person's own agent** reaches only `/mcp` with a realm token checked for issuer, audience, `azp`, scope and group, as a plain `user` with no host or admin right; HopIn trusts it to join its person's call, write a bounded line, read the chat and leave.
-- **An agent with an account of its own** is trusted for its standing alone: it accepts only an invitation an adder opened for it and never adds or hosts. Its exchanged token is held in memory for the speech audience only.
+- **An agent with an account of its own** is trusted for its standing alone: it accepts only an invitation an adder opened for it and never adds or hosts. Its token exchanged for the speech audience is held in memory; with the video on, a token exchanged for the video audience alone at its accept opens its video session and is held nowhere.
 - **A figure source** (`HOPIN_FIGURE_SOURCES`) is a host the operator allows; HopIn sends it one credential-less GET for a figure, a clip or a persona's room and trusts none of the answer beyond the size bound (4 MiB for a room), the named sha256 and a glTF header; the source decides where its one redirect to https goes.
 - **The LiteLLM gateway** receives per run HopIn's key, the quiz prompt, the given answers with players' names and the tapper's fingerprint; HopIn trusts one cut line from it, shown as text.
 - **The speech service** is the operator's own, on an isolated network over plain HTTP; it receives a line's text, the starter's or agent's token, HopIn's workload token and, while an agent hears, a member's microphone sound. HopIn trusts it to answer one bounded sound and serves that unchanged.
+- **The video service** (`HOPIN_VIDEO__ORIGIN`) is the operator's own, on an isolated network over plain HTTP; it receives an agent's token exchanged for the video audience alone, HopIn's workload token and a TURN credential for the relay it is to use. HopIn trusts only its events and its health, never what the session shows. It holds the card's one place for a session's whole length, which is the agent's place in the call.
 - **The shared Redis** is trusted to hold the windows and answer; it has no password and only the `hopin` namespace reaches it; whoever reaches it could read counted addresses or clear a budget.
 - **The shared Postgres** is trusted to hold the schema and answer; HopIn's user has the one database, the URL carries no password and the engine hides statement parameters and logs no statement, so neither a password nor a session token reaches a log or an error line.
 - **The operator's settings and secret files** are trusted fully; secrets are read from files and never enter the environment.

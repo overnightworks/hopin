@@ -19,10 +19,26 @@ if TYPE_CHECKING:
 
     from pydantic import SecretStr
     from starlette.requests import HTTPConnection
+    from webauth.oidc import ExchangedAccess
 
     from hopin.signaling.scheduler import Deadlines, Scheduler
 
 _STEPS: Final = logging.getLogger(__name__)
+
+
+async def exchange_step(
+    connection: HTTPConnection, scopes: tuple[str, ...], wall_clock: Callable[[], float]
+) -> ExchangedAccess | OidcRefusal:
+    """The token an RFC 8693 exchange of the token the request presented yields for the scopes, under the
+    `token_exchange.ended` step; a refusal ends the step `refused` with the issuer's closed error code."""
+    async with StepTimer("token_exchange.ended", _STEPS) as step:
+        asked_at = int(wall_clock())
+        exchanged = await exchanged_access_token(connection, scopes=scopes)
+        if isinstance(exchanged, OidcRefusal):
+            step.refuse(refusal_reason(exchanged))
+        else:
+            step.add(expires_in=exchanged.expires_at - asked_at)
+    return exchanged
 
 
 @dataclass(frozen=True)
@@ -86,13 +102,7 @@ class HearingTokens:
 
     async def _exchange(self, person: Person, connection: HTTPConnection) -> None:
         try:
-            async with StepTimer("token_exchange.ended", _STEPS) as step:
-                asked_at = int(self._wall_clock())
-                exchanged = await exchanged_access_token(connection, scopes=self._scopes)
-                if isinstance(exchanged, OidcRefusal):
-                    step.refuse(refusal_reason(exchanged))
-                else:
-                    step.add(expires_in=exchanged.expires_at - asked_at)
+            exchanged = await exchange_step(connection, self._scopes, self._wall_clock)
         finally:
             self._in_flight.discard(person)
         if isinstance(exchanged, OidcRefusal):

@@ -397,6 +397,25 @@ def _figure_with(ref: FigureRef, room: HttpsFileRef | None) -> Figure:
     return Figure(ref.url, ref.sha256, clips, None if room is None else PersonaRoom(room.url, room.sha256))
 
 
+@dataclass(frozen=True)
+class AcceptedVideoLooks:
+    """The call an accept joins and the names of the video looks it lists ahead of its figure look: the looks HopIn
+    can show before it shows its figure, which it draws itself, in the agent's order."""
+
+    room_id: str
+    names: tuple[str, ...]
+
+
+def video_looks_of_accept(arguments: JsonObject) -> AcceptedVideoLooks:
+    accepted = member_arguments(AcceptInvitationArguments, arguments)
+    names: list[str] = []
+    for look in accepted.looks or ():
+        if isinstance(look, FigureLook):
+            break
+        names.append(look.name)
+    return AcceptedVideoLooks(accepted.place.id, tuple(names))
+
+
 async def _accepted(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
     accepted = member_arguments(AcceptInvitationArguments, arguments)
     if accepted.place.kind != CALL_KIND:

@@ -15,7 +15,7 @@ from hopin.config.constants import (
     WEBSOCKET_DISCONNECT_EVENT,
 )
 from hopin.errors import HopInError, InvalidMessageError, TooManyCallsError
-from hopin.signaling.features import build_features
+from hopin.signaling.features import TransitionHost, build_features
 from hopin.signaling.frames import (
     ConnectionOutcomeFrame,
     DispatchedFrame,
@@ -32,8 +32,13 @@ from hopin.signaling.frames import (
     error_frame,
 )
 from hopin.signaling.routing import Departure, RoomRouting
-from hopin.signaling.seats import Connection, Peer, SeatSnapshot
-from hopin.signaling.transition import Committed, InMemoryCallStore, RoomView, Transition, TransitionHost
+from hopin.signaling.seats import Connection, SeatRecord, SeatSnapshot
+from hopin.signaling.transition import (
+    Committed,
+    InMemoryCallStore,
+    RoomView,
+    Transition,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -67,9 +72,9 @@ class SignalingHandler:
         self._room_manager = room_manager
         self._identity_resolver = identity_resolver
         self._scheduler = scheduler
-        self._routing = RoomRouting(room_manager, deadlines, self._room_ended, self._seat_left, self._seat_changed)
-        self._seats = self._routing.seats
-        self._store = InMemoryCallStore(self._routing, room_manager)
+        self._store = InMemoryCallStore(room_manager, deadlines, self._room_ended, self._seat_changed)
+        self._routing = RoomRouting(room_manager, self._store, deadlines, self._seat_left)
+        self._seats = self._store.seats
         self._features = build_features(features, self._store, self._seats)
         self._feature_of_type = {
             signal_type: feature for feature in self._features for signal_type in feature.signal_types.values()
@@ -107,13 +112,13 @@ class SignalingHandler:
 
     def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:
         """The seats an account holds, parked ones included; synchronous so no coroutine changes a seat meanwhile."""
-        return tuple(self._snapshot_of(peer_id, peer) for peer_id, peer in self._seats.held_by(account_id))
+        return tuple(self._snapshot_of(record) for _, record in self._store.held_by(account_id))
 
     def reach_of(self, account_id: str) -> PersonReach:
         """Synchronous like `seats_of`, so the count is of one instant. A call the account hosts counts when another
         seat or an agent is in it; a host alone in its grace changes nothing for others."""
         hosted = self._room_manager.hosted_by(account_id)
-        return PersonReach(seats=len(self._seats.held_by(account_id)), calls=sum(room.has_guests for room in hosted))
+        return PersonReach(seats=len(self._store.held_by(account_id)), calls=sum(room.has_guests for room in hosted))
 
     async def end_all_of(self, account_id: str) -> PersonReach:
         """Ends the calls the account hosts at once for everyone, unnamed, then closes every seat it still holds as a
@@ -122,15 +127,15 @@ class SignalingHandler:
         # Each pass reads again, because a call or a seat can end on its own while an earlier one is being closed.
         while hosted := self._room_manager.hosted_by(account_id):
             await self._routing.end_room_unnamed(hosted[0].room_id)
-        while held := self._seats.held_by(account_id):
-            peer_id, peer = held[0]
-            await self._end_seat(peer_id, peer.websocket, SESSION_ENDED_CLOSE_CODE)
+        while held := self._store.held_by(account_id):
+            peer_id, _ = held[0]
+            await self._end_seat(peer_id, self._seats.socket_of(peer_id).websocket, SESSION_ENDED_CLOSE_CODE)
         return reach
 
-    def _snapshot_of(self, peer_id: PeerId, peer: Peer) -> SeatSnapshot:
-        room_id = self._routing.room_of(peer_id)
-        hosted = room_id is not None and self._room_manager.get_room(room_id).is_hosted_by(peer.account)
-        return SeatSnapshot(call_id=room_id, host=hosted, replay_frames=len(peer.log))
+    def _snapshot_of(self, record: SeatRecord) -> SeatSnapshot:
+        room_id = record.room_id
+        hosted = room_id is not None and self._room_manager.get_room(room_id).is_hosted_by(record.account)
+        return SeatSnapshot(call_id=room_id, host=hosted, replay_frames=len(record.log))
 
     async def handle_websocket(self, websocket: WebSocket) -> None:
         account = await self._identity_resolver.resolve(websocket)
@@ -140,7 +145,7 @@ class SignalingHandler:
 
         await websocket.accept()
         try:
-            peer_id = self._seats.open_seat(account, websocket)
+            peer_id = self._routing.open_seat(account, websocket)
         except TooManyCallsError as refusal:
             await self._refuse_beyond_cap(websocket, refusal)
             return
@@ -205,8 +210,8 @@ class SignalingHandler:
         await self._seats.close_socket(connection.websocket, SERVER_ERROR_CLOSE_CODE)
 
     def _holds_seat(self, connection: Connection) -> bool:
-        peer = self._seats.find(connection.peer_id)
-        return peer is not None and peer.websocket is connection.websocket
+        socket = self._seats.find(connection.peer_id)
+        return socket is not None and socket.websocket is connection.websocket
 
     def _serves_seat(self, connection: Connection) -> bool:
         return not connection.ended and self._holds_seat(connection)
@@ -234,13 +239,12 @@ class SignalingHandler:
         # Outside the socket's session trace, like a frame: the line a leaver cuts wakes another agent's turn.
         with unit_trace(None):
             if connection.dropped and self._routing.room_of(connection.peer_id) is not None:
-                await self._seats.park(connection.peer_id, self._seats.seat(connection.peer_id))
+                await self._routing.park(connection.peer_id)
             else:
                 await self._routing.handle_disconnect(connection.peer_id)
 
     async def _handle_message(self, connection: Connection, raw_data: str) -> None:
         peer_id = connection.peer_id
-        peer = self._seats.seat(peer_id)
         is_first_frame = connection.frames_received == 0
         connection.frames_received += 1
 
@@ -251,16 +255,16 @@ class SignalingHandler:
             return
 
         if isinstance(incoming.frame, ResumeFrame):
-            await self._seats.resume(connection, incoming.frame, is_first_frame=is_first_frame)
+            await self._routing.resume(connection, incoming.frame, is_first_frame=is_first_frame)
             return
 
         if not is_first_frame:
             if incoming.sequence is None:
                 await self._send_error(peer_id, InvalidMessageError("Missing sequence number"))
                 return
-            if incoming.sequence <= peer.received_seq:
+            if incoming.sequence <= self._store.record_of(peer_id).received_seq:
                 return
-            peer.received_seq = incoming.sequence
+            self._store.receive(peer_id, incoming.sequence)
 
         try:
             if isinstance(incoming.frame, InvalidMessageError):
@@ -268,6 +272,8 @@ class SignalingHandler:
             await self._dispatch(peer_id, incoming.frame)
         except HopInError as exc:
             await self._send_error(peer_id, exc)
+        finally:
+            self._store.settle_received(peer_id)
 
     async def _dispatch(self, peer_id: PeerId, frame: DispatchedFrame) -> None:
         match frame:
@@ -298,4 +304,4 @@ class SignalingHandler:
             raise InvalidMessageError(f"Unknown signal type: {frame.signal_type}")
 
     async def _send_error(self, peer_id: PeerId, error: HopInError) -> None:
-        await self._seats.send(peer_id, error_frame(error))
+        await self._routing.send_error(peer_id, error)

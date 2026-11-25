@@ -99,18 +99,31 @@ class RoomClosedFrame(WireFrame):
     grace_seconds: int | None = None
 
 
+RESUME_TOKEN_KEY = "resume_token"  # noqa: S105 - the wire key of a credential and no credential
+
+
 @dataclass(frozen=True)
-class RoomCreatedFrame(WireFrame):
+class KeptRoomCreatedFrame(WireFrame):
+    """`room_created` as a seat's log keeps it: the connection that minted the seat's token adds the token when it
+    writes the frame, so a replay never carries it."""
+
     TYPE: ClassVar[SignalType] = SignalType.ROOM_CREATED
 
     room_id: str
     is_host: bool
     participant_id: PeerId
+
+
+@dataclass(frozen=True)
+class RoomCreatedFrame(KeptRoomCreatedFrame):
     resume_token: str
 
 
 @dataclass(frozen=True)
-class ExistingParticipantsFrame(WireFrame):
+class KeptExistingParticipantsFrame(WireFrame):
+    """`existing_participants` as a seat's log keeps it, without the resume token its connection adds when it writes
+    the frame."""
+
     TYPE: ClassVar[SignalType] = SignalType.EXISTING_PARTICIPANTS
 
     participants: list[str]
@@ -118,7 +131,14 @@ class ExistingParticipantsFrame(WireFrame):
     is_host: bool
     locked: bool
     participant_id: PeerId
+
+
+@dataclass(frozen=True)
+class ExistingParticipantsFrame(KeptExistingParticipantsFrame):
     resume_token: str
+
+
+TOKEN_BEARING_TYPES = frozenset({SignalType.ROOM_CREATED.value, SignalType.EXISTING_PARTICIPANTS.value})
 
 
 @dataclass(frozen=True)
