@@ -102,12 +102,12 @@ class Places:
         )
 
     def write(self, person: Person, room_id: str, entry: BookEntry) -> None:
-        """Hold the row the calling standard returned: its epoch, and its invitation as the place or none, which takes
-        an invitation away and leaves a joined agent's place as it is."""
+        """Hold the row the calling standard returned: its epoch, and its invitation as the place, or no place when
+        the invitation ended."""
         self._epochs[(person, room_id)] = entry.epoch
         if entry.invitation is not None:
             self._places[(person, room_id)] = entry.invitation
-        elif isinstance(self.get(person, room_id), OpenInvitation):
+        else:
             del self._places[(person, room_id)]
 
     def end_for_departed_owner(self, person: Person, room_id: str, now: datetime) -> Ended:
@@ -126,12 +126,11 @@ class Places:
             if (place.bound_to if isinstance(place, OpenInvitation) else place.sponsor) == seat
         ]
 
-    def put(self, person: Person, room_id: str, place: Place) -> None:
-        """Hold the place; a joined agent's place starts an empty window named by the agent's id."""
-        self._places[(person, room_id)] = place
-        if not isinstance(place, OpenInvitation):
-            self._windows[(person, room_id)] = ChatWindow(place.agent_id)
-            self._look_times[(person, room_id)] = ()
+    def put(self, person: Person, room_id: str, agent: DialedAgent) -> None:
+        """Hold the joined agent's place, which starts an empty window named by the agent's id."""
+        self._places[(person, room_id)] = agent
+        self._windows[(person, room_id)] = ChatWindow(agent.agent_id)
+        self._look_times[(person, room_id)] = ()
 
     def remove(self, person: Person, room_id: str) -> None:
         """Take the place, which must exist, away and raise its epoch."""
