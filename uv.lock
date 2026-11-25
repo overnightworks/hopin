@@ -503,10 +503,10 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.16" },
     { name = "fastapi", specifier = ">=0.123.7" },
-    { name = "overnightworks-agents", extras = ["backend", "mcp-server", "redis"], git = "https://github.com/overnightworks/agents?rev=v0.77.0" },
+    { name = "overnightworks-agents", extras = ["backend", "mcp-server", "redis"], git = "https://github.com/overnightworks/agents?rev=v0.78.0" },
     { name = "overnightworks-logline", git = "https://github.com/overnightworks/logline?rev=v1.9.0" },
     { name = "overnightworks-speech-client", git = "https://github.com/overnightworks/speech?subdirectory=packages%2Fclient&rev=v0.24.0" },
-    { name = "overnightworks-tandem", git = "https://github.com/overnightworks/tandem?rev=v0.16.0" },
+    { name = "overnightworks-tandem", git = "https://github.com/overnightworks/tandem?rev=v0.17.0" },
     { name = "overnightworks-video-client", git = "https://github.com/overnightworks/video?subdirectory=packages%2Fclient&rev=v0.3.0" },
     { name = "overnightworks-webauth", extras = ["postgres"], git = "https://github.com/overnightworks/webauth?rev=v0.46.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
@@ -929,8 +929,8 @@ wheels = [
 
 [[package]]
 name = "overnightworks-agents"
-version = "0.77.0"
-source = { git = "https://github.com/overnightworks/agents?rev=v0.77.0#84c6690f8a701815d50f55d1c50dafddb99abe55" }
+version = "0.78.0"
+source = { git = "https://github.com/overnightworks/agents?rev=v0.78.0#c4da69bf7688337265796031f8ee6032cea8b691" }
 dependencies = [
     { name = "pydantic" },
     { name = "ruamel-yaml" },
@@ -984,8 +984,8 @@ dependencies = [
 
 [[package]]
 name = "overnightworks-tandem"
-version = "0.16.0"
-source = { git = "https://github.com/overnightworks/tandem?rev=v0.16.0#3beddfceadadc85b9467846d90198e5f25e6d699" }
+version = "0.17.0"
+source = { git = "https://github.com/overnightworks/tandem?rev=v0.17.0#d260f21a34be98b5a2c9bbba0dd4122f7cc455d6" }
 dependencies = [
     { name = "overnightworks-logline" },
     { name = "redis" },
