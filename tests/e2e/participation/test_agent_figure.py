@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 import pytest
-from agents.member import SET_FRAMING_TOOL, SET_TURN_STATE_TOOL, SPEAK_TOOL, PlaceRef
+from agents.member import SET_FRAMING_TOOL, SPEAK_TOOL, PlaceRef
 from playwright.sync_api import expect
 
 from hopin.agent.tools import CALL_KIND
@@ -490,8 +490,7 @@ def test_an_agent_that_states_thinking_while_its_sentence_sounds_keeps_speaking_
     for person in scene.everyone:
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
 
-    place = PlaceRef(kind=CALL_KIND, id=speaker.room).model_dump()
-    scene.agent.call(SET_TURN_STATE_TOOL, {"place": place, "thinking": True})
+    scene.agent.state_turn(thinking=True)
     still_while_sounding = [arm_stays_while_the_look_eases(rest[person], person) for person in scene.everyone]
     late = scene.person_joins_late()
     held_once_drawn(late)

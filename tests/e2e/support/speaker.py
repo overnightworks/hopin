@@ -5,15 +5,14 @@ import re
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
-from agents.member import SPEAK_TOOL, STOP_SPEAKING_TOOL, PlaceRef
+from agents.member import STOP_SPEAKING_TOOL
 from playwright.sync_api import Page, expect
 from speech_client.wire import SPEECH_PATH, RefusalCode, VoiceId
 
 from hopin.agent.speech_settings import SpeechService
-from hopin.agent.tools import CALL_KIND, LEAVE_CALL
-from tests.e2e.support.dialed_agent import AGENT_TILE, REQUEST_SECONDS, OwnAccountAgent, room_of_link
+from hopin.agent.tools import LEAVE_CALL
+from tests.e2e.support.dialed_agent import AGENT_TILE, REQUEST_SECONDS, OwnAccountAgent, call_place, room_of_link
 from tests.e2e.support.server import RunningServer, loopback_sign_in, running_hopin
-from tests.support.dialed_call import window_uri
 from tests.support.speech_origin import (
     AUDIENCE_SCOPE,
     chunked_wav,
@@ -28,6 +27,7 @@ if TYPE_CHECKING:
     from concurrent.futures import Future
 
     import pytest
+    from agents.member import PlaceWindow, SpeakAnswer, SpeakRefusal
 
     from tests.e2e.support.participation_scene import Scene
     from tests.support.loopback_origin import Origin
@@ -129,29 +129,25 @@ class Speaker:
 
     def speak_behind(
         self, seconds: float, text: str = "Guten Tag", agent: OwnAccountAgent | None = None
-    ) -> Future[dict[str, Any]]:
+    ) -> Future[SpeakAnswer | SpeakRefusal]:
         """Say a sentence and return at once with its answer to come when it starts, behind the ones before it."""
         speaking(self.speech_origin, chunked_wav(silent_wav(seconds)))
-        place = PlaceRef(kind=CALL_KIND, id=self.room)
-        return (self.scene.agent if agent is None else agent).call_unawaited(
-            SPEAK_TOOL, {"place": place.model_dump(), "text": text}
-        )
+        return (self.scene.agent if agent is None else agent).speak_unawaited(self.room, text)
 
-    def speak_while_speech_pauses(self, seconds: float, text: str = "Guten Tag") -> Future[dict[str, Any]]:
+    def speak_while_speech_pauses(self, seconds: float, text: str = "Guten Tag") -> Future[SpeakAnswer | SpeakRefusal]:
         """Say a sentence whose second half speech renders only once `finish_rendering` says so."""
         return self._speak_with_second_half(seconds, text, lambda rest: rest)
 
-    def speak_while_speech_breaks(self, seconds: float, text: str = "Guten Tag") -> Future[dict[str, Any]]:
+    def speak_while_speech_breaks(self, seconds: float, text: str = "Guten Tag") -> Future[SpeakAnswer | SpeakRefusal]:
         """Say a sentence whose stream speech breaks in its second half once `finish_rendering` says so."""
         return self._speak_with_second_half(seconds, text, lambda rest: rest[: len(rest) // 2])
 
     def _speak_with_second_half(
         self, seconds: float, text: str, later_body: Callable[[bytes], bytes]
-    ) -> Future[dict[str, Any]]:
+    ) -> Future[SpeakAnswer | SpeakRefusal]:
         first, rest = chunked_wav_in_two(silent_wav(seconds))
         self.speech_origin.serve(SPEECH_PATH, first, later=later_body(rest))
-        place = PlaceRef(kind=CALL_KIND, id=self.room)
-        return self.scene.agent.call_unawaited(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
+        return self.scene.agent.speak_unawaited(self.room, text)
 
     def speech_was_asked(self) -> bool:
         """Whether the server asked speech to render the latest `speak_behind` sentence, so that a stop sent now
@@ -164,18 +160,16 @@ class Speaker:
     def finish_rendering(self) -> None:
         self.speech_origin.resume[SPEECH_PATH].set()
 
-    def speak_with_a_failing_voice(self, text: str) -> dict[str, Any]:
+    def speak_with_a_failing_voice(self, text: str) -> SpeakAnswer | SpeakRefusal:
         """Say a sentence while the speech service is busy; it answers at once, for the sentence is written."""
         speaking(self.speech_origin, refusal_answer(RefusalCode.BUSY, retry_after_seconds=3))
-        place = PlaceRef(kind=CALL_KIND, id=self.room)
-        return self.scene.agent.call(SPEAK_TOOL, {"place": place.model_dump(), "text": text})
+        return self.scene.agent.speak(self.room, text)
 
-    def window(self) -> dict[str, Any]:
-        return self.scene.agent.read(window_uri(self.room))
+    def window(self) -> PlaceWindow:
+        return self.scene.agent.window(self.room)
 
     def stop(self) -> dict[str, Any]:
-        place = PlaceRef(kind=CALL_KIND, id=self.room)
-        return self.scene.agent.call(STOP_SPEAKING_TOOL, {"place": place.model_dump()})
+        return self.scene.agent.call(STOP_SPEAKING_TOOL, {"place": call_place(self.room).model_dump()})
 
     def leave(self) -> dict[str, Any]:
         return self.scene.agent.call(LEAVE_CALL, {"room": self.room})

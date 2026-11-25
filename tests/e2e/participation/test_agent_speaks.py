@@ -5,6 +5,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from agents.member import SpeakRefusal, Spoken, VoiceState, Written
 from playwright.sync_api import Page, expect
 from speech_client.wire import VoiceId
 
@@ -67,7 +68,7 @@ def test_an_agents_sentences_sound_once_each_in_order_in_every_browser_and_its_t
         person.wait_for_function("() => window.soundsStarted.length === 3", timeout=PLAYBACK_WAIT_MILLISECONDS)
         assert speaker.started(person) == [SOUND_SECONDS, *LATER_SOUND_SECONDS]
         expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
-    assert behind_answer.result(REQUEST_SECONDS) == {"spoken": True}
+    assert behind_answer.result(REQUEST_SECONDS) == Spoken(spoken=True)
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -79,7 +80,7 @@ def test_an_agents_sentence_sounds_in_every_browser_while_speech_is_still_render
 
     answered = speaker.speak_while_speech_pauses(SOUND_SECONDS)
 
-    assert answered.result(REQUEST_SECONDS) == {"spoken": True}
+    assert answered.result(REQUEST_SECONDS) == Spoken(spoken=True)
     for person in everyone:
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
         person.wait_for_function("() => window.soundsStarted.length === 1", timeout=PLAYBACK_WAIT_MILLISECONDS)
@@ -119,7 +120,7 @@ def test_a_stream_that_breaks_after_its_first_chunk_cuts_the_sentence_and_logs_o
 
     answered = speaker.speak_while_speech_breaks(SOUND_SECONDS)
 
-    assert answered.result(REQUEST_SECONDS) == {"spoken": True}
+    assert answered.result(REQUEST_SECONDS) == Spoken(spoken=True)
     for person in everyone:
         person.wait_for_function("() => window.soundsStarted.length === 1", timeout=PLAYBACK_WAIT_MILLISECONDS)
     with ExitStack() as aborts:
@@ -133,7 +134,7 @@ def test_a_stream_that_breaks_after_its_first_chunk_cuts_the_sentence_and_logs_o
     assert (
         console_errors,
         [failure.partition(": ")[2] for failure in aborted_voices if VOICE_PATH in failure],
-        [(line["text"], line["spoken"], line["cut"]) for line in speaker.window()["entries"]],
+        [(line.text, line.spoken, line.cut) for line in speaker.window().entries],
     ) == (
         [ABORTED_VOICE_CONSOLE_LINE] * len(everyone),
         [ABORTED_VOICE_FAILURE] * len(everyone),
@@ -247,8 +248,7 @@ def test_a_stop_cuts_the_sentence_and_drops_the_queue_in_every_browser_and_the_a
     cut = speaker.stop()
 
     assert cut == {"cut": "Guten Tag"}
-    with pytest.raises(AssertionError, match="stopped"):
-        behind.result(REQUEST_SECONDS)
+    assert behind.result(REQUEST_SECONDS) is SpeakRefusal.STOPPED
     for person in everyone:
         expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
         assert person.evaluate("() => window.soundsStopped") > 0
@@ -276,15 +276,15 @@ def test_a_sentence_whose_voice_fails_is_written_in_every_chat_and_the_window_st
 
     answered = speaker.speak_with_a_failing_voice("Guten Tag")
 
-    assert answered == {"written": True}
+    assert answered == Written(written=True)
     for person in everyone:
         expect(person.locator(AGENT_LINE)).to_have_count(1)
         expect(person.locator(AGENT_LINE)).to_contain_text("Guten Tag")
         expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
         assert speaker.started(person) == []
     window = speaker.window()
-    assert (window["voice_state"], [(line["text"], line["spoken"]) for line in window["entries"]]) == (
-        "unavailable",
+    assert (window.voice_state, [(line.text, line.spoken) for line in window.entries]) == (
+        VoiceState.UNAVAILABLE,
         [("Guten Tag", False)],
     )
 
@@ -292,7 +292,7 @@ def test_a_sentence_whose_voice_fails_is_written_in_every_chat_and_the_window_st
 
     for person in everyone:
         person.wait_for_function("() => window.soundsStarted.length === 1", timeout=PLAYBACK_WAIT_MILLISECONDS)
-    assert speaker.window()["voice_state"] == "available"
+    assert speaker.window().voice_state == VoiceState.AVAILABLE
 
 
 @pytest.fixture
@@ -323,15 +323,15 @@ def test_an_agent_speaks_with_the_first_ready_voice_of_its_list_and_its_voice_co
     written = speaker.speak_behind(SOUND_SECONDS).result(REQUEST_SECONDS)
 
     spoken_voices = [spoken_request(request).voice for request in speech_requests(speech_origin)[earlier:]]
-    assert (spoken_voices, written, speaker.window()["voice_state"]) == (
+    assert (spoken_voices, written, speaker.window().voice_state) == (
         [VoiceId.RYAN, VoiceId.THORSTEN],
-        {"written": True},
-        "unavailable",
+        Written(written=True),
+        VoiceState.UNAVAILABLE,
     )
 
     voices_of_the_service(VoiceId.KERSTIN, VoiceId.THORSTEN)
 
     deadline = time.monotonic() + VOICE_RECOVERY_SECONDS * 3
-    while speaker.window()["voice_state"] != "available" and time.monotonic() < deadline:
+    while speaker.window().voice_state != VoiceState.AVAILABLE and time.monotonic() < deadline:
         time.sleep(POLL_SECONDS)
-    assert speaker.window()["voice_state"] == "available"
+    assert speaker.window().voice_state == VoiceState.AVAILABLE

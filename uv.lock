@@ -463,7 +463,7 @@ source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "fastapi" },
-    { name = "overnightworks-agents", extra = ["backend", "mcp-server", "redis"] },
+    { name = "overnightworks-agents", extra = ["backend", "mcp-client", "mcp-server", "redis"] },
     { name = "overnightworks-logline" },
     { name = "overnightworks-speech-client" },
     { name = "overnightworks-tandem" },
@@ -503,7 +503,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.16" },
     { name = "fastapi", specifier = ">=0.123.7" },
-    { name = "overnightworks-agents", extras = ["backend", "mcp-server", "redis"], git = "https://github.com/overnightworks/agents?rev=v0.78.0" },
+    { name = "overnightworks-agents", extras = ["backend", "mcp-client", "mcp-server", "redis"], git = "https://github.com/overnightworks/agents?rev=v0.78.0" },
     { name = "overnightworks-logline", git = "https://github.com/overnightworks/logline?rev=v1.9.0" },
     { name = "overnightworks-speech-client", git = "https://github.com/overnightworks/speech?subdirectory=packages%2Fclient&rev=v0.24.0" },
     { name = "overnightworks-tandem", git = "https://github.com/overnightworks/tandem?rev=v0.17.0" },
@@ -939,6 +939,12 @@ dependencies = [
 [package.optional-dependencies]
 backend = [
     { name = "httpx2" },
+    { name = "overnightworks-logline" },
+]
+mcp-client = [
+    { name = "anyio" },
+    { name = "httpx2" },
+    { name = "mcp" },
     { name = "overnightworks-logline" },
 ]
 mcp-server = [

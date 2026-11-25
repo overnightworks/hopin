@@ -1,4 +1,5 @@
-"""The agent's `speak` call at the real `/mcp`, for the tests of the speaking tool."""
+"""The agent's `speak` call at the real `/mcp`, for the tests of the speaking tool; it sends the chosen headers, `_meta`
+and arguments that a typed client never sends."""
 
 from agents.member import SPEAK_TOOL, PlaceRef
 

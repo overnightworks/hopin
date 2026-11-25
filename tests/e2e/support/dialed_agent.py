@@ -1,25 +1,30 @@
-import asyncio
-import contextlib
 import json
 import secrets
 import threading
-from contextlib import AsyncExitStack
+from contextlib import ExitStack
 from typing import TYPE_CHECKING, Any
 
 import httpx2
+from agents.mcp_client import ResourceWake, open_member_session
+from agents.mcp_wire import MCP_ENDPOINT_PATH
 from agents.member import (
-    ACCEPT_INVITATION_TOOL,
-    DECLINE_INVITATION_TOOL,
     GESTURE_TOOL,
     SET_FRAMING_TOOL,
-    SET_TURN_STATE_TOOL,
     STANDING_URI,
+    AcceptInvitationArguments,
+    DeclineInvitationArguments,
+    DeclineInvitationReason,
     PlaceRef,
+    SetTurnStateArguments,
+    Standing,
+    StandingState,
+    place_window_uri,
 )
+from agents.member_outcomes import DeclineOutcome
+from anyio.from_thread import start_blocking_portal
 from design.words import text as kit_text
-from mcp import Client
-from mcp.client.streamable_http import streamable_http_client
 from playwright.sync_api import Page, expect
+from pydantic import SecretStr
 
 from hopin.agent.tools import CALL_KIND, JOIN_CALL, LOOK, SAY
 from tests.e2e.support.calls import INVITE_LINK_PATTERN
@@ -27,10 +32,18 @@ from tests.e2e.support.people import PHONE
 from tests.support.sign_in_settings import TEST_REALM
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Awaitable, Callable
     from concurrent.futures import Future
 
-    from mcp.types import CallToolResult
+    from agents.member import (
+        AcceptInvitationRefusal,
+        PlaceWindow,
+        SpeakAnswer,
+        SpeakRefusal,
+    )
+    from agents.member_outcomes import UnrecognisedRefusal
+    from agents.tools import ToolOutcome
+    from anyio.abc import TaskStatus
 
     from tests.e2e.support.server import RunningServer
 
@@ -79,10 +92,14 @@ def room_of_link(link: str) -> str:
     return found.group(0).removeprefix("/c/")
 
 
-def refusal_of(answer: Any) -> str:
+def refusal_of(answer: ToolOutcome) -> str:
     """The code a refused tool call answers with."""
     assert answer.is_error
-    return json.loads(answer.content[0].text)["refused"]
+    return json.loads(answer.content)["refused"]
+
+
+def call_place(room: str) -> PlaceRef:
+    return PlaceRef(kind=CALL_KIND, id=room)
 
 
 class Agent:
@@ -102,128 +119,131 @@ class Agent:
         self._agent.close()
 
 
-class SdkAgent:
-    """A scripted client on the official SDK that calls HopIn's MCP endpoint with a token as the runner does. The SDK
-    runs on an event loop of its own thread, so the browser keeps its owning thread; `close` ends the stream and joins
-    the thread."""
+class DialedMember:
+    """A scripted member of HopIn's MCP endpoint that holds a token as the runner does, through the agents library's
+    member session. The session runs on the event loop of a blocking portal, so the browser keeps its owning thread;
+    `close` ends the stream and the session."""
 
     def __init__(self, server: RunningServer, token: str):
-        self._url = f"{server.base_url}/mcp"
-        self._token = token
-        self._loop = asyncio.new_event_loop()
-        self._opened = threading.Event()
-        self._acknowledged = threading.Event()
-        self._woken = threading.Event()
-        self._stopping = asyncio.Event()
-        self._client: Client
-        self._stream: asyncio.Task[None] | None = None
-        self._thread = threading.Thread(target=self._loop.run_until_complete, args=(self._hold_the_client(),))
-        self._thread.start()
-        if not self._opened.wait(REQUEST_SECONDS):
-            self.close()
-            message = "the SDK client did not open"
-            raise TimeoutError(message)
+        self._woken_by: set[str] = set()
+        self._woken = threading.Condition()
+        self._hearing: Future[None] | None = None
+        self._pending: list[Future[Any]] = []
+        self._stack = ExitStack()
+        try:
+            self._portal = self._stack.enter_context(start_blocking_portal())
+            opened = open_member_session(
+                f"{server.base_url}{MCP_ENDPOINT_PATH}",
+                lambda: SecretStr(token),
+                # The loopback certificate is self-signed.
+                transport=httpx2.AsyncHTTPTransport(verify=False),
+            )
+            self._session = self._stack.enter_context(self._portal.wrap_async_context_manager(opened))
+        except BaseException:
+            self._stack.close()
+            raise
 
-    async def _hold_the_client(self) -> None:
-        http = httpx2.AsyncClient(
-            headers={"authorization": f"Bearer {self._token}"},
-            timeout=httpx2.Timeout(REQUEST_SECONDS, read=None),
-            verify=False,  # the loopback certificate is self-signed
-            trust_env=False,
-        )
-        async with AsyncExitStack() as held:
-            # An opening that never finishes ends the thread, which `close` joins.
-            async with asyncio.timeout(REQUEST_SECONDS):
-                await held.enter_async_context(http)
-                self._client = await held.enter_async_context(
-                    Client(streamable_http_client(self._url, http_client=http))
-                )
-            self._opened.set()
-            await self._stopping.wait()
+    def _later[Answer](self, call: Callable[..., Awaitable[Answer]], *arguments: Any) -> Future[Answer]:
+        """Start the session's call and return at once with its answer to come, for a tool that answers later while the
+        test keeps driving its browsers: a thread waiting on the answer serves none of their page routes."""
+        future = self._portal.start_task_soon(call, *arguments)
+        self._pending.append(future)
+        return future
 
-    async def _listen_for_wakes(self, uris: Sequence[str]) -> None:
-        async with self._client.listen(resource_subscriptions=list(uris)) as stream:
-            self._acknowledged.set()
-            async for _event in stream:
-                self._woken.set()
+    def _run[Answer](self, call: Callable[..., Awaitable[Answer]], *arguments: Any) -> Answer:
+        return self._later(call, *arguments).result(REQUEST_SECONDS)
 
-    @staticmethod
-    async def _stop(stream: asyncio.Task[None]) -> None:
-        """Cancel the old stream and wait until its task has ended, so it can no longer wake the agent."""
-        stream.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await stream
-
-    async def _start(self, uris: Sequence[str]) -> asyncio.Task[None]:
-        return asyncio.create_task(self._listen_for_wakes(uris))
-
-    def _run(self, coroutine: Any) -> Any:
-        return asyncio.run_coroutine_threadsafe(coroutine, self._loop).result(REQUEST_SECONDS)
+    async def _hear(self, *, task_status: TaskStatus[None]) -> None:
+        async with self._session.listen() as wakes:
+            task_status.started()
+            async for wake in wakes:
+                if isinstance(wake, ResourceWake):
+                    with self._woken:
+                        self._woken_by.add(wake.uri)
+                        self._woken.notify_all()
 
     def stop_listening(self) -> None:
-        """End the stream and keep the client: the server counts the agent as listening until its allowance passes."""
-        if self._stream is not None:
-            self._run(self._stop(self._stream))
-            self._stream = None
+        """End the stream and keep the session: the server counts the agent as listening until its allowance passes."""
+        if self._hearing is not None:
+            self._hearing.cancel()
+            self._hearing = None
 
-    def listen(self, uris: Sequence[str] = (STANDING_URI,)) -> None:
-        """Replace the stream with one on the resources and return once the server has acknowledged it."""
+    def listen(self) -> None:
+        """Replace the stream with one on the standing and return once the server has acknowledged it."""
         self.stop_listening()
-        self._acknowledged.clear()
-        self._woken.clear()
-        self._stream = self._run(self._start(uris))
-        assert self._acknowledged.wait(REQUEST_SECONDS)
+        self.forget_wakes()
+        self._hearing, _ = self._portal.start_task(self._hear)
 
-    def read(self, uri: str) -> dict[str, Any]:
-        return json.loads(self._run(self._client.read_resource(uri)).contents[0].text)
+    def woken_within(self, seconds: float) -> bool:
+        """Whether the stream has woken the agent for any resource, waiting up to `seconds` for it; a notice that the
+        agent's tools changed wakes no resource."""
+        with self._woken:
+            return self._woken.wait_for(lambda: bool(self._woken_by), seconds)
+
+    def woken_by_within(self, uri: str, seconds: float) -> bool:
+        """Whether the stream has woken the agent for the resource at `uri`, waiting up to `seconds` for it."""
+        with self._woken:
+            return self._woken.wait_for(lambda: uri in self._woken_by, seconds)
+
+    def woken_by_window_within(self, room: str, seconds: float) -> bool:
+        return self.woken_by_within(place_window_uri(call_place(room)), seconds)
+
+    def forget_wakes(self) -> None:
+        with self._woken:
+            self._woken_by.clear()
+
+    def tools_notices(self) -> int:
+        return self._session.tools_notices()
+
+    def standings(self) -> tuple[Standing, ...]:
+        return self._run(self._session.read_standing).standings
+
+    def window(self, room: str) -> PlaceWindow:
+        window = self._run(self._session.read_place, call_place(room))
+        assert window is not None, "the app shows the agent no window of the call"
+        return window
 
     def call(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        return self.call_unawaited(tool, arguments).result(REQUEST_SECONDS)
+        outcome = self.invoke(tool, arguments)
+        assert not outcome.is_error, outcome.content
+        return json.loads(outcome.content)
+
+    def invoke(self, tool: str, arguments: dict[str, Any]) -> ToolOutcome:
+        return self._run(self._session.invoke, tool, arguments)
 
     def refusal_of(self, tool: str, arguments: dict[str, Any]) -> str:
         """Call the tool and return the code the call refuses it with."""
-        return refusal_of(self._run(self._client.call_tool(tool, arguments)))
+        return refusal_of(self.invoke(tool, arguments))
 
-    def look_unawaited(self, room: str) -> Future[CallToolResult]:
-        """Start the agent's `look` in the room and return its raw answer to come, since the answer is a picture and not
+    def look_unawaited(self, room: str) -> Future[ToolOutcome]:
+        """Start the agent's `look` in the room and return its outcome to come, since the answer is a picture and not
         the JSON of the other tools; the sponsor's browser answers while the test keeps driving its pages."""
-        place = PlaceRef(kind=CALL_KIND, id=room).model_dump()
-        return asyncio.run_coroutine_threadsafe(self._client.call_tool(LOOK, {"place": place}), self._loop)
+        return self._later(self._session.invoke, LOOK, {"place": call_place(room).model_dump()})
 
-    def call_unawaited(self, tool: str, arguments: dict[str, Any]) -> Future[dict[str, Any]]:
-        """Send the call and return at once with its answer to come, for a tool that answers later while the test
-        keeps driving its browsers: a thread waiting on the answer serves none of their page routes."""
-        return asyncio.run_coroutine_threadsafe(self._call(tool, arguments), self._loop)
+    def speak(self, room: str, text: str, interrupted: str | None = None) -> SpeakAnswer | SpeakRefusal:
+        return self.speak_unawaited(room, text, interrupted).result(REQUEST_SECONDS)
 
-    async def _call(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        result = await self._client.call_tool(tool, arguments)
-        text = result.content[0].text
-        assert not result.is_error, text
-        return json.loads(text)
-
-    def woken_within(self, seconds: float) -> bool:
-        """Whether the stream has woken the agent, waiting up to `seconds` for it."""
-        return self._woken.wait(seconds)
-
-    def forget_wakes(self) -> None:
-        self._woken.clear()
+    def speak_unawaited(
+        self, room: str, text: str, interrupted: str | None = None
+    ) -> Future[SpeakAnswer | SpeakRefusal]:
+        """Start the sentence and return at once with its answer to come."""
+        return self._later(self._session.speak, call_place(room), text, None, interrupted)
 
     def close(self) -> None:
-        if self._stream is not None:
-            self._loop.call_soon_threadsafe(self._stream.cancel)
-        self._loop.call_soon_threadsafe(self._stopping.set)
-        self._thread.join(REQUEST_SECONDS)
-        self._loop.close()
+        self.stop_listening()
+        for future in self._pending:
+            future.cancel()
+        self._stack.close()
 
 
-class OwnAccountAgent(SdkAgent):
+class OwnAccountAgent(DialedMember):
     """An agent with an account of its own, signed in with a client-credentials shaped token."""
 
     def __init__(self, server: RunningServer, owner_subject: str, name: str):
         self.name = name
         token = server.issuer.access_token(
             f"agent-of-{owner_subject}-{secrets.token_hex(4)}",
-            audience=f"{server.base_url}/mcp",
+            audience=f"{server.base_url}{MCP_ENDPOINT_PATH}",
             authorized_party="some-agent-client",
             scope=TEST_REALM.mcp_scope,
             groups=(str(TEST_REALM.agent_group), str(TEST_REALM.mcp_group)),
@@ -231,69 +251,71 @@ class OwnAccountAgent(SdkAgent):
         )
         super().__init__(server, token)
 
-    def standings(self) -> list[dict[str, Any]]:
-        return self.read(STANDING_URI)["standings"]
-
-    def invitation_within(self, seconds: int) -> dict[str, Any]:
+    def invitation_within(self, seconds: int) -> Standing:
         """The standing that holds an invitation, once the stream has woken the agent."""
-        assert self.woken_within(seconds), "the stream never woke the agent"
-        [invited] = [standing for standing in self.standings() if standing["state"] == "invited"]
+        assert self.woken_by_within(STANDING_URI, seconds), "the stream never woke the agent"
+        [invited] = [standing for standing in self.standings() if standing.state is StandingState.INVITED]
         return invited
 
-    def accept(
-        self,
-        standing: dict[str, Any],
-        figure: dict[str, str] | None = None,
-        voices: Sequence[str] | None = None,
-        looks: Sequence[dict[str, Any]] | None = None,
-    ) -> dict[str, Any]:
-        """Accept the invitation, naming the figure (`url` and `sha256`) its tile shows if it has one, the voices it
-        would speak with, first choice first, and its looks."""
-        named = (
-            ({} if figure is None else {"figure": figure})
-            | ({} if voices is None else {"voices": list(voices)})
-            | ({} if looks is None else {"looks": list(looks)})
-        )
-        return self.call(ACCEPT_INVITATION_TOOL, self._acceptance(standing) | named)
+    def accept(self, standing: Standing, **named: Any) -> None:
+        """Accept the invitation, naming the `figure` (`url` and `sha256`) its tile shows if it has one, the `voices`
+        it would speak with, first choice first, and its `looks`."""
+        refusal = self.accept_refusal(standing, **named)
+        assert refusal is None, refusal
+
+    def accept_refusal(self, standing: Standing, **named: Any) -> AcceptInvitationRefusal | UnrecognisedRefusal | None:
+        """Accept the invitation and return the code the call refuses it with, none when it joins."""
+        invitation = standing.invitation
+        assert invitation is not None
+        arguments = {"place": standing.place, "invitation": invitation.id, "epoch": invitation.epoch} | {
+            name: value for name, value in named.items() if value is not None
+        }
+        return self._run(self._session.accept, AcceptInvitationArguments.model_validate(arguments, strict=False))
+
+    def active_place(self) -> PlaceRef:
+        """The one place the agent holds."""
+        [active] = [standing for standing in self.standings() if standing.state is StandingState.ACTIVE]
+        return active.place
 
     def gesture(self, name: str) -> dict[str, Any]:
         """Make the gesture with the figure at the one place the agent holds."""
-        [active] = [standing for standing in self.standings() if standing["state"] == "active"]
-        return self.call(GESTURE_TOOL, {"place": active["place"], "gesture": name})
+        return self.call(GESTURE_TOOL, {"place": self.active_place().model_dump(), "gesture": name})
 
-    def set_framing(self, name: str, place: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Take the framing at `place`, the one place the agent holds by default."""
-        if place is None:
-            [active] = [standing for standing in self.standings() if standing["state"] == "active"]
-            place = active["place"]
-        return self.call(SET_FRAMING_TOOL, {"place": place, "framing": name})
+    def set_framing(self, name: str) -> dict[str, Any]:
+        """Take the framing at the one place the agent holds."""
+        return self.call(SET_FRAMING_TOOL, {"place": self.active_place().model_dump(), "framing": name})
 
-    def state_turn(self, **statement: Any) -> dict[str, Any]:
+    def state_turn(self, **statement: Any) -> None:
         """State the turn at the one place the agent holds: `thinking`, why its turns `stopped`, or none of both."""
-        [active] = [standing for standing in self.standings() if standing["state"] == "active"]
-        return self.call(SET_TURN_STATE_TOOL, {"place": active["place"], **statement})
+        refusal = self._run(
+            self._session.set_turn_state,
+            SetTurnStateArguments.model_validate({"place": self.active_place()} | statement, strict=False),
+        )
+        assert refusal is None, refusal
 
-    def decline_busy(self, standing: dict[str, Any]) -> None:
+    def decline_busy(self, standing: Standing) -> None:
         """Decline the invitation because the agent is at its own limit of places."""
-        self.call(DECLINE_INVITATION_TOOL, self._acceptance(standing) | {"reason": "busy"})
+        invitation = standing.invitation
+        assert invitation is not None
+        declined = self._run(
+            self._session.decline,
+            DeclineInvitationArguments(
+                place=standing.place,
+                invitation=invitation.id,
+                epoch=invitation.epoch,
+                reason=DeclineInvitationReason.BUSY,
+            ),
+        )
+        assert declined is DeclineOutcome.SENT, declined
 
-    def accept_refusal(self, standing: dict[str, Any]) -> str:
-        """Accept the invitation and return the code the call refuses it with."""
-        return self.refusal_of(ACCEPT_INVITATION_TOOL, self._acceptance(standing))
 
-    @staticmethod
-    def _acceptance(standing: dict[str, Any]) -> dict[str, Any]:
-        invitation = standing["invitation"]
-        return {"place": standing["place"], "invitation": invitation["id"], "epoch": invitation["epoch"]}
-
-
-class OwnAgent(SdkAgent):
+class OwnAgent(DialedMember):
     """A person's own agent, signed in with the person's token as the client does that holds it."""
 
     def __init__(self, server: RunningServer, account_id: str):
         token = server.issuer.access_token(
             account_id,
-            audience=f"{server.base_url}/mcp",
+            audience=f"{server.base_url}{MCP_ENDPOINT_PATH}",
             authorized_party=TEST_REALM.mcp_client_id,
             scope=TEST_REALM.mcp_scope,
             groups=(str(TEST_REALM.login_group), str(TEST_REALM.mcp_group)),
