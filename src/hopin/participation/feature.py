@@ -589,7 +589,7 @@ class Participation(TransitionFeature):
             )
         self._offer(view, transition)
         if lapsed is not None:
-            # After the final offers, so no later offers frame clears the outcome.
+            # The call replaced an invitation that ran out unnoticed; its inviter hears of it after the final offers.
             self._tell_outcome(view, adding.agent.person, lapsed, transition)
         if refusal is not None:
             # After the offers: every offers frame a seat gets after a refusal is a later one, which clears it.
@@ -613,8 +613,8 @@ class Participation(TransitionFeature):
         return agent.room_id
 
     def _close_lapsed(self, view: RoomView, person: Person, now: datetime) -> Ended | None:
-        """End the person's invitation in the room when the wall clock lapsed it, before a call decides on the room
-        without it; the end its inviter has yet to hear of, or nothing."""
+        """End the person's invitation in the room when the wall clock lapsed it, so the call replaces it with a new
+        one; the end its inviter has yet to hear of, or nothing."""
         room_id = cast("str", view.room_id)  # the inviter sits in it
         lapsed = expired(self._places.entry(person, room_id), now=now)
         if lapsed is not None:

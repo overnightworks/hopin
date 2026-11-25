@@ -121,11 +121,11 @@ def decline_arguments(standing):
 
 
 SECRET = "secret-value"
-MALFORMED = {
-    "a_forbidden_key": lambda valid: {**valid, "voice": SECRET},
-    "a_bad_epoch": lambda valid: {**valid, "epoch": SECRET},
-    "a_bad_place_id": lambda valid: {**valid, "place": {**valid["place"], "id": 5}},
-}
+MALFORMED = (
+    pytest.param(lambda valid: {**valid, "voice": SECRET}, "[key]", id="a_forbidden_key"),
+    pytest.param(lambda valid: {**valid, "epoch": SECRET}, "epoch", id="a_bad_epoch"),
+    pytest.param(lambda valid: {**valid, "place": {**valid["place"], "id": 5}}, "place.id", id="a_bad_place_id"),
+)
 
 
 @pytest.mark.parametrize(
@@ -136,9 +136,7 @@ MALFORMED = {
 class TestAMalformedInvitationCall:
     """CALL-52: an accept or a decline whose arguments the agents contract refuses."""
 
-    @pytest.mark.parametrize(
-        ("malform", "path"), zip(MALFORMED.values(), ["[key]", "epoch", "place.id"], strict=True), ids=MALFORMED.keys()
-    )
+    @pytest.mark.parametrize(("malform", "path"), MALFORMED)
     def test_it_is_a_tool_error_naming_the_field_path_and_no_value_or_refusal_code(
         self, scene, tool, arguments_of, malform, path
     ):
