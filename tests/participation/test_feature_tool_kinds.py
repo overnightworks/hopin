@@ -20,6 +20,15 @@ pytestmark = pytest.mark.integration
 OWNER = "owner-subject"
 
 
+def _references(schema: object) -> bool:
+    """Whether a JSON Schema value holds a `$ref` or a `$defs` key at any depth."""
+    if isinstance(schema, dict):
+        return "$ref" in schema or "$defs" in schema or any(_references(value) for value in schema.values())
+    if isinstance(schema, list):
+        return any(_references(value) for value in schema)
+    return False
+
+
 class TestAnAgentWithItsOwnAccount:
     def test_its_first_read_answers_its_empty_standing(self, dialed_call):
         assert dialed_call.standing(dialed_call.agent_token(owner=OWNER)) == []
@@ -79,6 +88,13 @@ class TestTheEndpoint:
             SET_TURN_STATE_TOOL,
             LOOK,
         }
+
+    def test_no_listed_tool_declares_a_reference_in_its_input_schema(self, dialed_call):
+        token = dialed_call.token(dialed_call.member()[0])
+
+        tools = dialed_call.request(token, "tools/list").json()["result"]["tools"]
+
+        assert [tool["name"] for tool in tools if _references(tool["inputSchema"])] == []
 
     def test_a_call_of_wait_is_an_unknown_tool(self, dialed_call):
         token = dialed_call.agent_token(owner=OWNER)
