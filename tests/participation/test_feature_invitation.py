@@ -3,10 +3,12 @@ from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
+import structlog.testing
 from agents.calling import CallOutcome
 from agents.member import INVITATION_SECONDS, LEASE_SECONDS, DeclineInvitationRefusal
 
 from hopin.config.constants import SESSION_RECHECK_SECONDS, SignalType
+from hopin.participation.feature import INVITATION_CLOSED_EVENT
 from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from hopin.participation.participants import DialedAgent
 from hopin.participation.places import PlaceState
@@ -392,6 +394,19 @@ class TestAnInvitation:
             invited.participation.standings_of(AGENT),
             offers_sent_to(invited.member)[0]["pending"],
         ) == (None, CallOutcome.BUSY.value, True, True, [], (), False)
+
+    async def test_a_decline_after_the_room_ended_is_stale(self, invited):
+        await invited.owner.link.handler.end_all_of(OWNER)
+
+        assert await invited.decline() is DeclineInvitationRefusal.STALE_INVITATION
+
+    async def test_its_timer_after_the_room_ended_closes_nothing_and_logs_nothing(self, invited, scheduler):
+        await invited.owner.link.handler.end_all_of(OWNER)
+
+        with structlog.testing.capture_logs() as logs:
+            await scheduler.advance(INVITATION_SECONDS)
+
+        assert [entry["event"] for entry in logs if entry["event"] == INVITATION_CLOSED_EVENT] == []
 
     async def test_an_invitation_added_after_a_decline_has_the_epoch_of_the_declined_one(self, invited):
         old = invited.invitation
