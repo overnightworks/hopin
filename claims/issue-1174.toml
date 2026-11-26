@@ -1,7 +1,0 @@
-claim_id = "630082ec4c154746ab969074795dfbc8"
-agent = "Claude 2d4ba7f5-c811-4f46-bb5e-556dfbd2250e"
-role = "builder"
-base = "3debc1bba777f002160df14876ea7a2929d29f3b"
-branch = "claude/issue-1174-ci-chain-under-ten-minutes"
-scope = [".github/workflows/ci.yml"]
-opened_commit = "28381124ff4e61fe00cf3cd74e7f8fcf7b908d9c"
