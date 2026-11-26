@@ -186,7 +186,8 @@ def test_the_agents_sentence_after_a_heard_turn_reaches_the_speech_service_in_th
     hear_the_turn(sponsored, fake_speech, turn)
     speak_trace = a_traceparent()
 
-    speak(sponsored, headers={"traceparent": speak_trace})
+    with configured("hopin"):
+        speak(sponsored, headers={"traceparent": speak_trace})
 
     [request] = speech_requests(speech_origin)
     assert trace_id_of(header_of(request, TRACEPARENT_HEADER)) == trace_id_of(speak_trace)

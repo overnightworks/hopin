@@ -86,6 +86,8 @@ export function fakePlayers() {
                     for (const muteSound of fake.mutes.splice(0)) void muteSound();
                 }
             },
+            // The fake runs no sound to a position, so a hold the app asks for never comes.
+            pauseAt: () => Promise.resolve({ kind: "overtaken" }),
             pause: () => {
                 fake.paused = true;
             },
