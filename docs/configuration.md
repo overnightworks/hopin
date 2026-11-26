@@ -46,7 +46,7 @@ This page lists every setting of HopIn, its default and its form, for the person
 
 The `HOPIN_AGENT__` settings are read by the connector's `AgentSettings`, the `HOPIN_SPEECH__` ones by its `SpeechSettings` (which stays when the game is removed), the `HOPIN_VIDEO__` ones by its `VideoSettings`, and `HOPIN_FIGURE_SOURCES` by participation's `ParticipationSettings`; a missing or malformed one stops the start and echoes no input.
 
-Agents dial in through `POST /mcp` with a bearer token and need no setting: the endpoint's audience is `HOPIN_PUBLIC_ORIGIN` + `/mcp`, and the realm decides who may use it (see "A person's own agent"). HopIn refuses to start without the required `HOPIN_` settings, any of the seven `REALM_` keys (a group key that is no group path included), or the required `HOPIN_AGENT__` settings, without the page build (`make frontend` writes it), when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
+Agents dial in through `POST /mcp` with a bearer token and need no setting: the endpoint's audience is `HOPIN_PUBLIC_ORIGIN` + `/mcp`, and the realm decides who may use it (see [README's "A person's own agent"](../README.md#a-persons-own-agent)). HopIn refuses to start without the required `HOPIN_` settings, any of the seven `REALM_` keys (a group key that is no group path included), or the required `HOPIN_AGENT__` settings, without the page build (`make frontend` writes it), when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
 
 ## Sign-in client
 
