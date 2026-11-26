@@ -15,6 +15,6 @@ The accounts and sessions outlast a restart and every process admits the same se
 sign-in lock erases a person's sessions and account (`identity.py`: `erase`). Rooms, seats and replay logs live in
 process memory. The windows expire with their window (at most 10 minutes) and hold a counted address and no
 name. The agent connector's member-place records in the same Redis hold a principal and a resource address, never
-content, and lapse within a listen's bound. What HopIn holds about a person, and what an admin may download, is in the
+content, and lapse within a listen's bound. What HopIn holds about a person, and what an admin may download, is in
 docs/person-data.md.
 """
