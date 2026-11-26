@@ -1,8 +1,0 @@
-claim_id = "bdf2ed562af44c09b927af36abfab779"
-agent = "Claude 2d4ba7f5-c811-4f46-bb5e-556dfbd2250e"
-role = "builder"
-base = "6ae45f113a50a1a0f186eed9505c80e1e0ac602e"
-branch = "claude/issue-1183-person-data-reference"
-scope = ["README.md", "docs/ARCHITECTURE.md", "docs/game-master.md", "docs/person-data.md", "src/hopin/stores/__init__.py", "tests/game/test_quiz.py", "tests/game/test_quiz_agent_backend.py", "tests/game/test_quiz_agent_backend_flow.py", "tests/game/test_quiz_agent_gateway.py", "tests/game/test_voice_call.py"]
-opened_commit = "737174e79f1ed64ca4e445cb35cb899a908ceb20"
-whole_reason = "One move of two sections that answer one question, with the pointers to them and the game-master rules they repeat."
