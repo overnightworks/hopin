@@ -238,7 +238,7 @@ def test_a_name_and_an_answer_with_special_characters_come_back_exactly_as_one_e
 
 
 def test_the_next_rounds_transcript_still_holds_the_reveal_request_with_its_answers():
-    """GM-24: The next rounds transcript still holds the reveal request with its answers."""
+    """GM-24, GM-43: The next rounds transcript still holds the reveal request with its answers."""
     quiz = open_question().with_answer(STARTER, "Sam", "Tejo").revealing().heard("Sam hat recht.", PLAYERS)
 
     assert answers_in_reveal(quiz.transcript[-3].text) == [{"name": "Sam", "antwort": "Tejo"}]
@@ -329,7 +329,7 @@ def test_the_scores_add_up_over_the_rounds_and_a_player_who_skips_a_round_keeps_
 
 
 def test_the_final_score_request_carries_the_counted_score_for_the_game_master_to_state():
-    """GM-40: The final score request carries the counted score."""
+    """GM-24, GM-40: The final score request carries the counted score."""
     quiz = open_question().with_answer(STARTER, "Sam", "Tejo").revealing()
     for _ in range(QUIZ_ROUNDS - 1):
         quiz = quiz.heard("A.", PLAYERS, judged(Judgement.CORRECT)).heard("Frage?", PLAYERS)
@@ -367,7 +367,7 @@ def test_a_reveal_nobody_answered_is_judged_by_no_verdicts_and_adds_no_score():
 
 
 def test_the_reveal_request_numbers_the_given_answers_from_one_in_their_order():
-    """GM-40: The reveal request numbers the given answers from one, which the verdicts name."""
+    """GM-40, GM-43: The reveal request numbers the given answers from one, which the verdicts name."""
     request = answered_by_two().revealing().transcript[-1].text
 
     assert [answer["nr"] for answer in json.loads(request.split("\n")[1])] == [1, 2]

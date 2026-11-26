@@ -161,7 +161,8 @@ def test_a_mute_during_a_held_run_reaches_the_others_and_never_the_agent(call):
 
 
 def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_nothing_else_of_the_call(call):
-    """GM-21, GM-26: The reveal request carries each given answer with its players name and nothing else of the call."""
+    """GM-21, GM-26, GM-43: The reveal request carries each given answer with its players name
+    and nothing else of the call."""
     host_member, guest_member, third_member = call.member(), call.member(), call.member()
     host, created = call.seat(host_member)
     guest, _ = call.seat(guest_member, created["room_id"])
@@ -229,6 +230,7 @@ def test_the_reveal_request_holds_the_quiz_so_far_and_an_empty_list_when_nobody_
 
 
 def test_each_chained_run_uses_the_refresh_token_the_run_before_it_rotated_in(call):
+    """GM-20: Each chained run uses the refresh token the run before it rotated in."""
     _, guest, guest_member = call.host_and_guest()
     call.backend.answer_next(Succeeds("Erste Frage?"), Succeeds("Lissabon."), Succeeds("Zweite Frage?"))
 

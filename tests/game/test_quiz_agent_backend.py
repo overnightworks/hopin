@@ -153,6 +153,7 @@ class TestThePerson:
 
 class TestHeldGrants:
     async def test_a_run_cancelled_during_its_refresh_grant_stores_the_rotation_and_starts_no_turn(self, world):
+        """GM-20: A run cancelled during its refresh grant stores the rotation and starts no turn."""
         starter, member = world.starter()
         seeded = world.stores.sessions.load(member.session.id).refresh_token.get_secret_value()
         hold = world.issuer.hold("refresh_token")
@@ -393,7 +394,7 @@ class TestNothingLeaksIntoLogs:
     async def test_neither_a_token_nor_a_group_path_nor_the_game_text_reaches_a_log_or_the_outcome(
         self, world, stdlib_records, answer
     ):
-        """GM-20: Neither a token nor a group path nor the game text reaches a log or the outcome."""
+        """GM-20, GM-44: Neither a token nor a group path nor the game text reaches a log or the outcome."""
         sentinel = f"Sentinel-Frage {secrets.token_hex(8)}?"
         group = f"/scenario/{secrets.token_hex(8)}"
         starter, member = world.starter()

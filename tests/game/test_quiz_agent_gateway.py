@@ -140,6 +140,7 @@ def test_the_fingerprint_is_wire_mds_vector_so_the_issuer_goes_out_exactly_as_th
 def test_the_key_files_line_is_the_bearer_and_stays_out_of_every_log_frame_and_refusal(
     quiz_on_gateway, key_file, reply, caplog
 ):
+    """GM-42: The key file's line is the bearer and stays out of every log, frame and refusal."""
     canary = key_file.read_text().strip()
     call, gateway = quiz_on_gateway(reply)
     host, _ = call.seat(call.member(groups=(API_GROUP,)))
