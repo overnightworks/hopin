@@ -1,8 +1,0 @@
-claim_id = "b03e17dad7f94da0824c9e0e5e61b078"
-agent = "Claude 2d4ba7f5-c811-4f46-bb5e-556dfbd2250e"
-role = "builder"
-base = "3274812feb9628de64ba8a6e23fcb44872ec55c5"
-branch = "claude/issue-1156-pin-the-video-client-at-v0-4-0-which-nam"
-scope = ["pyproject.toml", "tests/participation/test_feature_video_looks.py", "tests/support/fake_video.py", "uv.lock"]
-opened_commit = "b60062fcca296133834a76aafce8ea3e7473b638"
-whole_reason = "One pin move: the lock and the two test fakes that build the client's SessionInfo move with it, or the video tests are red in between."
