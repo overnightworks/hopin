@@ -1,0 +1,8 @@
+claim_id = "7e9dc8a9d0eb474fb686f472b82b10a7"
+agent = "Claude 2d4ba7f5-c811-4f46-bb5e-556dfbd2250e"
+role = "builder"
+base = "27499e7476e9a6f36326c8489fa811e869887b44"
+branch = "claude/issue-1176-nine-dependency-bumps"
+scope = [".github/workflows/ci.yml", "Dockerfile", "frontend", "uv.lock"]
+opened_commit = "0cd0069ad1a730e9be1e85093fb75ca75bf2b194"
+whole_reason = "Nine mechanical bumps share two lock files; one lane costs one review and one CI run instead of nine."
