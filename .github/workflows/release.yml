@@ -22,7 +22,7 @@ jobs:
       checks: read
       contents: read
       pull-requests: read
-    uses: overnightworks/quality/.github/workflows/release-gate.yml@0cff5e74b3a9b106490723264468271a23d5579d # v0.24.0
+    uses: overnightworks/quality/.github/workflows/release-gate.yml@95ceb40c3c9b547c41ef2080df446bfa61bf42f0 # v0.25.0
     with:
       version: ${{ inputs.version }}
       form: YYYY.MM.DD.N
@@ -35,7 +35,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: overnightworks/quality/.github/workflows/image.yml@0cff5e74b3a9b106490723264468271a23d5579d # v0.24.0
+    uses: overnightworks/quality/.github/workflows/image.yml@95ceb40c3c9b547c41ef2080df446bfa61bf42f0 # v0.25.0
     with:
       context: .
       file: Dockerfile
@@ -47,7 +47,7 @@ jobs:
     needs: [gate, image]
     permissions:
       contents: write
-    uses: overnightworks/quality/.github/workflows/release-tag.yml@0cff5e74b3a9b106490723264468271a23d5579d # v0.24.0
+    uses: overnightworks/quality/.github/workflows/release-tag.yml@95ceb40c3c9b547c41ef2080df446bfa61bf42f0 # v0.25.0
     with:
       version: ${{ inputs.version }}
       commit: ${{ needs.gate.outputs.commit }}
