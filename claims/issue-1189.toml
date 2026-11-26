@@ -1,0 +1,8 @@
+claim_id = "8107377525d240e38991332dfe4f9691"
+agent = "Claude 2d4ba7f5-c811-4f46-bb5e-556dfbd2250e"
+role = "builder"
+base = "53176eeb5e1e43e5dad9b31f45bfb7d28afd0648"
+branch = "claude/issue-1189-hopin-takes-logline-1-12-0"
+scope = ["pyproject.toml", "src/hopin/agent/speaking.py", "tests", "uv.lock"]
+opened_commit = "350bc459f26dce29f33ea65fca2d03efe87214c5"
+whole_reason = "One dependency pin and the one call site it makes redundant, with the boundary test that proves the trace still arrives."
