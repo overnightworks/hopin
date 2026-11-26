@@ -398,7 +398,9 @@ class TestASessionThatDoesNotOpen:
         [
             pytest.param(error_event(RefusalCode.UNAVAILABLE), VideoFailure.ERROR, id="an-error-event"),
             pytest.param(
-                SessionCreated(session=SessionInfo(id="again", look=ESTABLISHED, video=PICTURE)),
+                SessionCreated(
+                    session=SessionInfo(id="again", look=ESTABLISHED, video=PICTURE, max_queued_audio_seconds=2.0)
+                ),
                 VideoFailure.MALFORMED,
                 id="another-event-than-the-update",
             ),
