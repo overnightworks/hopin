@@ -4,13 +4,12 @@ silent, through a speech service that hears the sponsor's microphone and speaks 
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from agents.member import CONTINUE_SPEAKING_TOOL, SPEAK_TOOL, STOP_SPEAKING_TOOL, PlaceRef
+from agents.member import CONTINUE_SPEAKING_TOOL, STOP_SPEAKING_TOOL, Interrupted, Spoken
 from playwright.sync_api import Page, expect
 from speech_client.realtime_wire import SpeechStarted
 from speech_client.wire import VoiceId
 
-from hopin.agent.tools import CALL_KIND
-from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_TILE, REQUEST_SECONDS
+from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_TILE, REQUEST_SECONDS, call_place
 from tests.e2e.support.hearing_hops import open_person, settle, until  # noqa: F401 - the fixture is used by name
 from tests.e2e.support.people import FORM_FACTORS
 from tests.e2e.support.speaker import SPEAKING_TILE, Speaker, speaking_hopin
@@ -20,6 +19,8 @@ from tests.support.speech_origin import offering
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
+
+    from agents.member import SpeakAnswer, SpeakRefusal
 
     from tests.e2e.support.participation_scene import Scene
     from tests.e2e.support.server import RunningServer
@@ -82,16 +83,19 @@ class HeldAgent:
         self.session.say(SpeechStarted(item_id=item_id, audio_start_ms=0))
         until(
             self.speaker.scene.owner,
-            lambda: self.speaker.window().get("interrupted") == {"id": hold},
+            lambda: self.speaker.window().interrupted == Interrupted(id=hold),
             f"the agent's hold {hold}",
         )
 
     def sponsor_finishes_speaking(self) -> None:
         self.session.say(completed("Ich bin fertig"))
-        until(self.speaker.scene.owner, lambda: "talked_over" not in self.speaker.window(), "the end of the turn")
+        until(self.speaker.scene.owner, lambda: self.speaker.window().talked_over is None, "the end of the turn")
+
+    def speak(self, text: str, interrupted: str | None = None) -> SpeakAnswer | SpeakRefusal:
+        return self.speaker.scene.agent.speak(self.speaker.room, text, interrupted)
 
     def call(self, tool: str, **named: Any) -> dict[str, Any]:
-        place = PlaceRef(kind=CALL_KIND, id=self.speaker.room)
+        place = call_place(self.speaker.room)
         return self.speaker.scene.agent.call(tool, {"place": place.model_dump(), **named})
 
     def sounds_started(self, person: Page) -> list[float]:
@@ -164,7 +168,8 @@ def test_a_person_starting_to_speak_pauses_the_agents_sound_in_every_browser_and
         assert person.evaluate("() => window.soundsStopped") == 0
     window = held.speaker.window()
 
-    assert (window["interrupted"], window["talked_over"]["playing"], window["entries"]) == ({"id": "1"}, False, [])
+    assert window.talked_over is not None
+    assert (window.interrupted, window.talked_over.playing, window.entries) == (Interrupted(id="1"), False, ())
 
     settle(held.speaker.scene.owner)
     held.speaker.scene.owner.wait_for_timeout(int(SENTENCE_SECONDS * 1000))
@@ -176,14 +181,14 @@ def test_a_person_starting_to_speak_pauses_the_agents_sound_in_every_browser_and
 def test_while_held_a_speak_with_the_hold_plays_after_the_cut_line(held: HeldAgent) -> None:
     """CALL-69: A `speak` with the hold's id drops the held rest, plays at once in every browser and enters its line
     after the cut line of the held sentence."""
-    answered = held.call(SPEAK_TOOL, text=ANSWERING_SENTENCE, interrupted="1")
+    answered = held.speak(ANSWERING_SENTENCE, interrupted="1")
 
     for person in held.everyone:
         person.wait_for_function("() => window.soundsStarted.length === 2", timeout=PLAYBACK_WAIT_MILLISECONDS)
         assert person.evaluate("() => window.soundsStopped") > 0
     window = held.speaker.window()
-    assert answered == {"spoken": True}
-    assert ("interrupted" in window, [(line["text"], line["cut"]) for line in window["entries"]]) == (
+    assert answered == Spoken(spoken=True)
+    assert (window.interrupted is not None, [(line.text, line.cut) for line in window.entries]) == (
         False,
         [(HELD_SENTENCE, True)],
     )
@@ -198,13 +203,13 @@ def test_while_held_a_stop_with_the_hold_ends_silent_and_a_later_speak_sounds(he
     window = held.speaker.window()
     settle(held.speaker.scene.owner)
     silent = [held.sounds_started(person) for person in held.everyone]
-    held.call(SPEAK_TOOL, text=ANSWERING_SENTENCE)
+    held.speak(ANSWERING_SENTENCE)
 
     for person in held.everyone:
         person.wait_for_function("() => window.soundsStarted.length === 2", timeout=PLAYBACK_WAIT_MILLISECONDS)
         expect(person.locator(AGENT_TILE)).to_have_class(SPEAKING_TILE)
     assert stopped == {"cut": HELD_SENTENCE}
-    assert ("interrupted" in window, silent) == (False, [[SENTENCE_SECONDS]] * len(held.everyone))
+    assert (window.interrupted is not None, silent) == (False, [[SENTENCE_SECONDS]] * len(held.everyone))
 
 
 def continue_and_check_the_same_sound_goes_on(
@@ -218,17 +223,17 @@ def continue_and_check_the_same_sound_goes_on(
         after_the_continue(person)
     until(
         held.speaker.scene.owner,
-        lambda: [line["text"] for line in held.speaker.window()["entries"]] == [HELD_SENTENCE],
+        lambda: [line.text for line in held.speaker.window().entries] == [HELD_SENTENCE],
         "the held sentence's line",
     )
     for person in held.everyone:
         person.wait_for_function("() => window.soundsStarted.length === 2", timeout=PLAYBACK_WAIT_MILLISECONDS)
-    entries = held.speaker.window()["entries"]
+    entries = held.speaker.window().entries
     assert continued == {"continued": True}
-    assert ("interrupted" in window, [(line["text"], line.get("cut", False)) for line in entries]) == (
+    assert (window.interrupted is not None, [(line.text, line.cut) for line in entries]) == (
         (False, [(HELD_SENTENCE, False)])
     )
-    assert held.second_answer.result(REQUEST_SECONDS) == {"spoken": True}
+    assert held.second_answer.result(REQUEST_SECONDS) == Spoken(spoken=True)
     assert [held.sounds_started(person) for person in held.everyone] == [[SENTENCE_SECONDS] * 2] * len(held.everyone)
     assert [person.evaluate("() => window.soundsStopped") for person in held.everyone] == [0] * len(held.everyone)
 

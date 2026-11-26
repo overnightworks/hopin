@@ -78,7 +78,7 @@ class Scene:
     def agent_listens(self) -> None:
         """The agent opens its stream, which registers it, so a member's seat is offered it; it holds no place yet."""
         self.agent.listen()
-        assert self.agent.standings() == []
+        assert self.agent.standings() == ()
 
     def member_adds_and_the_agent_accepts(
         self,
@@ -98,13 +98,12 @@ class Scene:
         """The member adds the agent from its offer and the agent accepts the invitation, naming the voices it would
         speak with if it has some."""
         self.member_adds(agent)
-        accepted = agent.accept(agent.invitation_within(INVITATION_WAKE_SECONDS), figure, voices, looks)
-        assert accepted["name"] == agent.name
+        agent.accept(agent.invitation_within(INVITATION_WAKE_SECONDS), figure=figure, voices=voices, looks=looks)
 
     def member_adds(self, agent: OwnAccountAgent) -> None:
         """The agent opens its stream and the adder adds it from its offer, which then shows the invitation."""
         agent.listen()
-        assert agent.standings() == []
+        assert agent.standings() == ()
         open_more(self.adder)
         offer = self.offer_of(self.adder, agent)
         expect(offer).to_have_count(1)
