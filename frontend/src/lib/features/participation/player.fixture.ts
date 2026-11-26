@@ -27,7 +27,7 @@ async function settled() {
     await Promise.resolve();
 }
 
-/** The players a feature created, in order, and the `createPlayer` that creates them. Like the player, a pause holds every sound where it is: a sound handed over meanwhile starts only at `resume`, one that plays does not play out, and a stop ends them at once and leaves the pause standing. */
+/** The players a feature created, in order, and the `createPlayer` that creates them. Like the player, a pause holds every sound where it is: a sound handed over meanwhile starts only at `resume`, one that plays does not play out, and a stop ends them at once and leaves the pause standing. It runs no sound to a position, so a hold the app asks for with `pauseAt` never comes. */
 export function fakePlayers() {
     const created: FakePlayer[] = [];
     const createPlayer = (): Player => {
@@ -80,13 +80,11 @@ export function fakePlayers() {
             // Like the player: muting ends every sound handed over so far muted, clears a pause, and a sound handed over while muted ends muted at once.
             setMuted: (muted) => {
                 fake.muted = muted;
-                if (muted) {
-                    fake.paused = false;
-                    fake.held.length = 0;
-                    for (const muteSound of fake.mutes.splice(0)) void muteSound();
-                }
+                if (!muted) return;
+                fake.paused = false;
+                fake.held.length = 0;
+                for (const muteSound of fake.mutes.splice(0)) void muteSound();
             },
-            // The fake runs no sound to a position, so a hold the app asks for never comes.
             pauseAt: () => Promise.resolve({ kind: "overtaken" }),
             pause: () => {
                 fake.paused = true;
