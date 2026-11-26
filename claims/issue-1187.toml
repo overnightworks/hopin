@@ -1,8 +1,0 @@
-claim_id = "f2b9a58c2aca4416a8956f4a91aa8b02"
-agent = "Claude 2d4ba7f5-c811-4f46-bb5e-556dfbd2250e"
-role = "builder"
-base = "f1d02892bae3e3dbdb1b18896f5623f7ba62b311"
-branch = "claude/issue-1187-hopin-takes-speech-0-26-0"
-scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/features/participation/player.fixture.ts", "frontend/src/lib/features/participation/voice.test.ts", "pyproject.toml", "tests/game/test_voice_speech.py", "tests/participation/test_hearing_trace.py", "uv.lock"]
-opened_commit = "d1baabd9003c15bfebf4168742d73fbb76d252c3"
-whole_reason = "One release's two pins, the Python client with its logline floor and the browser tarball, move together with their lockfiles and the fake the new type needs."
