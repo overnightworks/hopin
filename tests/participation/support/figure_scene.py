@@ -1,5 +1,6 @@
 """The scene of an agent that offers a figure: the figure origin behind the transport port, the accept with or without
-one, and the agent joined with a shown figure."""
+one, and the agent joined with a shown figure; the accept goes over the raw wire, so its figure and looks may be what a
+typed client never sends."""
 
 from agents.member import ACCEPT_INVITATION_TOOL
 

@@ -1,13 +1,11 @@
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from agents.member import STANDING_URI
 from playwright.sync_api import Page, expect
 
 from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, room_of_link
 from tests.e2e.support.hearing_hops import Hops, open_person, settle, until  # noqa: F401 - the fixture is used by name
 from tests.e2e.support.people import FORM_FACTORS
-from tests.support.dialed_call import window_uri
 from tests.support.fake_speech import a_sentence
 
 if TYPE_CHECKING:
@@ -61,7 +59,7 @@ class Sponsor:
         self.speech = speech
         self.sessions_before = len(speech.sessions)
         scene.member_adds_and_the_agent_accepts()
-        self.agent.listen([STANDING_URI, window_uri(self.room)])
+        self.agent.listen()
 
     def press_the_switch(self) -> None:
         self.page.locator(SWITCH).click()
@@ -70,8 +68,7 @@ class Sponsor:
         return self.speech.next_session(self.sessions_before + number)
 
     def heard(self) -> list[tuple[str, str, str, bool]]:
-        window = self.agent.read(window_uri(self.room))
-        return [(line["kind"], line["name"], line["text"], line["spoken"]) for line in window["entries"]]
+        return [(line.kind, line.name, line.text, line.spoken) for line in self.agent.window(self.room).entries]
 
 
 @pytest.fixture
@@ -98,7 +95,7 @@ def test_the_sponsors_sentence_reaches_the_agent_and_no_one_else_opens_a_hop(spo
     for event in a_sentence(SENTENCE):
         session.say(event)
 
-    assert sponsor.agent.woken_within(WAKE_SECONDS)
+    assert sponsor.agent.woken_by_window_within(sponsor.room, WAKE_SECONDS)
     assert sponsor.heard() == [("person", sponsor.name, SENTENCE, True)]
     until(sponsor.page, lambda: len(sponsor.hops.opened) == 1, "the sponsor's hop")
     settle(sponsor.page)

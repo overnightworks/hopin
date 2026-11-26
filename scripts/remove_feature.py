@@ -61,7 +61,7 @@ STAGE = Removal(
 )
 REMOVALS = {"game": GAME, "stage": STAGE}
 # The client stays for the MCP connector; only the extra that carries its HTTP library to the gateway goes.
-CLIENT_EXTRAS = ("[backend,mcp-server,redis]", "[mcp-server,redis]")
+CLIENT_EXTRAS = ("[backend,mcp-client,mcp-server,redis]", "[mcp-client,mcp-server,redis]")
 REPOSITORY = Path(__file__).resolve().parent.parent
 
 

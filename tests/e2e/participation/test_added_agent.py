@@ -2,7 +2,7 @@ import secrets
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from agents.member import LISTEN_ALLOWANCE_SECONDS
+from agents.member import LISTEN_ALLOWANCE_SECONDS, StandingState
 from design.words import text as kit_text
 from playwright.sync_api import Page, expect
 
@@ -50,13 +50,13 @@ def test_a_member_adds_the_owners_agent_its_tile_shows_the_name_and_the_mark_and
         expect(tile.locator(".ai-badge")).to_be_visible()
         expect(tile.locator(".sponsor")).to_have_text(OWNER_USERNAME)
     expect(scene.member.locator(AGENT_TILE + " " + REMOVE)).to_have_count(0)
-    assert [standing["state"] for standing in scene.agent.standings()] == ["active"]
+    assert [standing.state for standing in scene.agent.standings()] == [StandingState.ACTIVE]
 
     scene.host.locator(AGENT_TILE + " " + REMOVE).click()
 
     for person in scene.everyone:
         expect(person.locator(AGENT_TILE)).to_have_count(0)
-    assert scene.agent.standings() == []
+    assert scene.agent.standings() == ()
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -102,6 +102,7 @@ def test_another_agents_stream_is_not_woken_by_this_agents_invitation(
         scene.member_adds_and_the_agent_accepts()
 
         assert not bystander.woken_within(QUIET_SECONDS)
+        assert bystander.tools_notices() == 0
     finally:
         bystander.close()
 
@@ -116,7 +117,7 @@ def test_the_agent_leaves_when_its_owner_leaves_for_good(scene_of: Callable[[dic
 
     for person in (scene.host, scene.member):
         expect(person.locator(AGENT_TILE)).to_have_count(0)
-    assert scene.agent.standings() == []
+    assert scene.agent.standings() == ()
 
 
 def test_an_agent_that_declines_as_busy_shows_the_adder_the_busy_row_and_the_owner_none(
@@ -132,7 +133,7 @@ def test_an_agent_that_declines_as_busy_shows_the_adder_the_busy_row_and_the_own
     expect(scene.offer_of_agent(scene.member)).to_contain_text(kit_text("de", "agent.busy"))
     expect(scene.offer_of_agent(scene.member).get_by_role("button")).to_have_count(0)
     expect(scene.offers_on(scene.owner)).to_have_count(0)
-    assert scene.agent.standings() == []
+    assert scene.agent.standings() == ()
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -151,7 +152,7 @@ def test_an_invitation_whose_owner_left_before_the_agent_joined_shows_the_adder_
 
     expect(scene.offer_of_agent(scene.member)).to_have_count(1)
     expect(scene.offer_of_agent(scene.member)).not_to_contain_text(kit_text("de", "agent.ownerAbsent"))
-    assert scene.agent.standings() == []
+    assert scene.agent.standings() == ()
 
 
 def test_a_member_outside_the_adders_group_is_offered_no_add(

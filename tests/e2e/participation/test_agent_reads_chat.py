@@ -2,7 +2,6 @@ import re
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from agents.member import STANDING_URI
 from playwright.sync_api import expect
 
 from hopin.agent.tools import SAY
@@ -12,14 +11,13 @@ from tests.e2e.support.calls import (
 )
 from tests.e2e.support.dialed_agent import room_of_link
 from tests.e2e.support.people import FORM_FACTORS
-from tests.support.dialed_call import window_uri
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from playwright.sync_api import Page
 
-    from tests.e2e.support.dialed_agent import OwnAgent
+    from tests.e2e.support.dialed_agent import OwnAccountAgent, OwnAgent
     from tests.e2e.support.mesh_pair import ConnectedPair
     from tests.e2e.support.participation_scene import Scene
     from tests.e2e.support.server import RunningServer
@@ -32,9 +30,8 @@ READERS_NOTE = "#chatReaders"
 HEARD_LINE = "#chatMessages .chat-msg.other"
 
 
-def lines_read(agent: Any, room: str) -> list[tuple[Any, ...]]:
-    window = agent.read(window_uri(room))
-    return [(line["seq"], line["kind"], line["name"], line["text"], line["own"]) for line in window["entries"]]
+def lines_read(agent: OwnAgent | OwnAccountAgent, room: str) -> list[tuple[Any, ...]]:
+    return [(line.seq, line.kind, line.name, line.text, line.own) for line in agent.window(room).entries]
 
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
@@ -52,17 +49,17 @@ def test_call_54_an_agent_with_an_account_of_its_own_is_woken_by_a_line_and_read
     expect(scene.member.locator(CHAT_LINE)).to_have_count(1)
     scene.member.click("#chatClose")
     scene.member_adds_and_the_agent_accepts()
-    agent.listen([STANDING_URI, window_uri(room)])
+    agent.listen()
     expect(scene.host.locator(READERS_NOTE)).to_contain_text(agent.name)
 
     say_in_chat(scene.host, "hello agent")
 
-    assert agent.woken_within(WAKE_SECONDS)
+    assert agent.woken_by_window_within(room, WAKE_SECONDS)
     host_name = member_of(scene.host).account.username
     assert lines_read(agent, room) == [(1, "person", host_name, "hello agent", False)]
     agent.forget_wakes()
     agent.call(SAY, {"room": room, "text": "hello people"})
-    assert agent.woken_within(WAKE_SECONDS)
+    assert agent.woken_by_window_within(room, WAKE_SECONDS)
     assert lines_read(agent, room)[1:] == [(2, "agent", agent.name, "hello people", True)]
 
 
@@ -80,13 +77,13 @@ def test_call_54_a_persons_own_agent_is_woken_by_a_line_and_reads_it(
     room = room_of_link(link)
     agent = own_agent_of(member_of(host).account.id)
     agent.dial_in(room, "Claude")
-    agent.listen([window_uri(room)])
+    agent.listen(room)
     guest.click("#chatBtn")
     expect(guest.locator(READERS_NOTE)).to_contain_text("Claude")
 
     say_in_chat(guest, "hello agent")
 
-    assert agent.woken_within(WAKE_SECONDS)
+    assert agent.woken_by_window_within(room, WAKE_SECONDS)
     assert lines_read(agent, room) == [(1, "person", member_of(guest).account.username, "hello agent", False)]
 
 
@@ -100,7 +97,7 @@ def test_call_71_a_line_said_in_a_cut_reaches_people_at_once_and_the_agent_once_
     room = room_of_link(connected_pair.invite_link)
     agent = own_agent_of(member_of(host).account.id)
     agent.dial_in(room, "Claude")
-    agent.listen([window_uri(room)])
+    agent.listen(room)
     guest.click("#chatBtn")
     expect(guest.locator(READERS_NOTE)).to_contain_text("Claude")
 
@@ -109,5 +106,5 @@ def test_call_71_a_line_said_in_a_cut_reaches_people_at_once_and_the_agent_once_
         expect(host.locator(HEARD_LINE)).to_have_text([re.compile("said in the cut$")])
         assert lines_read(agent, room) == []
 
-    assert agent.woken_within(WAKE_SECONDS)
+    assert agent.woken_by_window_within(room, WAKE_SECONDS)
     assert lines_read(agent, room) == [(1, "person", member_of(guest).account.username, "said in the cut", False)]
