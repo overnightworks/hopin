@@ -31,4 +31,4 @@ Gaps of the start link, each with its consequence:
 
 Deferred: the operator's ruling B, each player's video at that player's chair, belongs to the slice 2b of overnightworks/hopin#499; until then every video is in the strip.
 
-An entry's `name` is stable (README's Configuration table says so): it is the app's own contract token, written into the label of its person keys, `hallucinai/<name>/person-key/v1` (byte for byte what Skat writes for `skat`), and into the app's links, so renaming an entry empties every chair of the app. The label is built where seats are placed, which belongs to the slice 2b of overnightworks/hopin#499 with the rest of the chairs.
+An entry's `name` is stable (`docs/configuration.md` says so): it is the app's own contract token, written into the label of its person keys, `hallucinai/<name>/person-key/v1` (byte for byte what Skat writes for `skat`), and into the app's links, so renaming an entry empties every chair of the app. The label is built where seats are placed, which belongs to the slice 2b of overnightworks/hopin#499 with the rest of the chairs.
