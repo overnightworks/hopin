@@ -238,7 +238,7 @@ def test_a_name_and_an_answer_with_special_characters_come_back_exactly_as_one_e
 
 
 def test_the_next_rounds_transcript_still_holds_the_reveal_request_with_its_answers():
-    """GM-24: The next rounds transcript still holds the reveal request with its answers."""
+    """GM-24, GM-43: The next rounds transcript still holds the reveal request with its answers."""
     quiz = open_question().with_answer(STARTER, "Sam", "Tejo").revealing().heard("Sam hat recht.", PLAYERS)
 
     assert answers_in_reveal(quiz.transcript[-3].text) == [{"name": "Sam", "antwort": "Tejo"}]

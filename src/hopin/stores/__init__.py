@@ -16,5 +16,5 @@ sign-in lock erases a person's sessions and account (`identity.py`: `erase`). Ro
 process memory. The windows expire with their window (at most 10 minutes) and hold a counted address and no
 name. The agent connector's member-place records in the same Redis hold a principal and a resource address, never
 content, and lapse within a listen's bound. What HopIn holds about a person, and what an admin may download, is in the
-README under A Person's Data.
+docs/person-data.md.
 """

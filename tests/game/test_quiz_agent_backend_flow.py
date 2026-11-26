@@ -161,7 +161,7 @@ def test_a_mute_during_a_held_run_reaches_the_others_and_never_the_agent(call):
 
 
 def test_the_reveal_request_carries_each_given_answer_with_its_players_name_and_nothing_else_of_the_call(call):
-    """GM-21, GM-26: The reveal request carries each given answer with its players name and nothing else of the call."""
+    """GM-21, GM-26, GM-43: The reveal request carries each given answer with its players name."""
     host_member, guest_member, third_member = call.member(), call.member(), call.member()
     host, created = call.seat(host_member)
     guest, _ = call.seat(guest_member, created["room_id"])

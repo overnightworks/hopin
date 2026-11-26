@@ -393,7 +393,7 @@ class TestNothingLeaksIntoLogs:
     async def test_neither_a_token_nor_a_group_path_nor_the_game_text_reaches_a_log_or_the_outcome(
         self, world, stdlib_records, answer
     ):
-        """GM-20: Neither a token nor a group path nor the game text reaches a log or the outcome."""
+        """GM-20, GM-44: Neither a token nor a group path nor the game text reaches a log or the outcome."""
         sentinel = f"Sentinel-Frage {secrets.token_hex(8)}?"
         group = f"/scenario/{secrets.token_hex(8)}"
         starter, member = world.starter()
