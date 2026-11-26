@@ -17,7 +17,7 @@
 ## Rules
 
 - A `wire.ts` under `frontend/src/lib` is generated; change the Python wire owner and run `make wire`, never edit the file.
-- A setting added to or changed in `src/hopin/config/settings.py` updates README's Configuration table in the same change.
+- A setting added to or changed in a settings class under `src/hopin` updates docs/configuration.md in the same change.
 - The scanner marker traps are in the `sonar-distributor` skill, section "Marker grammar".
 - A page text lives in the catalog: change `frontend/src/lib/catalogs/de.po` and run `make catalogs`, never edit a generated module.
 
@@ -28,7 +28,8 @@
 
 ## Documents
 
-- `README.md`: read for what hopin offers, setup, configuration and the release path.
+- `README.md`: read for what hopin offers, setup and the release path.
+- `docs/configuration.md`: read for what each setting does, its default and its form.
 - `docs/VISION.md`: read to know what hopin is and deliberately is not.
 - `docs/ARCHITECTURE.md`: read before changing parts, a call's flow or the trust model.
 - `docs/call.md`: read before changing a call's behaviour; it maps each rule to its test.
