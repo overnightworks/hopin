@@ -209,7 +209,7 @@ jobs:
       - name: Run the end-to-end tests
         timeout-minutes: 10
         env:
-          COVERAGE_FILE: .coverage.e2e-${{ matrix.shard }}
+          COVERAGE_FILE: .coverage.e2e-${{ strategy.job-index }}
           HOPIN_E2E_SHARD: ${{ strategy.job-index }}
           HOPIN_E2E_SHARDS: ${{ strategy.job-total }}
           HOPIN_BROWSER_COVERAGE_DIR: ${{ runner.temp }}/browser-coverage-raw
@@ -220,8 +220,8 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: coverage-data-e2e-${{ matrix.shard }}
-          path: .coverage.e2e-${{ matrix.shard }}
+          name: coverage-data-e2e-${{ strategy.job-index }}
+          path: .coverage.e2e-${{ strategy.job-index }}
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
@@ -230,7 +230,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: browser-coverage-raw-${{ matrix.shard }}
+          name: browser-coverage-raw-${{ strategy.job-index }}
           path: ${{ runner.temp }}/browser-coverage-raw
           if-no-files-found: error
           retention-days: 1
@@ -239,7 +239,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-results-${{ matrix.shard }}
+          name: e2e-results-${{ strategy.job-index }}
           path: test-results
           if-no-files-found: ignore
           retention-days: 1
@@ -510,7 +510,6 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
-
 
   frontend:
     name: Frontend
