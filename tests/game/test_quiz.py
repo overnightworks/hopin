@@ -367,7 +367,7 @@ def test_a_reveal_nobody_answered_is_judged_by_no_verdicts_and_adds_no_score():
 
 
 def test_the_reveal_request_numbers_the_given_answers_from_one_in_their_order():
-    """GM-40: The reveal request numbers the given answers from one, which the verdicts name."""
+    """GM-40, GM-43: The reveal request numbers the given answers from one, which the verdicts name."""
     request = answered_by_two().revealing().transcript[-1].text
 
     assert [answer["nr"] for answer in json.loads(request.split("\n")[1])] == [1, 2]
