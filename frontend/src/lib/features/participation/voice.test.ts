@@ -221,11 +221,11 @@ describe("holding an agent's voice", () => {
         const { players, reported, agentVoices, sound } = await speakingAgent();
 
         agentVoices.pause("a1");
-        await sound?.end({ kind: "played", playedSeconds: 1 });
         const whilePaused = [...reported];
         agentVoices.resume("a1");
         await Promise.resolve();
         await Promise.resolve();
+        await sound?.end({ kind: "played", playedSeconds: 1 });
 
         expect([players.created[0]?.paused, whilePaused, reported]).toEqual([
             false,
