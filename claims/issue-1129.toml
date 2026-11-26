@@ -1,5 +1,5 @@
 claim_id = "31949e34e2b14d55943af94474136163"
-agent = "Claude d5675b31-a45d-4271-bf2b-646107f6a4c5"
+agent = "Claude 2d4ba7f5-c811-4f46-bb5e-556dfbd2250e"
 role = "builder"
 base = "df8e0525606ead4f133869be37976b965c69d2e0"
 branch = "claude/issue-1129-hopin-decides-a-call-an-invitation-s-acc"
