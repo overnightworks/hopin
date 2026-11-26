@@ -40,7 +40,9 @@
             type="button"
             onclick={() => {
                 table.remove();
-            }}>{words["stage.removeButton"]}</button
+            }}
         >
+            {words["stage.removeButton"]}
+        </button>
     {/if}
 </div>
