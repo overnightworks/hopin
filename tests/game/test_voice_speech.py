@@ -3,6 +3,7 @@ import secrets
 
 import pytest
 from logline import Outcome, unit_trace
+from logline.testing import configured
 from speech_client.wire import (
     AUTHORIZATION_HEADER,
     SPEECH_PATH,
@@ -117,7 +118,7 @@ class TestSpeaking:
 
         trace_id = secrets.token_hex(16)
 
-        with unit_trace(f"00-{trace_id}-{secrets.token_hex(8)}-01"):
+        with configured("hopin"), unit_trace(f"00-{trace_id}-{secrets.token_hex(8)}-01"):
             await voice_of(world, origin).speak(starter, TEXT)
 
         [request] = origin.requests
