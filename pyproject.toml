@@ -7,7 +7,7 @@ dependencies = [
     "alembic>=1.16",
     "fastapi>=0.123.7",
     "overnightworks-agents[backend,mcp-client,mcp-server,redis] @ git+https://github.com/overnightworks/agents@v0.78.0",
-    "overnightworks-logline @ git+https://github.com/overnightworks/logline@v1.11.0",
+    "overnightworks-logline @ git+https://github.com/overnightworks/logline@v1.12.0",
     "overnightworks-speech-client @ git+https://github.com/overnightworks/speech@v0.26.0#subdirectory=packages/client",
     "overnightworks-tandem @ git+https://github.com/overnightworks/tandem@v0.17.0",
     "overnightworks-video-client @ git+https://github.com/overnightworks/video@v0.4.0#subdirectory=packages/client",
