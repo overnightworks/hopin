@@ -329,7 +329,7 @@ def test_the_scores_add_up_over_the_rounds_and_a_player_who_skips_a_round_keeps_
 
 
 def test_the_final_score_request_carries_the_counted_score_for_the_game_master_to_state():
-    """GM-40: The final score request carries the counted score."""
+    """GM-24, GM-40: The final score request carries the counted score."""
     quiz = open_question().with_answer(STARTER, "Sam", "Tejo").revealing()
     for _ in range(QUIZ_ROUNDS - 1):
         quiz = quiz.heard("A.", PLAYERS, judged(Judgement.CORRECT)).heard("Frage?", PLAYERS)
