@@ -121,7 +121,6 @@ class TestThePerson:
         assert world.backend.runs == []
 
     async def test_a_refresh_grant_without_an_id_token_is_unavailable_and_its_rotation_is_stored(self, world):
-        """GM-20: A run cancelled during its refresh grant stores the rotation and starts no turn."""
         starter, member = world.starter()
         seeded = world.stores.sessions.load(member.session.id).refresh_token.get_secret_value()
         world.issuer.omits_the_id_token_of_a_refresh_grant = True
@@ -154,6 +153,7 @@ class TestThePerson:
 
 class TestHeldGrants:
     async def test_a_run_cancelled_during_its_refresh_grant_stores_the_rotation_and_starts_no_turn(self, world):
+        """GM-20: A run cancelled during its refresh grant stores the rotation and starts no turn."""
         starter, member = world.starter()
         seeded = world.stores.sessions.load(member.session.id).refresh_token.get_secret_value()
         hold = world.issuer.hold("refresh_token")
