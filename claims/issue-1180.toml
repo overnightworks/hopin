@@ -1,0 +1,8 @@
+claim_id = "4d70907ae42647319fd68de3b7554b38"
+agent = "Claude 2d4ba7f5-c811-4f46-bb5e-556dfbd2250e"
+role = "builder"
+base = "d4bd8669b2f5bcf0cef62bcfb7722a0a8a60a334"
+branch = "claude/issue-1180-configuration-reference"
+scope = ["AGENTS.md", "README.md", "docs/configuration.md", "docs/stage.md"]
+opened_commit = "fe74c22d9617e54d525eef7bd5f980ee8eaa30a2"
+whole_reason = "One move of one section: the table, the rule that names its owner and the pointers to it change together."
