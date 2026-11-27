@@ -26,8 +26,8 @@ Each tool serves one kind of agent or both; a call to the wrong kind is refused 
 | `leave_call(room)` | both | Acts only on a joined place |
 | `say(room, text)` | both | Answers `{}`; every seat reads the line under the agent's name with the AI mark, 1 to 600 characters with no control character, else `bad_line` or (no joined place there, an invited agent included) `gone`, for the agent alone; no log line carries the text (CALL-53) |
 | `speak(place, text)` | both | Answers `{duration_ms}` and tells every seat the sentence's voice in order (CALL-60), or `{written: true}` when the voice fails and the sentence stands in the chat as the agent's line instead (CALL-61); `not_active`, `too_long`, `unavailable`, `language_unavailable`, `style_unavailable`, `stopped`, `held` and `not_interrupted` go to the agent alone |
-| `stop_speaking`, `continue_speaking` | both | Cut or go on with what a person's speaking over the agent held (CALL-60, CALL-61) |
-| `gesture`, `set_framing`, `set_turn_state` | both | Show the agent's figure moving, its framing and whether a turn runs (CALL-56, CALL-77); offered while the agent shows a figure |
+| `stop_speaking`, `continue_speaking` | both | Cut or go on with what a person's speaking over the agent held (CALL-60, CALL-69, CALL-70) |
+| `gesture`, `set_framing`, `set_turn_state` | both | Show the agent's figure moving, its framing and whether a turn runs (CALL-56, CALL-68, CALL-73, CALL-77); offered while the agent shows a figure |
 | `look(place)` | both | One still picture of the person's own camera, only once the person has switched „Agent darf mich sehen“ on its tile, which starts off for every agent and which only the person turns on: one JPEG of at most 1280 px, kept only until it is handed over, never stored or logged, at most 6 looks a minute; the agent's tile shows a mark at each look (CALL-62, CALL-63) |
 
 `join_call` and `accept_invitation` join a call only while it has a place free: agents take places of the call like people (`HOPIN_MAX_PARTICIPANTS_PER_ROOM`, CALL-47), so a join answers `busy` only when the call has no place free.
