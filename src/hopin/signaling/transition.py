@@ -7,7 +7,7 @@ Work a transition dispatched runs beside the call, and its results re-enter the 
 Each hook reads the room's view (`RoomView`: its seats and their accounts and names, its hosts, its parked seats,
 whether an agent place is free and the feature's own `Section` of state in that room), puts state, takes or frees agent
 places and sends frames only through its `Transition`, and does no other work. The store (`InMemoryCallStore`, one
-process's rooms and seats) commits both in one synchronous step, and a hook that raises commits neither. Only then are
+process's rooms and seats) commits both without ever suspending, and a hook that raises commits neither. Only then are
 the seats it sent to woken, each writing its logged frames in the order of their seq.
 
 - A transition may follow itself with another hook, which reads the room as the first one left it; the seats of both
@@ -313,7 +313,7 @@ class WorkRoom(Protocol):
 
 class InMemoryCallStore:
     """A process's calls behind the transition contract: the rooms and seats the call core keeps and the features'
-    sections. A commit applies in one synchronous step, so no other transition runs between its load and its commit."""
+    sections. A commit never suspends, so no other transition runs between its load and its commit."""
 
     def __init__(
         self,
