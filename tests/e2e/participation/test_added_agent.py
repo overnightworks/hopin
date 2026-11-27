@@ -158,12 +158,13 @@ def test_an_invitation_whose_owner_left_before_the_agent_joined_shows_the_adder_
     assert scene.agent.standings() == ()
 
 
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_an_owner_away_row_of_an_agent_that_is_not_listed_goes_when_its_outcome_has_run_out(
-    scene_of: Callable[[dict[str, Any]], Scene],
+    scene_of: Callable[[dict[str, Any]], Scene], form_factor: dict[str, Any]
 ) -> None:
     """CALL-52: After the kit's outcome has run out, the row of an agent the seat is no longer offered shows no call
     key; the row goes."""
-    scene = scene_of(DESKTOP)
+    scene = scene_of(form_factor)
     scene.member_adds(scene.agent)
     scene.owner.click(LEAVE)
     expect(scene.offer_of_agent(scene.member)).to_contain_text(kit_text("de", "agent.ownerAbsent"))
