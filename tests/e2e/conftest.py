@@ -1,9 +1,12 @@
+import logging
 import os
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 import pytest
+import structlog.testing
 from webauth.admission import AppRole
 from webauth.ports import AccountKind
 
@@ -208,3 +211,40 @@ def connect_pair(open_person: Callable[..., Page], base_url: str) -> Iterator[Ca
 @pytest.fixture
 def connected_pair(connect_pair: Callable[..., ConnectedPair]) -> ConnectedPair:
     return connect_pair()
+
+
+_RECORD_ATTRIBUTES = frozenset(vars(logging.makeLogRecord({}))) | {"message", "asctime"}
+
+
+class _EventCollector(logging.Handler):
+    """Writes each standard-library record as the event it names and the fields it carries, like structlog's capture."""
+
+    def __init__(self, events: list[dict[str, Any]]) -> None:
+        super().__init__(logging.INFO)
+        self._events = events
+
+    def emit(self, record: logging.LogRecord) -> None:
+        fields = {name: value for name, value in vars(record).items() if name not in _RECORD_ATTRIBUTES}
+        self._events.append({"event": record.getMessage(), **fields})
+
+
+@contextmanager
+def _standard_library_events(events: list[dict[str, Any]]) -> Iterator[None]:
+    logger = logging.getLogger("hopin")
+    level = logger.level
+    collector = _EventCollector(events)
+    logger.setLevel(logging.INFO)
+    logger.addHandler(collector)
+    try:
+        yield
+    finally:
+        logger.removeHandler(collector)
+        logger.setLevel(level)
+
+
+@pytest.fixture
+def server_logs() -> Iterator[list[dict[str, Any]]]:
+    """The server's log events from before the call is set up until the test ends, the structlog ones and the step
+    lines `logline.StepTimer` writes through the standard library alike."""
+    with structlog.testing.capture_logs() as logs, _standard_library_events(logs):
+        yield logs
