@@ -6,9 +6,10 @@ import json
 import pytest
 import structlog.testing
 from agents.calling import CallOutcome
+from agents.mcp_server.listen import ResourceChanges
 from agents.member import ACCEPT_INVITATION_TOOL, DECLINE_INVITATION_TOOL, STANDING_URI, PlaceRef, place_window_uri
 
-from hopin.agent.mcp import OFFERS_RECOMPUTE_TASK_NAME
+from hopin.agent.mcp import OFFERS_RECOMPUTE_TASK_NAME, PLACE_SIGNAL_FAILED_EVENT, PLACE_SIGNAL_TASK_NAME
 from hopin.config.constants import MAX_PARTICIPANTS_PER_ROOM
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
@@ -296,16 +297,16 @@ class TestTheStandingResource:
         assert (error["message"], uri in answer.text) == ("Unknown resource", False)
 
 
-def _running_recomputes():
-    return [task for task in asyncio.all_tasks() if task.get_name() == OFFERS_RECOMPUTE_TASK_NAME]
+def _running(task_name):
+    return [task for task in asyncio.all_tasks() if task.get_name() == task_name]
 
 
-async def let_recomputes_end():
-    """Wait until every recompute that a listen change started has ended. A failed one returns its error here, and
+async def let_tasks_end(task_name):
+    """Wait until every task of that name that a change started has ended. A failed one returns its error here, and
     hopin has logged it by then: its done callback runs before the gather resumes."""
     async with asyncio.timeout(SETTLE_TIMEOUT_SECONDS):
-        while recomputes := _running_recomputes():
-            await asyncio.gather(*recomputes, return_exceptions=True)
+        while running := _running(task_name):
+            await asyncio.gather(*running, return_exceptions=True)
 
 
 class TestTheOffersAfterAListenChange:
@@ -318,6 +319,19 @@ class TestTheOffersAfterAListenChange:
         monkeypatch.setattr(Participation, "listening_changed", fail)
         with structlog.testing.capture_logs() as logs:
             scene.call.listen(other, [STANDING_URI])
-            scene.call.client.portal.call(let_recomputes_end)
+            scene.call.client.portal.call(let_tasks_end, OFFERS_RECOMPUTE_TASK_NAME)
 
         assert RECOMPUTE_FAILED_EVENT in [entry["event"] for entry in logs]
+
+
+class TestAPlaceSignalThatFails:
+    def test_a_signal_that_fails_beyond_the_store_is_logged_by_hopin_once_it_ends(self, scene, monkeypatch):
+        async def fail(_changes, _principal, _uri):
+            raise RuntimeError("the signal cannot be sent")
+
+        monkeypatch.setattr(ResourceChanges, "changed", fail)
+        with structlog.testing.capture_logs() as logs:
+            scene.invite()
+            scene.call.client.portal.call(let_tasks_end, PLACE_SIGNAL_TASK_NAME)
+
+        assert PLACE_SIGNAL_FAILED_EVENT in [entry["event"] for entry in logs]

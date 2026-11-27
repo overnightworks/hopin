@@ -47,7 +47,7 @@ def redis_answers(client: Redis) -> bool:
     try:
         return bool(client.ping())
     except RedisError:
-        logger.warning("redis_not_answering")
+        logger.warning("redis.refused", reason="not_answering")
         return False
 
 
