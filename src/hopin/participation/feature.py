@@ -572,7 +572,7 @@ class Participation(TransitionFeature):
                 self._added(view, read.seat, adding, membership, transition)
             case SendingAway() as sending:
                 self._sent_away(view, read.seat, sending, membership, transition)
-            case None:
+            case _:
                 self._offer(view, transition, read=False)
 
     def _added(
