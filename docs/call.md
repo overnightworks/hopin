@@ -20,7 +20,7 @@ Ruled by the operator:
 Ruled by the operator:
 
 - CALL-01: The host is the signed-in account, not a connection. When the host's last connection drops, the call waits 60 seconds for the host and then ends for everyone.
-- CALL-02: A call has no password. The host can lock a running call so that nobody new can join, and unlock it again.
+- CALL-02: A call has no password. The host can lock a running call so that nobody new can join, except the host's own account, which can return while there is room; the host can unlock it again.
 - CALL-03: Calls use a STUN server and, when a direct connection fails, a TURN relay. The provider is configuration; no page code names it.
 - CALL-04: Only signed-in members get TURN credentials. Each call start asks the provider for a fresh credential that lives 12 hours and is never refreshed. An agent's video session (CALL-81) is one more holder of such a credential, which the session asks for when it opens; the session is no member, and its credential lives 12 hours like a member's.
 - CALL-05: The operator switches TURN on or off in HopIn's configuration; off means STUN only. With TURN on and its key missing or unusable, HopIn refuses to start.
