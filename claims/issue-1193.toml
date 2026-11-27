@@ -1,0 +1,8 @@
+claim_id = "c523207270654ed5aaa54d044c94a196"
+agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
+role = "builder"
+base = "865f3eb5fe781afab826a20f04b3704aeb9a3362"
+branch = "claude/issue-1193-hopin-takes-speech-0-27-0"
+scope = ["frontend/package.json", "frontend/pnpm-lock.yaml", "pyproject.toml", "uv.lock"]
+opened_commit = "09d61c61bdcfe63f3f5e5eb7e8a33be33ceff8ef"
+whole_reason = "One release's two pins, the Python client and the browser tarball, move together with their lockfiles."
