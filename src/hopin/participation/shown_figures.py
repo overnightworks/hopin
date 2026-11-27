@@ -49,9 +49,9 @@ class ShownFigures:
         self,
         places: Places,
         deadlines: Deadlines,
-        active_agent: Callable[[Person, str], DialedAgent | AgentRefusal],
+        active_agent: Callable[[Person, str], Awaitable[DialedAgent | AgentRefusal]],
         tell: Callable[[str, Sequence[PeerId], ParticipationFrame], Awaitable[None]],
-        recipients: Callable[[str], list[PeerId]],
+        recipients: Callable[[str], Awaitable[list[PeerId]]],
     ) -> None:
         self._places = places
         self._deadlines = deadlines
@@ -118,27 +118,27 @@ class ShownFigures:
     async def gesture(self, person: Person, room_id: str, gesture: FigureGesture) -> AgentRefusal | None:
         """Tell every seat the person's agent makes the gesture with its figure; why not when the agent holds no active
         place there or shows no figure. A seat that joins later is told no past gesture."""
-        agent = self._active_agent(person, room_id)
+        agent = await self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
         await self.end_turn_state(agent)
         if agent.figure is None:
             return AgentRefusal.GONE
-        await self._tell(room_id, self._recipients(room_id), AgentGestureFrame(agent.agent_id, gesture))
+        await self._tell(room_id, await self._recipients(room_id), AgentGestureFrame(agent.agent_id, gesture))
         return None
 
     async def frame(self, person: Person, room_id: str, framing: FigureFraming) -> AgentRefusal | None:
         """Take the framing the person's agent sets for its figure and tell every seat when it differs from the kept
         one; why not when the agent holds no active place there or shows no figure. A seat that joins later is told the
         kept framing with the agent's tile."""
-        agent = self._active_agent(person, room_id)
+        agent = await self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
         if agent.figure is None:
             return AgentRefusal.GONE
         if self._framing.get(agent.agent_id) != framing:
             self._framing[agent.agent_id] = framing
-            await self._tell(room_id, self._recipients(room_id), AgentFramingFrame(agent.agent_id, framing))
+            await self._tell(room_id, await self._recipients(room_id), AgentFramingFrame(agent.agent_id, framing))
         return None
 
     def framing_of(self, agent: DialedAgent) -> FigureFraming | None:
@@ -162,7 +162,7 @@ class ShownFigures:
         if agent.agent_id in self._thinking:
             return None
         self._thinking[agent.agent_id] = agent
-        await self._tell(room_id, self._recipients(room_id), AgentThinkingFrame(agent.agent_id, on=True))
+        await self._tell(room_id, await self._recipients(room_id), AgentThinkingFrame(agent.agent_id, on=True))
         return None
 
     async def end_turn_state(self, agent: DialedAgent) -> None:
@@ -181,7 +181,9 @@ class ShownFigures:
         if self._thinking.pop(agent.agent_id, None) is None:
             return
         self._deadlines.cancel(DeadlineKind.THINKING, agent.agent_id)
-        await self._tell(agent.room_id, self._recipients(agent.room_id), AgentThinkingFrame(agent.agent_id, on=False))
+        await self._tell(
+            agent.room_id, await self._recipients(agent.room_id), AgentThinkingFrame(agent.agent_id, on=False)
+        )
 
     def tell_turn_state(self, agent: DialedAgent, peer_id: PeerId, transition: Transition) -> None:
         """Tell a seat that joined later, in the transition that announces the agent to it, that the agent thinks and
@@ -219,9 +221,13 @@ class ShownFigures:
             del self._stopped[agent.agent_id]
         else:
             self._stopped[agent.agent_id] = outcome
-        await self._tell(agent.room_id, self._recipients(agent.room_id), AgentTurnStateFrame(agent.agent_id, outcome))
+        await self._tell(
+            agent.room_id, await self._recipients(agent.room_id), AgentTurnStateFrame(agent.agent_id, outcome)
+        )
 
     async def _thinking_ran_out(self, agent_id: str) -> None:
         agent = self._thinking.pop(agent_id, None)
         if agent is not None and self._places.get(agent.person, agent.room_id) == agent:
-            await self._tell(agent.room_id, self._recipients(agent.room_id), AgentThinkingFrame(agent_id, on=False))
+            await self._tell(
+                agent.room_id, await self._recipients(agent.room_id), AgentThinkingFrame(agent_id, on=False)
+            )

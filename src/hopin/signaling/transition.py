@@ -39,7 +39,7 @@ from hopin.signaling.scheduler import DeadlineKind
 from hopin.signaling.seats import Park, Seats
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Coroutine, Mapping, Sequence
+    from collections.abc import Awaitable, Callable, Coroutine, Mapping, Sequence
 
     from starlette.requests import HTTPConnection
 
@@ -131,6 +131,7 @@ class Change:
     stopped: list[str] = field(default_factory=list)
     seated_agents: list[str] = field(default_factory=list)
     released_agents: list[str] = field(default_factory=list)
+    in_rooms: list[tuple[str, Callable[[RoomView, Change], None]]] = field(default_factory=list)
 
     def put[State](self, section: Section[State], state: State) -> None:
         self.puts[section.name] = state
@@ -150,6 +151,11 @@ class Change:
     def stop(self, key: str) -> None:
         """Stop the feature's work of that key, if it still runs, once the change has committed."""
         self.stopped.append(key)
+
+    def in_room(self, room_id: str, hook: Callable[[RoomView, Change], None]) -> None:
+        """Apply the hook to that room's view as a change of its own, committed right after this one, for a room this
+        change's view is not of, such as the room a seat has left."""
+        self.in_rooms.append((room_id, hook))
 
     def outbound(self) -> Sequence[Outbound]:
         """The frames the commit logs: none for a change that cannot send."""
@@ -314,7 +320,7 @@ class InMemoryCallStore:
         room_manager: RoomManager,
         deadlines: Deadlines,
         on_room_ended: Callable[[str], None],
-        on_seat_changed: Callable[[PeerId], None],
+        on_seat_changed: Callable[[PeerId], Awaitable[None]],
     ) -> None:
         self._room_manager = room_manager
         self._deadlines = deadlines
@@ -371,18 +377,18 @@ class InMemoryCallStore:
         another seat's commit never takes it. A frame that changes nothing is settled by `settle_received`."""
         self._unwritten_seqs[peer_id] = (seq, asyncio.current_task())
 
-    def settle_received(self, peer_id: PeerId) -> None:
+    async def settle_received(self, peer_id: PeerId) -> None:
         """Commit the seq of a frame that no commit has written, which changed nothing."""
         if peer_id in self._unwritten_seqs:
-            self.commit_edits(CoreTransition())
+            await self.commit_edits(CoreTransition())
 
-    def commit(self, view: RoomView, change: Change) -> tuple[PeerId, ...]:
+    async def commit(self, view: RoomView, change: Change) -> tuple[PeerId, ...]:
         """Write the change's edits, sections and agent places and log each frame it sends for its seat, and name the
         seats to wake. The seq of the browser frame this task handles is written once the edits applied, so a refused
         edit leaves it to the commit that tells the browser of the refusal."""
         if isinstance(change, CoreTransition):
             for edit in change.edits:
-                self._apply(edit)
+                await self._apply(edit)
         self._write_received_seqs()
         if view.room_id is None:
             if change.puts or change.seated_agents:  # pragma: no cover - a hook keeps state only in its room
@@ -402,13 +408,13 @@ class InMemoryCallStore:
             )
         )
 
-    def commit_edits(self, transition: CoreTransition) -> None:
+    async def commit_edits(self, transition: CoreTransition) -> None:
         """Commit a transition of the call core that sends nothing, so no seat waits to be woken."""
-        self.commit(RoomView(), transition)
+        await self.commit(RoomView(), transition)
 
     async def apply(self, transition: CoreTransition) -> None:
         """Commit a transition of the call core and wake the seats it sent to."""
-        await self.wake_committed([Committed(self.commit(RoomView(), transition))])
+        await self.wake_committed([Committed(await self.commit(RoomView(), transition))])
 
     def _write_received_seqs(self) -> None:
         handling = asyncio.current_task()
@@ -425,13 +431,13 @@ class InMemoryCallStore:
         record.log.append(frame, supersedes)
         return True
 
-    def _apply(self, edit: Edit) -> None:
+    async def _apply(self, edit: Edit) -> None:
         if isinstance(edit, _SEAT_EDITS):
-            self._apply_to_seats(cast("SeatEdit", edit))
+            await self._apply_to_seats(cast("SeatEdit", edit))
         else:
-            self._apply_to_rooms(cast("RoomEdit", edit))
+            await self._apply_to_rooms(cast("RoomEdit", edit))
 
-    def _apply_to_seats(self, edit: SeatEdit) -> None:
+    async def _apply_to_seats(self, edit: SeatEdit) -> None:
         match edit:
             case SeatOpened(peer_id, record, socket):
                 self._records[peer_id] = record
@@ -445,7 +451,7 @@ class InMemoryCallStore:
             case SeatParked(peer_id):
                 self._deadlines.set(DeadlineKind.RESUME_WINDOW, peer_id, RESUME_WINDOW_SECONDS)
                 self._records[peer_id].park = Park(dropped_at=self._deadlines.now())
-                self._on_seat_changed(peer_id)
+                await self._on_seat_changed(peer_id)
             case SeatTakenOver(peer_id, token_hash, socket):
                 record = self._records[peer_id]
                 parked = record.park is not None
@@ -455,11 +461,11 @@ class InMemoryCallStore:
                 record.token_hash = token_hash
                 self._seats.attach(peer_id, socket)
                 if parked:
-                    self._on_seat_changed(peer_id)
+                    await self._on_seat_changed(peer_id)
             case _:  # pragma: no cover - the type checker proves the match exhaustive
                 assert_never(edit)
 
-    def _apply_to_rooms(self, edit: RoomEdit) -> None:
+    async def _apply_to_rooms(self, edit: RoomEdit) -> None:
         match edit:
             case RoomCreated(room_id, host_peer_id):
                 record = self._records[host_peer_id]
@@ -471,7 +477,7 @@ class InMemoryCallStore:
                 record.room_id = room_id
             case ParticipantRemoved(room_id, peer_id):
                 self._room_manager.remove_participant(room_id, peer_id)
-                self._on_seat_changed(peer_id)
+                await self._on_seat_changed(peer_id)
             case RoomLockSet(room_id, requester, locked):
                 self._room_manager.set_room_locked(room_id, self._records[requester].account, locked=locked)
             case RoomEnded(room_id, peer_ids):
@@ -562,11 +568,11 @@ class FeatureTransitions:
         self._works: dict[str, _RunningWork] = {}
         self._steps = OwnTurns()
 
-    def view(self, room_id: str | None) -> RoomView:
+    async def view(self, room_id: str | None) -> RoomView:
         """The room's view now; an ended room or none is the view of no room."""
         return self._store.load(room_id)
 
-    def seat_view(self, peer_id: PeerId) -> RoomView:
+    async def seat_view(self, peer_id: PeerId) -> RoomView:
         """The view of the room the seat sits in."""
         return self._store.load_seat(peer_id)
 
@@ -591,7 +597,7 @@ class FeatureTransitions:
                 view = self._store.load(room_id)
                 transition = Transition()
                 outcomes.append(hook(view, transition))
-                committed += self.commit(view, transition)
+                committed += await self.commit(view, transition)
         finally:
             await self._store.wake_committed(committed)
         return outcomes
@@ -600,28 +606,30 @@ class FeatureTransitions:
         """Apply the hook to the view it was given and commit what it changed; a hook that raises commits nothing."""
         transition = Transition()
         outcome = hook(transition)
-        await self._store.wake_committed(self.commit(view, transition))
+        await self._store.wake_committed(await self.commit(view, transition))
         return outcome
 
-    def change_now(self, room_id: str, hook: Callable[[RoomView, Change], None]) -> None:
-        """Apply the hook to the room's view now and commit its change before anything awaits; it cannot send, so no
+    async def change_now(self, room_id: str, hook: Callable[[RoomView, Change], None]) -> None:
+        """Apply the hook to the room's view now and commit its change before anything suspends; it cannot send, so no
         seat waits to be woken."""
         view = self._store.load(room_id)
         change = Change()
         hook(view, change)
-        self.commit(view, change)
+        await self.commit(view, change)
 
-    def commit(self, view: RoomView, change: Change) -> list[Committed]:
+    async def commit(self, view: RoomView, change: Change) -> list[Committed]:
         """Commit the change and start and stop its work, then each hook a transition follows with, leaving the seats
         of all of them to be woken."""
         log = change.log_broken_write if isinstance(change, Transition) else None
-        committed = [Committed(self._store.commit(view, change), log)]
+        committed = [Committed(await self._store.commit(view, change), log)]
         self._start_and_stop_work(view, change)
+        for room_id, hook in change.in_rooms:
+            await self.change_now(room_id, hook)
         for follower in change.followers if isinstance(change, Transition) else ():
             followed = self._store.load(view.room_id)
             following = Transition()
             follower(followed, following)
-            committed += self.commit(followed, following)
+            committed += await self.commit(followed, following)
         return committed
 
     def _start_and_stop_work(self, view: RoomView, change: Change) -> None:
@@ -676,8 +684,8 @@ class _WorkRoom:
     transitions: FeatureTransitions
     room_id: str
 
-    async def view(self) -> RoomView:  # NOSONAR(S7503) the work reads the room between its awaits
-        return self.transitions.view(self.room_id)
+    async def view(self) -> RoomView:
+        return await self.transitions.view(self.room_id)
 
     async def apply[Outcome](self, hook: Callable[[RoomView, Transition], Outcome]) -> Outcome:
         return await self.transitions.apply(self.room_id, hook)

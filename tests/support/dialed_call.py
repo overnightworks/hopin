@@ -335,7 +335,7 @@ class DialedCall:
     def places_held_by(self, subject):
         """The places participation holds for the agent as it reads now; a call of the agent would first end a lease
         that has run out."""
-        return self._mcp_front().participation().standings_of(Person(self.issuer.issuer, subject))
+        return asyncio.run(self._mcp_front().participation().standings_of(Person(self.issuer.issuer, subject)))
 
     def voice(self, member, path):
         """What a seat's browser gets fetching the voice at the path its frame names, on its session cookie."""

@@ -36,11 +36,11 @@ def commits(monkeypatch):
     made = []
     commit = InMemoryCallStore.commit
 
-    def recording_commit(store, view, change):
+    async def recording_commit(store, view, change):
         woken = ()
         refused = False
         try:
-            woken = commit(store, view, change)
+            woken = await commit(store, view, change)
         except HopInError:
             refused = True
             raise

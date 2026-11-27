@@ -230,14 +230,14 @@ class Participation(TransitionFeature):
         interrupted: str | None = None,
     ) -> SpeakResult:
         """Queue the person's agent's sentence (`AgentSpeech.speak`); the refusal when it holds no active place."""
-        agent = self._active_agent(person, room_id)
+        agent = await self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
         return await self._agent_speech.speak(agent, text, render, offered, mood, interrupted)
 
     async def stop_speaking(self, person: Person, room_id: str, interrupted: str | None = None) -> StopResult:
         """Cut the sentence the person's agent plays or holds, drop its others (`AgentSpeech.stop`); or why not."""
-        agent = self._active_agent(person, room_id)
+        agent = await self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
         return await self._agent_speech.stop(agent, interrupted)
@@ -246,7 +246,7 @@ class Participation(TransitionFeature):
         self, person: Person, room_id: str, interrupted: str
     ) -> AgentRefusal | HoldRefusal | None:
         """End the hold of the person's agent that `interrupted` names (`AgentSpeech.continue_speaking`); or why not."""
-        agent = self._active_agent(person, room_id)
+        agent = await self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
         return await self._agent_speech.continue_speaking(agent, interrupted)
@@ -258,14 +258,14 @@ class Participation(TransitionFeature):
     async def look(self, person: Person, room_id: str) -> Picture:
         """The JPEG of the camera of the person's agent's sponsor, which the sponsor's seeing switch lets it take; why
         there is none otherwise."""
-        agent = self._active_agent(person, room_id)
+        agent = await self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return LookRefusal.NOT_ACTIVE
         return await self._seeing.look(agent)
 
-    def holds_seat(self, account_id: str, room_id: str) -> bool:
+    async def holds_seat(self, account_id: str, room_id: str) -> bool:
         """Whether the account holds a seat in the room now, a parked one included."""
-        return bool(self._transitions.view(room_id).seats_in(account_id))
+        return bool((await self._transitions.view(room_id)).seats_in(account_id))
 
     def window_rooms_of(self, person: Person) -> tuple[str, ...]:
         """The rooms where the person holds a joined agent, whose chat windows it may read."""
@@ -280,30 +280,28 @@ class Participation(TransitionFeature):
         assert isinstance(agent, DialedAgent)  # noqa: S101 - only a joined agent holds a window
         return window.read(interrupted=self._agent_speech.hold_of(agent), playing=self._agent_speech.plays(agent))
 
-    def standings_of(self, person: Person) -> tuple[PlaceStanding, ...]:
+    async def standings_of(self, person: Person) -> tuple[PlaceStanding, ...]:
         """Every place the person holds as it reads now; a place it was removed from is absent."""
-        return tuple(self._standing_in(person, room_id, place) for room_id, place in self._places.of_person(person))
+        return tuple([await self._standing_in(person, room, place) for room, place in self._places.of_person(person)])
 
-    def open_hearing(
+    async def open_hearing(
         self, account: Person, seat: PeerId, holds_token: Callable[[Person], bool]
     ) -> HearingHandle | HearingRefusal:
         """The sound session of a seat the account holds in a room, served by an agent that hears it and ending with
         that agent's hearing; refused for a seat the account lacks, one waiting to resume or one nobody hears."""
-        view = self._transitions.seat_view(seat)
+        view = await self._transitions.seat_view(seat)
         if view.room_id is None or seat not in view.seats_in(account.subject):
             return HearingRefusal.NO_SEAT
         if view.is_parked(seat):
             return HearingRefusal.SEAT_AWAY
         return self._hearing.open(account, view.room_id, seat, holds_token)
 
-    def heard(self, seat: PeerId, text: str, began_at: float, item_id: str) -> None:
+    async def heard(self, seat: PeerId, text: str, began_at: float, item_id: str) -> None:
         """Add a finished sentence the seat said, which began at `began_at` on the deadlines' clock and which the
         speech service knows as `item_id`, to the window of each joined agent that hears the seat, under the name the
         call shows for the seat."""
-        room_id = self._transitions.seat_view(seat).room_id
-        if room_id is None:
-            return
-        self.speech.person_said(room_id, seat, text, began_at, item_id)
+        if (room_id := (await self._transitions.seat_view(seat)).room_id) is not None:
+            await self.speech.person_said(room_id, seat, text, began_at, item_id)
 
     def is_live_agent(self, person: Person) -> bool:
         """Whether the person is an agent with an account of its own whose lease is registered."""
@@ -457,20 +455,22 @@ class Participation(TransitionFeature):
         self.speech.line_said(view.room_id, LineKind.PERSON, view.name_of(peer_id), line, sayer=None)
 
     def seat_changed(self, view: RoomView, peer_id: PeerId, change: Change) -> None:
-        """A seat that left its room takes its places out in a change of that room at once and holds its agents for
+        """A seat that left its room takes its places out in a change of that room and holds its agents for
         `seat_left`; a seat that left, parked or resumed tells the agents it sponsors."""
-        del change
         bound = self._places.bound_to(peer_id)
-        if view.room_id is None:
-            seat_room = self._seat_views.room_of(peer_id)
-            if seat_room is not None:
-                self._transitions.change_now(seat_room, partial(self._take_out_places_of_departed, peer_id, bound))
-        elif view.is_parked(peer_id):
+        seat_room = self._seat_views.room_of(peer_id) if view.room_id is None else None
+        if seat_room is not None:
+            change.in_room(seat_room, partial(self._take_out_places_of_departed, peer_id, bound))
+            return
+        if view.is_parked(peer_id):
             self._hearing.end_sound(peer_id)
             for _, _, place in bound:
                 if isinstance(place, DialedAgent):
                     self._agent_speech.park(place)
                     self._seeing.ended(place)
+        self._tell_sponsors(bound)
+
+    def _tell_sponsors(self, bound: list[tuple[Person, str, Place]]) -> None:
         for person in {person for person, _, _ in bound}:
             self._on_changed(person)
 
@@ -499,6 +499,7 @@ class Participation(TransitionFeature):
         self._hearing.seat_ended(seat_room, peer_id)
         if joined:
             self._departed[peer_id] = joined
+        self._tell_sponsors(bound)
 
     def seat_left(self, view: RoomView, peer_id: PeerId, transition: Transition) -> None:
         """Announce the tiles of the agents the seat took with it and the agents the others may add now, then tell the
@@ -714,26 +715,26 @@ class Participation(TransitionFeature):
             self._agent_ended(place, transition)
             tell_left(place, view.members, transition)
 
-    def _standing_in(self, person: Person, room_id: str, place: Place) -> PlaceStanding:
+    async def _standing_in(self, person: Person, room_id: str, place: Place) -> PlaceStanding:
         if isinstance(place, OpenInvitation):
             invitation = InvitationStanding(place.id, self._places.epoch_of(person, room_id), place.expires_at)
             return PlaceStanding(room_id, PlaceState.INVITED, invitation)
-        state = PlaceState.PAUSED if self._transitions.view(room_id).is_parked(place.sponsor) else PlaceState.ACTIVE
-        return PlaceStanding(room_id, state)
+        parked = (await self._transitions.view(room_id)).is_parked(place.sponsor)
+        return PlaceStanding(room_id, PlaceState.PAUSED if parked else PlaceState.ACTIVE)
 
     async def _write_line(self, agent: DialedAgent, line: str) -> None:
         """Show the agent's written line to every joined agent's window and every seat in its room."""
         self.speech.line_said(agent.room_id, LineKind.AGENT, agent.name, line, sayer=agent.person)
         await self._tell(
-            agent.room_id, self._recipients(agent.room_id), AgentLineFrame(agent.agent_id, agent.name, line)
+            agent.room_id, await self._recipients(agent.room_id), AgentLineFrame(agent.agent_id, agent.name, line)
         )
 
-    def _active_agent(self, person: Person, room_id: str) -> DialedAgent | AgentRefusal:
+    async def _active_agent(self, person: Person, room_id: str) -> DialedAgent | AgentRefusal:
         """The person's agent in the room when it is joined and its sponsor's seat is connected, else why it is not."""
         agent = self._places.get(person, room_id)
         if not isinstance(agent, DialedAgent):
             return AgentRefusal.GONE
-        return AgentRefusal.SPONSOR_AWAY if self._transitions.view(room_id).is_parked(agent.sponsor) else agent
+        return AgentRefusal.SPONSOR_AWAY if (await self._transitions.view(room_id)).is_parked(agent.sponsor) else agent
 
     def _agent_ended(self, agent: DialedAgent, change: Change) -> None:
         """The agent's removal, leave or lease end: it frees its place and hears and speaks nothing more."""
@@ -754,13 +755,13 @@ class Participation(TransitionFeature):
     def _is_working(self, key: str) -> bool:
         return self._transitions.is_working(key)
 
-    def _name_of(self, seat: PeerId) -> str:
+    async def _name_of(self, seat: PeerId) -> str:
         """The name the call shows for a seat that sits in a room."""
-        return self._transitions.seat_view(seat).name_of(seat)
+        return (await self._transitions.seat_view(seat)).name_of(seat)
 
-    def _recipients(self, room_id: str) -> list[PeerId]:
+    async def _recipients(self, room_id: str) -> list[PeerId]:
         """The room's seats now, none once the room has ended."""
-        return list(self._transitions.view(room_id).members)
+        return list((await self._transitions.view(room_id)).members)
 
     def _send_away(self, view: RoomView, agent: DialedAgent, transition: Transition) -> None:
         """Take the agent away as the calling standard's send-away decides, and tell every seat, offers included."""
@@ -776,7 +777,7 @@ class Participation(TransitionFeature):
 
     async def _tell_room(self, agent: DialedAgent, frame: ParticipationFrame, supersedes: Supersedes | None) -> None:
         """Send the frame to every seat in the agent's room."""
-        await self._tell(agent.room_id, self._recipients(agent.room_id), frame, supersedes)
+        await self._tell(agent.room_id, await self._recipients(agent.room_id), frame, supersedes)
 
     async def _tell(
         self, room_id: str, peer_ids: Sequence[str], frame: ParticipationFrame, supersedes: Supersedes | None = None

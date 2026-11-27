@@ -42,7 +42,7 @@ from hopin.rooms.reference import room_reference
 from hopin.signaling.scheduler import DeadlineKind
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Awaitable, Callable, Iterator
 
     from logline import StepTimer
 
@@ -84,7 +84,7 @@ class SpeechInWindows:
         self,
         places: Places,
         hearing: Hearing,
-        name_of: Callable[[PeerId], str],
+        name_of: Callable[[PeerId], Awaitable[str]],
         on_window_changed: Callable[[Person, str], None],
         deadlines: Deadlines,
     ) -> None:
@@ -223,11 +223,11 @@ class SpeechInWindows:
             if changed:
                 self._on_window_changed(person, agent.room_id)
 
-    def person_said(self, room_id: str, seat: PeerId, text: str, began_at: float, item_id: str) -> None:
+    async def person_said(self, room_id: str, seat: PeerId, text: str, began_at: float, item_id: str) -> None:
         """A sentence the seat said, which began at `began_at` and which the speech service knows as `item_id`, enters
         the window of each agent that hears the seat under the name the call shows, in the change that takes the seat's
         words out of the record."""
-        heard = self._hearing.heard(room_id, seat, self._name_of(seat), text, began_at)
+        heard = self._hearing.heard(room_id, seat, await self._name_of(seat), text, began_at)
         if heard is None:
             return
         for person, window in self._places.windows_in(room_id).items():
@@ -261,7 +261,7 @@ class SpeechInWindows:
         agent = self._places.get(person, room_id)
         return agent.agent_id if isinstance(agent, DialedAgent) else None
 
-    def person_started(
+    async def person_started(
         self, room_id: str, seat: PeerId, opens: Callable[[DialedAgent], bool], is_held: Callable[[DialedAgent], bool]
     ) -> dict[DialedAgent, str]:
         """A person starts speaking: each agent that hears the seat is talked over, a new record opening only when
@@ -274,7 +274,7 @@ class SpeechInWindows:
             assert window is not None  # noqa: S101 - only a joined agent hears
             assert isinstance(agent, DialedAgent)  # noqa: S101 - only a joined agent hears
             opening = opens(agent)
-            if window.talk_over(seat, self._name_of(seat), opens=opening):
+            if window.talk_over(seat, await self._name_of(seat), opens=opening):
                 self._on_window_changed(person, room_id)
                 if opening and not is_held(agent):
                     arisen[agent] = window.new_hold_id()

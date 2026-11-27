@@ -41,10 +41,15 @@ def members(groups_of_seat):
 class Invited:
     """An agent invited into a call: the owner hosts it, a member added it, and the agent holds the invitation."""
 
-    def __init__(self, owner, member, participation):
+    def __init__(self, owner, member, participation, standing):
         self.owner, self.member, self.participation = owner, member, participation
         self.agent = None
-        [self.standing] = participation.standings_of(AGENT)
+        self.standing = standing
+
+    @classmethod
+    async def of(cls, owner, member, participation):
+        [standing] = await participation.standings_of(AGENT)
+        return cls(owner, member, participation, standing)
 
     @property
     def invitation(self):
@@ -81,7 +86,7 @@ async def invited(link, participation, listeners):
     await agent_calls_and_listens(participation, listeners)
     await let_reads_finish()
     await add_the_offered_agent(member)
-    return Invited(owner, member, participation)
+    return await Invited.of(owner, member, participation)
 
 
 def frames_of(browser, signal):
@@ -119,7 +124,7 @@ class TestAnInvitation:
         for browser in (invited.owner, invited.member):
             [joined] = frames_of(browser, ParticipationSignal.AGENT_JOINED)
             assert (joined["name"], joined["sponsor"]) == (NAME, OWNER)
-        assert [standing.state for standing in invited.participation.standings_of(AGENT)] == [PlaceState.ACTIVE]
+        assert [standing.state for standing in await invited.participation.standings_of(AGENT)] == [PlaceState.ACTIVE]
 
     async def test_accepting_it_withdraws_the_offer_from_every_seat(self, invited):
         await invited.accept()
@@ -134,7 +139,7 @@ class TestAnInvitation:
         agent = await invited.accept()
 
         assert isinstance(agent, DialedAgent)
-        assert [standing.state for standing in invited.participation.standings_of(AGENT)] == [PlaceState.ACTIVE]
+        assert [standing.state for standing in await invited.participation.standings_of(AGENT)] == [PlaceState.ACTIVE]
 
     async def test_it_cannot_be_accepted_twice(self, invited):
         await invited.accept()
@@ -148,7 +153,7 @@ class TestAnInvitation:
     async def test_it_is_stale_for_an_id_or_an_epoch_that_is_not_its_own(self, invited, mistake):
         """CALL-52: An accept with another invitation or epoch changes nothing."""
         assert await invited.accept(**mistake) is AgentRefusal.STALE_INVITATION
-        assert [standing.state for standing in invited.participation.standings_of(AGENT)] == [PlaceState.INVITED]
+        assert [standing.state for standing in await invited.participation.standings_of(AGENT)] == [PlaceState.INVITED]
 
     async def test_it_ends_after_its_lifetime_and_the_adder_may_add_again(
         self, invited, scheduler, participation, changes, listeners
@@ -159,7 +164,7 @@ class TestAnInvitation:
         told = len(changes)
         await scheduler.advance(1)
 
-        assert invited.participation.standings_of(AGENT) == ()
+        assert await invited.participation.standings_of(AGENT) == ()
         assert offers_sent_to(invited.member)[0]["pending"] is False
         assert len(changes) > told
 
@@ -211,7 +216,7 @@ class TestAnInvitation:
     async def test_it_ends_with_the_lease_of_the_agent_it_was_made_for(self, invited, scheduler):
         await scheduler.advance(LEASE_SECONDS)
 
-        assert (invited.participation.standings_of(AGENT), offers_sent_to(invited.member)) == ((), [])
+        assert (await invited.participation.standings_of(AGENT), offers_sent_to(invited.member)) == ((), [])
 
     @pytest.mark.parametrize("ending", ["accepted", "declined"])
     async def test_an_ended_invitation_leaves_no_deadline_of_its_own(self, invited, scheduler, ending):
@@ -237,7 +242,7 @@ class TestAnInvitation:
         await invited.owner.drop(code=1000)
         await link.join(OWNER, invited.owner.room_id)
 
-        assert invited.participation.standings_of(AGENT) == ()
+        assert await invited.participation.standings_of(AGENT) == ()
         assert len(changes) > told
         assert await invited.accept() is AgentRefusal.STALE_INVITATION
 
@@ -271,7 +276,7 @@ class TestAnInvitation:
 
         await add_the_offered_agent(invited.member)
 
-        [standing] = invited.participation.standings_of(AGENT)
+        [standing] = await invited.participation.standings_of(AGENT)
         assert (stale, standing.invitation.invitation_id != invited.invitation.invitation_id) == (
             AgentRefusal.STALE_INVITATION,
             True,
@@ -287,14 +292,14 @@ class TestAnInvitation:
         await scheduler.advance(INVITATION_SECONDS - 1)
         await agent_calls_and_listens(participation, listeners)  # the agent keeps calling, so its lease holds
         await scheduler.advance(1)
-        states_at_the_timer = [standing.state for standing in participation.standings_of(AGENT)]
+        states_at_the_timer = [standing.state for standing in await participation.standings_of(AGENT)]
         ended_before = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
         await scheduler.advance(29)
 
         await scheduler.advance(1)
 
         [ended] = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
-        assert (states_at_the_timer, ended_before, ended["outcome"], participation.standings_of(AGENT)) == (
+        assert (states_at_the_timer, ended_before, ended["outcome"], await participation.standings_of(AGENT)) == (
             [PlaceState.INVITED],
             [],
             CallOutcome.NO_ANSWER.value,
@@ -307,7 +312,7 @@ class TestAnInvitation:
         """CALL-52: The standing shows the invitation's stored expiry."""
         wall_clock.step(-45)
 
-        [standing] = invited.participation.standings_of(AGENT)
+        [standing] = await invited.participation.standings_of(AGENT)
 
         assert standing.invitation.expires_at == invited.invitation.expires_at
 
@@ -324,7 +329,7 @@ class TestAnInvitation:
         await scheduler.advance(1)
 
         [ended] = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
-        assert (accepted, ended["outcome"], participation.standings_of(AGENT)) == (
+        assert (accepted, ended["outcome"], await participation.standings_of(AGENT)) == (
             AgentRefusal.STALE_INVITATION,
             CallOutcome.NO_ANSWER.value,
             (),
@@ -340,7 +345,7 @@ class TestAnInvitation:
         await invited.owner.drop(code=1000)
 
         [ended] = invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED)
-        assert (ended["outcome"], participation.standings_of(AGENT)) == (CallOutcome.NO_ANSWER.value, ())
+        assert (ended["outcome"], await participation.standings_of(AGENT)) == (CallOutcome.NO_ANSWER.value, ())
 
     async def test_a_call_by_another_seat_after_the_wall_clock_lapsed_the_invitation_tells_the_adder_no_answer(
         self, invited, link, groups_of_seat, wall_clock
@@ -391,7 +396,7 @@ class TestAnInvitation:
             ended["agent_key"] == offer["agent_key"],
             ended["name"] == offer["name"],
             invited.owner.frames(ParticipationSignal.AGENT_INVITATION_ENDED),
-            invited.participation.standings_of(AGENT),
+            await invited.participation.standings_of(AGENT),
             offers_sent_to(invited.member)[0]["pending"],
         ) == (None, CallOutcome.BUSY.value, True, True, [], (), False)
 
@@ -416,7 +421,7 @@ class TestAnInvitation:
         await invited.member.say({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offer["agent_key"]})
         await let_reads_finish()
 
-        [standing] = invited.participation.standings_of(AGENT)
+        [standing] = await invited.participation.standings_of(AGENT)
         assert (standing.invitation.invitation_id != old.invitation_id, standing.invitation.epoch) == (True, old.epoch)
 
     async def test_a_decline_past_its_deadline_before_its_timer_ran_is_stale(self, invited, scheduler):
@@ -450,7 +455,7 @@ class TestAnInvitation:
             ended["outcome"],
             ended["agent_key"] == offer["agent_key"],
             invited.owner.frames(ParticipationSignal.AGENT_INVITATION_ENDED),
-            invited.participation.standings_of(AGENT),
+            await invited.participation.standings_of(AGENT),
         ) == (refusal, outcome.value, True, [], ())
 
     async def test_an_accept_that_is_stale_ends_nothing_and_tells_no_seat(self, invited):
@@ -460,7 +465,7 @@ class TestAnInvitation:
         assert (
             answer,
             invited.member.frames(ParticipationSignal.AGENT_INVITATION_ENDED),
-            len(invited.participation.standings_of(AGENT)),
+            len(await invited.participation.standings_of(AGENT)),
         ) == (AgentRefusal.STALE_INVITATION, [], 1)
 
     async def test_accepting_it_while_the_owners_seat_sponsors_another_agent_joins_both(self, invited, participation):
@@ -482,16 +487,16 @@ class TestAnInvitation:
 
         await invited.owner.drop()
         after_the_park = len(changes)
-        states_while_parked = [standing.state for standing in invited.participation.standings_of(AGENT)]
+        states_while_parked = [standing.state for standing in await invited.participation.standings_of(AGENT)]
         await invited.owner.resume()
 
         assert told < after_the_park < len(changes)
         assert states_while_parked == [PlaceState.INVITED]
-        assert [standing.state for standing in invited.participation.standings_of(AGENT)] == [PlaceState.INVITED]
+        assert [standing.state for standing in await invited.participation.standings_of(AGENT)] == [PlaceState.INVITED]
 
     async def test_a_leave_on_an_invited_place_is_gone_and_the_invitation_stays(self, invited):
         assert await invited.participation.leave(AGENT, invited.owner.room_id) is AgentRefusal.GONE
-        assert [standing.state for standing in invited.participation.standings_of(AGENT)] == [PlaceState.INVITED]
+        assert [standing.state for standing in await invited.participation.standings_of(AGENT)] == [PlaceState.INVITED]
 
 
 class TestAnAgentInTheCall:
@@ -499,7 +504,7 @@ class TestAnAgentInTheCall:
         await invited.accept()
 
         assert await invited.participation.leave(AGENT, invited.owner.room_id) is None
-        assert invited.participation.standings_of(AGENT) == ()
+        assert await invited.participation.standings_of(AGENT) == ()
         assert len(frames_of(invited.member, ParticipationSignal.AGENT_LEFT)) == 1
 
     async def test_an_agent_accepted_again_after_it_left_is_a_tile_under_another_id(self, invited):
@@ -507,7 +512,7 @@ class TestAnAgentInTheCall:
         await invited.participation.leave(AGENT, invited.owner.room_id)
         await add_the_offered_agent(invited.member)
 
-        await Invited(invited.owner, invited.member, invited.participation).accept()
+        await (await Invited.of(invited.owner, invited.member, invited.participation)).accept()
 
         joined = frames_of(invited.member, ParticipationSignal.AGENT_JOINED)
         left = frames_of(invited.member, ParticipationSignal.AGENT_LEFT)
@@ -519,7 +524,7 @@ class TestAnAgentInTheCall:
 
         await invited.owner.drop(code=1000)
 
-        assert (invited.participation.standings_of(AGENT), len(changes) > told) == ((), True)
+        assert (await invited.participation.standings_of(AGENT), len(changes) > told) == ((), True)
         assert len(frames_of(invited.member, ParticipationSignal.AGENT_LEFT)) == 1
 
     async def test_it_is_paused_while_its_owners_seat_is_parked_and_active_again_after_the_resume(
@@ -529,10 +534,10 @@ class TestAnAgentInTheCall:
         told = len(changes)
 
         await invited.owner.drop()
-        paused = [standing.state for standing in invited.participation.standings_of(AGENT)]
+        paused = [standing.state for standing in await invited.participation.standings_of(AGENT)]
         after_the_park = len(changes)
         await invited.owner.resume()
-        active = [standing.state for standing in invited.participation.standings_of(AGENT)]
+        active = [standing.state for standing in await invited.participation.standings_of(AGENT)]
 
         assert (paused, active) == ([PlaceState.PAUSED], [PlaceState.ACTIVE])
         assert told < after_the_park < len(changes)
@@ -542,7 +547,7 @@ class TestAnAgentInTheCall:
 
         await scheduler.advance(LEASE_SECONDS)
 
-        assert invited.participation.standings_of(AGENT) == ()
+        assert await invited.participation.standings_of(AGENT) == ()
         assert len(frames_of(invited.member, ParticipationSignal.AGENT_LEFT)) == 1
 
     async def test_a_call_that_ends_leaves_no_standing(self, invited):
@@ -550,7 +555,7 @@ class TestAnAgentInTheCall:
 
         await invited.owner.say({"type": SignalType.END_ROOM.value})
 
-        assert invited.participation.standings_of(AGENT) == ()
+        assert await invited.participation.standings_of(AGENT) == ()
 
     async def test_a_removal_that_a_room_end_overtakes_tells_no_seat_of_the_ended_room(self, invited, link):
         await invited.accept()

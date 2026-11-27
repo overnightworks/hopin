@@ -129,16 +129,16 @@ class VoiceStore:
 
 
 def voice_endpoint(
-    store: VoiceStore, holds_seat: Callable[[str, str], bool]
+    store: VoiceStore, holds_seat: Callable[[str, str], Awaitable[bool]]
 ) -> Callable[[Request, str], Awaitable[Response]]:
     """The route of a sound, at `VOICE_PATH` and the voice's id: a signed-in account that holds a seat in the sound's
     room gets it from its start as it grows, no one else."""
 
-    async def voice(request: Request, voice_id: str) -> Response:  # NOSONAR(S7503) reads state the event loop owns
+    async def voice(request: Request, voice_id: str) -> Response:
         user = admitted_user(request)
         stored = store.get(voice_id)
         room_id = store.room_of(voice_id)
-        if user is None or stored is None or room_id is None or not holds_seat(user.id, room_id):
+        if user is None or stored is None or room_id is None or not await holds_seat(user.id, room_id):
             raise HTTPException(status_code=404)
         return StreamingResponse(stored.read(), media_type=WAV_MEDIA_TYPE, headers={"Cache-Control": "no-store"})
 
