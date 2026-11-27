@@ -1,0 +1,8 @@
+claim_id = "6b57c3bc85ac4ab583c4eb502a4e3d84"
+agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
+role = "builder"
+base = "bb12d0b3cbe4fabed3bfb3c3cf685dcf10adc434"
+branch = "claude/issue-1204-readme-moves-its-last-sections-out"
+scope = ["AGENTS.md", "README.md", "docs/agent-endpoint.md", "docs/call.md", "docs/configuration.md", "docs/game-master.md", "docs/runbooks/release.md"]
+opened_commit = "63da3dd4bd1ae38791be154699efb830ea2fe4a3"
+whole_reason = "The README's last three oversized sections move to their owners in one diff, so no fact stands twice or nowhere in between."
