@@ -17,7 +17,7 @@ from webauth.config import installed_web_auth_config
 
 from hopin.config.constants import AUTH_CALLBACK_PATH, HEALTH_PATH, WEBSOCKET_PATH, SignalType
 from hopin.config.settings import RealmSettings, ServerSettings
-from hopin.main import serve
+from hopin.main import build_application, run_uvicorn, serve, uvicorn_config, uvicorn_options
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.signed_in import SeededMember, handshake_headers, seed_member
@@ -46,6 +46,11 @@ class Output:
 def _logger_state() -> list[tuple[list[logging.Handler], int, bool, bool]]:
     loggers = [logging.getLogger(name) for name in UVICORN_LOGGER_NAMES]
     return [(list(item.handlers), item.level, item.propagate, item.disabled) for item in loggers]
+
+
+def _handlers() -> list[list[logging.Handler]]:
+    named = [logging.getLogger(name) for name in ("", *UVICORN_LOGGER_NAMES)]
+    return [list(item.handlers) for item in named]
 
 
 @contextmanager
@@ -92,7 +97,7 @@ async def started_server(
     listening = socket.socket()
     listening.bind((LOCALHOST, 0))
     listening.listen()
-    server = uvicorn.Server(uvicorn.Config(app, log_config=None, **options))
+    server = uvicorn.Server(uvicorn_config(app, options))
     serving = asyncio.create_task(server.serve(sockets=[listening]))
 
     def read() -> str:
@@ -186,6 +191,25 @@ class TestServerLogging:
         lines = [json.loads(line) for line in started_server.read().splitlines()]
         refusals = [(line["level"], line.get("reason")) for line in lines if line["event"] == "http_request.refused"]
         assert refusals == [("warning", "invalid_request")]
+
+    def test_the_start_path_leaves_uvicorn_no_logging_setup_of_its_own(
+        self, sign_in_settings, monkeypatch, uvicorn_loggers_restored, game_environment
+    ) -> None:
+        for name, value in sign_in_settings(host=LOCALHOST).environment.items():
+            monkeypatch.setenv(name, value)
+        with socket.socket() as taken:
+            taken.bind((LOCALHOST, 0))
+            monkeypatch.setenv("HOPIN_PORT", str(taken.getsockname()[1]))
+            settings = ServerSettings()
+            application = build_application(
+                settings, RealmSettings(), fixture_page_build(), in_thread_stores(), single_process_stores()
+            )
+            before = _handlers()
+
+            with pytest.raises(SystemExit):
+                run_uvicorn(application, uvicorn_options(settings))
+
+        assert _handlers() == before
 
     def test_logger_state_is_restored_when_the_fixture_ends(self) -> None:
         with preserved_uvicorn_loggers():

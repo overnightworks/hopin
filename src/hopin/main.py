@@ -34,6 +34,7 @@ import argparse
 import asyncio
 import re
 import sys
+from contextlib import suppress
 from typing import TYPE_CHECKING, TypedDict
 
 import structlog
@@ -164,8 +165,14 @@ def build_application(
     )
 
 
-def run_uvicorn(application: FastAPI, options: UvicornOptions) -> None:
-    uvicorn.run(
+def uvicorn_config(
+    application: FastAPI,
+    options: UvicornOptions,
+    *,
+    ssl_keyfile: str | None = None,
+    ssl_certfile: str | None = None,
+) -> uvicorn.Config:
+    return uvicorn.Config(
         application,
         host=options["host"],
         port=options["port"],
@@ -173,7 +180,17 @@ def run_uvicorn(application: FastAPI, options: UvicornOptions) -> None:
         access_log=options["access_log"],
         proxy_headers=options["proxy_headers"],
         log_config=None,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
     )
+
+
+def run_uvicorn(application: FastAPI, options: UvicornOptions) -> None:
+    server = uvicorn.Server(uvicorn_config(application, options))
+    with suppress(KeyboardInterrupt):
+        server.run()
+    if not server.started:
+        sys.exit(1)
 
 
 def serve(
