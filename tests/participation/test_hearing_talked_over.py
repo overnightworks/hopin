@@ -1,4 +1,4 @@
-"""CALL-54 and CALL-58: a person talking over an agent's sentence through HopIn's real `/ws` hearing route, with fake
+"""A person talking over an agent's sentence through HopIn's real `/ws` hearing route, with fake
 speech services on loopback ports, and the talked-over record read through the real `/mcp`."""
 
 import time
@@ -78,6 +78,7 @@ class TestAPersonTalksOverTheAgentThroughTheRoute:
     def test_call_54_the_person_starting_to_speak_and_the_words_so_far_stand_in_the_agents_window(
         self, agent_speaking, fake_speech
     ):
+        """CALL-54."""
         with hop(agent_speaking) as socket:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
@@ -97,6 +98,7 @@ class TestAPersonTalksOverTheAgentThroughTheRoute:
     def test_call_54_the_finished_line_replaces_the_partial_and_the_record_is_gone_with_the_turn(
         self, agent_speaking, fake_speech
     ):
+        """CALL-54."""
         with hop(agent_speaking) as socket:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
@@ -111,6 +113,7 @@ class TestAPersonTalksOverTheAgentThroughTheRoute:
         assert ("talked_over" in window, [entry["text"] for entry in window["entries"]]) == (False, ["Moment bitte"])
 
     def test_call_54_a_turn_without_words_removes_the_record(self, agent_speaking, fake_speech):
+        """CALL-54."""
         with hop(agent_speaking) as socket:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
@@ -126,6 +129,7 @@ class TestAPersonTalksOverTheAgentThroughTheRoute:
     def test_call_54_the_end_of_the_hop_removes_the_record_of_a_turn_that_never_ended(
         self, agent_speaking, fake_speech
     ):
+        """CALL-54."""
         with hop(agent_speaking) as socket:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
@@ -139,6 +143,7 @@ class TestAPersonTalksOverTheAgentThroughTheRoute:
     def test_call_69_the_agent_is_held_in_the_change_that_opens_the_record_and_its_sentence_never_ends_by_itself(
         self, agent_speaking, fake_speech
     ):
+        """CALL-69."""
         with hop(agent_speaking) as socket:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
@@ -172,9 +177,11 @@ class TestTheAgentDecidesWhileHeld:
         [pytest.param(None, "held", id="no id"), pytest.param("9", "not_interrupted", id="a stale id")],
     )
     def test_call_69_a_speak_that_names_no_hold_or_a_stale_one_is_refused(self, held_agent, interrupted, refusal):
+        """CALL-69."""
         assert refusal_of(speak(held_agent, seconds=None, interrupted=interrupted)) == (True, {"refused": refusal})
 
     def test_call_69_a_stop_with_a_stale_hold_is_refused_not_interrupted_and_the_hold_stands(self, held_agent):
+        """CALL-69."""
         refused = call_in(held_agent, tool=STOP_SPEAKING_TOOL, interrupted="9")
 
         assert (refusal_of(refused), held_agent.window()["interrupted"]) == (
@@ -185,6 +192,7 @@ class TestTheAgentDecidesWhileHeld:
     def test_call_69_a_stop_with_the_hold_answers_the_cut_text_and_the_window_leaves_the_hold_with_the_cut_line(
         self, held_agent
     ):
+        """CALL-69."""
         stopped = call_in(held_agent, tool=STOP_SPEAKING_TOOL, interrupted="1")
 
         window = held_agent.window()
@@ -201,6 +209,7 @@ class TestTheAgentDecidesWhileHeld:
 
 class TestTheAgentContinuesWhileHeld:
     def test_call_70_a_continue_with_the_hold_answers_continued_and_the_window_leaves_the_hold(self, held_agent):
+        """CALL-70."""
         continued = call_in(held_agent, tool=CONTINUE_SPEAKING_TOOL, interrupted="1")
 
         window = held_agent.window()
@@ -211,6 +220,7 @@ class TestTheAgentContinuesWhileHeld:
         )
 
     def test_call_70_a_continue_with_a_stale_hold_is_refused_not_interrupted_and_the_hold_stands(self, held_agent):
+        """CALL-70."""
         refused = call_in(held_agent, tool=CONTINUE_SPEAKING_TOOL, interrupted="9")
 
         assert (refusal_of(refused), held_agent.window()["interrupted"]) == (
@@ -219,6 +229,7 @@ class TestTheAgentContinuesWhileHeld:
         )
 
     def test_call_70_a_continue_at_a_place_the_agent_does_not_hold_is_not_active(self, held_agent):
+        """CALL-70."""
         refused = call_in(held_agent, "no-such-room", tool=CONTINUE_SPEAKING_TOOL, interrupted="1")
 
         assert refusal_of(refused) == (True, {"refused": "not_active"})

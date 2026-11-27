@@ -1,4 +1,4 @@
-"""CALL-62: the sponsor's seeing switch for a joined agent, at participation's real feature and handler and the agents
+"""The sponsor's seeing switch for a joined agent, at participation's real feature and handler and the agents
 library's real record."""
 
 import pytest

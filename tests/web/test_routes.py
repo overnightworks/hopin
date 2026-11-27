@@ -104,6 +104,7 @@ class TestCallPage:
         assert (response.status_code, response.content) == (200, fixture_page_build().shell.variants["de"].content)
 
     def test_the_start_link_address_is_no_page_without_the_stage_that_answers_it(self, client):
+        """ST-14."""
         assert client.get(START_LINK_PATH).status_code == 404
 
     @pytest.mark.parametrize("path", ["/call", "/join/x"])

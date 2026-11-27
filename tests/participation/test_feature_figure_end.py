@@ -1,4 +1,4 @@
-"""CALL-56: a seat reports why an agent's figure ended as a closed code, which the server writes down once."""
+"""A seat reports why an agent's figure ended as a closed code, which the server writes down once."""
 
 import pytest
 import pytest_asyncio
@@ -36,6 +36,7 @@ async def dialed(link, participation):
 class TestAFigureEndReport:
     @pytest.mark.parametrize("code", list(FigureEnd))
     async def test_call_56_each_ending_is_logged_once_with_ids_and_its_code_only(self, dialed, code):
+        """CALL-56."""
         host, guest, agent = dialed
 
         with structlog.testing.capture_logs() as logs:
@@ -52,6 +53,7 @@ class TestAFigureEndReport:
         ]
 
     async def test_call_56_a_report_is_answered_with_no_frame(self, dialed):
+        """CALL-56."""
         _, guest, agent = dialed
         sent_before = [len(socket.sent) for socket in guest.sockets]
 
@@ -61,6 +63,7 @@ class TestAFigureEndReport:
 
     @pytest.mark.parametrize("code", ["exploded", "", None, 3])
     async def test_call_56_a_code_outside_the_closed_set_is_an_invalid_message_and_logs_nothing(self, dialed, code):
+        """CALL-56."""
         _, guest, agent = dialed
 
         with structlog.testing.capture_logs() as logs:
@@ -70,6 +73,7 @@ class TestAFigureEndReport:
         assert endings_in(logs) == []
 
     async def test_call_56_a_report_without_an_agent_id_is_an_invalid_message(self, dialed):
+        """CALL-56."""
         _, guest, _ = dialed
 
         await guest.say({"type": ParticipationSignal.AGENT_FIGURE_ENDED.value, "code": FigureEnd.LOST.value})
@@ -77,6 +81,7 @@ class TestAFigureEndReport:
         assert guest.frames(SignalType.ERROR)[-1]["reason"] == ErrorReason.INVALID_MESSAGE.value
 
     async def test_call_56_a_repeated_report_of_one_seat_for_one_agent_is_dropped(self, dialed):
+        """CALL-56."""
         _, guest, agent = dialed
 
         with structlog.testing.capture_logs() as logs:
@@ -86,6 +91,7 @@ class TestAFigureEndReport:
         assert [entry["code"] for entry in endings_in(logs)] == [FigureEnd.SLOW.value]
 
     async def test_call_56_every_seat_of_the_room_is_logged_once_for_the_agent(self, dialed):
+        """CALL-56."""
         host, guest, agent = dialed
 
         with structlog.testing.capture_logs() as logs:
@@ -95,6 +101,7 @@ class TestAFigureEndReport:
         assert [entry["code"] for entry in endings_in(logs)] == [FigureEnd.LOST.value, FigureEnd.REFUSED.value]
 
     async def test_call_56_a_report_for_an_agent_of_another_room_is_dropped(self, link, dialed):
+        """CALL-56."""
         _, _, agent = dialed
         stranger = await link.join("stranger")
 
@@ -105,6 +112,7 @@ class TestAFigureEndReport:
         assert stranger.frames(SignalType.ERROR) == []
 
     async def test_call_56_a_report_for_an_agent_that_is_not_joined_is_dropped(self, dialed):
+        """CALL-56."""
         _, guest, _ = dialed
 
         with structlog.testing.capture_logs() as logs:
@@ -114,6 +122,7 @@ class TestAFigureEndReport:
         assert guest.frames(SignalType.ERROR) == []
 
     async def test_call_56_a_report_for_an_agent_that_left_is_dropped(self, participation, dialed):
+        """CALL-56."""
         host, guest, agent = dialed
         await participation.leave(person_named(guest.name), room_of(host))
 
@@ -123,6 +132,7 @@ class TestAFigureEndReport:
         assert endings_in(logs) == []
 
     async def test_call_56_a_seat_reporting_twice_for_an_agent_is_logged_once(self, link, dialed):
+        """CALL-56."""
         host, _, agent = dialed
         visitor = await link.join("visitor", room_of(host))
 
@@ -135,6 +145,7 @@ class TestAFigureEndReport:
 
 class TestAFigureEndReportAfterItsSeatLeft:
     async def test_call_56_a_seat_that_left_is_logged_again_when_it_reports_anew(self, participation, dialed):
+        """CALL-56."""
         host, guest, agent = dialed
         view = RoomView(room_id=room_of(host), members=(host.peer_id, guest.peer_id))
         frame = ForeignFrame(

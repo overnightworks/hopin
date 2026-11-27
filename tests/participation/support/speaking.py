@@ -1,4 +1,4 @@
-"""The agent's side of CALL-60 for the participation tests: a fake renderer and the calls that speak and wait."""
+"""The agent's speaking side for the participation tests: a fake renderer and the calls that speak and wait."""
 
 import asyncio
 from dataclasses import dataclass
@@ -304,3 +304,27 @@ async def rendering_while_held(participation, host, guest):
     rendering_one = await rendering_behind_a_playing_sentence(participation, host, guest)
     await participation.person_started(room_of(host), guest.peer_id)
     return rendering_one
+
+
+def still_rendering(rendered):
+    """A renderer that makes its sentence once the test says so."""
+
+    async def render(text, voice):
+        await rendered.wait()
+        return a_sentence()
+
+    return render
+
+
+def holds(browser):
+    return [frame["agent_id"] for frame in browser.frames(HELD)]
+
+
+def continues(browser):
+    return [frame["agent_id"] for frame in browser.frames(CONTINUED)]
+
+
+def standing(participation, room_id, person=GUEST):
+    window = participation.read_window(person, room_id)
+    record = window.talked_over
+    return window.interrupted, None if record is None else record.playing

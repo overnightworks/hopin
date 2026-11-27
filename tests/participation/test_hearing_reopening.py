@@ -1,4 +1,4 @@
-"""CALL-58: the reopened hearing session, at HopIn's real `/ws` with a fake speech service and issuer."""
+"""The reopened hearing session, at HopIn's real `/ws` with a fake speech service and issuer."""
 
 import pytest
 from speech_client.wire import WORKLOAD_TOKEN_HEADER, RefusalCode
@@ -39,12 +39,13 @@ def token_lost(request, issuer_clock):
 
 
 class TestAReopenedSession:
-    """CALL-58: The speech client reopens a hearing the service drained or cut; the route hands it a token source that
+    """The speech client reopens a hearing the service drained or cut; the route hands it a token source that
     answers afresh on every opening."""
 
     def test_call_58_a_session_the_service_cut_is_reopened_and_each_sentence_enters_the_window_once(
         self, sponsored, fake_speech
     ):
+        """CALL-58."""
         with hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             first = fake_speech.next_session(1)
@@ -65,6 +66,7 @@ class TestAReopenedSession:
     def test_call_58_the_reopening_carries_the_workload_token_fetched_anew_once_the_first_lapsed(
         self, sponsored, fake_speech, issuer_clock
     ):
+        """CALL-58."""
         with hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             fake_speech.next_session(1).wait_for_audio(1)
@@ -82,6 +84,7 @@ class TestAReopenedSession:
     def test_call_58_a_reopening_without_a_token_ends_the_hearing_in_order_with_no_token_logged(
         self, sponsored, fake_speech, token_lost
     ):
+        """CALL-58."""
         with captured_lines() as lines, hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             first = fake_speech.next_session(1)
@@ -95,6 +98,7 @@ class TestAReopenedSession:
     def test_call_58_a_service_that_stays_unavailable_ends_the_hearing_with_a_service_code_logged_as_reconnect_failed(
         self, sponsored, fake_speech
     ):
+        """CALL-58."""
         with captured_lines() as lines, hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             first = fake_speech.next_session(1)

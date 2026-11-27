@@ -135,12 +135,13 @@ MALFORMED = (
     ids=["accept", "decline"],
 )
 class TestAMalformedInvitationCall:
-    """CALL-52: an accept or a decline whose arguments the agents contract refuses."""
+    """An accept or a decline whose arguments the agents contract refuses."""
 
     @pytest.mark.parametrize(("malform", "path"), MALFORMED)
     def test_it_is_a_tool_error_naming_the_field_path_and_no_value_or_refusal_code(
         self, scene, tool, arguments_of, malform, path
     ):
+        """CALL-52."""
         scene.invite()
         [standing] = scene.standings()
 
@@ -152,6 +153,7 @@ class TestAMalformedInvitationCall:
         assert [item["state"] for item in scene.standings()] == ["invited"]
 
     def test_a_correct_call_after_it_is_answered(self, scene, tool, arguments_of):
+        """CALL-52."""
         scene.invite()
         [standing] = scene.standings()
         scene.call.call(scene.token, tool, {**arguments_of(standing), "epoch": SECRET})

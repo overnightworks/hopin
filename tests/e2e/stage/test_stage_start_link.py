@@ -26,6 +26,7 @@ def start_link(server: RunningServer, stub: StubSkat, app: str | None = None) ->
 def test_the_first_tap_starts_a_call_showing_the_table_and_a_later_tap_joins_it(
     open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
 ) -> None:
+    """ST-14."""
     host = record_page_errors(open_person(), page_errors)
     host.goto(start_link(e2e_server, stub_skat))
     press_through_the_prejoin(host)
@@ -45,6 +46,7 @@ def test_the_first_tap_starts_a_call_showing_the_table_and_a_later_tap_joins_it(
 def test_a_link_naming_no_registered_table_is_a_404(
     open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat
 ) -> None:
+    """ST-14."""
     person = open_person()
 
     response = person.goto(start_link(e2e_server, stub_skat, app="chess"))

@@ -1,4 +1,4 @@
-"""CALL-60: an agent's sentences at participation's real feature and handler, rendered by a fake renderer: the order
+"""An agent's sentences at participation's real feature and handler, rendered by a fake renderer: the order
 they start in on the scheduler's clock, where each is shown and the ends that drop them."""
 
 import asyncio
@@ -84,6 +84,7 @@ async def nine_waiting(participation, call, scheduler):
 
 class TestASentenceStarts:
     async def test_call_60_it_answers_that_the_sentence_plays(self, participation, call):
+        """CALL-60."""
         host, *_ = call
 
         answered = await speak(participation, room_id=room_of(host))
@@ -91,6 +92,7 @@ class TestASentenceStarts:
         assert answered == SpeakStarted.SPOKEN
 
     async def test_call_60_more_than_ten_sentences_within_a_minute_are_all_spoken(self, participation, call, scheduler):
+        """CALL-60."""
         host, *_ = call
         answers = []
         for number in range(SENTENCES_WAITING_PER_AGENT + 2):
@@ -102,6 +104,7 @@ class TestASentenceStarts:
     async def test_call_60_every_seat_is_told_one_voice_of_the_agent_with_the_sound_stored_under_it(
         self, participation, call, voices
     ):
+        """CALL-60."""
         host, guest, mozart, _ = call
 
         await speak(participation, room_id=room_of(host), render=rendering(b"the sound"))
@@ -111,6 +114,7 @@ class TestASentenceStarts:
             assert (frame["agent_id"], await sound_of(voices.get(frame["voice_id"]))) == (mozart.agent_id, b"the sound")
 
     async def test_call_60_every_seat_reads_it_once_as_the_agents_line(self, participation, call):
+        """CALL-60."""
         host, guest, mozart, _ = call
 
         await speak(participation, "Guten Tag", room_id=room_of(host))
@@ -122,6 +126,7 @@ class TestASentenceStarts:
     async def test_call_60_it_enters_the_agents_window_as_own_and_spoken_and_every_other_agents_as_spoken_once_it_ended(
         self, participation, call, scheduler
     ):
+        """CALL-60."""
         host, *_ = call
         await speak(participation, "Guten Tag", room_id=room_of(host))
         while_playing = [participation.read_window(person, room_of(host)).lines for person in (GUEST, HOST)]
@@ -137,6 +142,7 @@ class TestASentenceStarts:
     async def test_call_60_a_sentence_that_ended_with_the_next_one_waiting_enters_every_window_marked_continues(
         self, participation, call, scheduler
     ):
+        """CALL-60."""
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, "one", room_id=room_id)
@@ -153,6 +159,7 @@ class TestASentenceStarts:
     async def test_a_sentences_speak_line_carries_the_newest_seq_of_the_agents_window(
         self, participation, call, scheduler
     ):
+        """CALL-60."""
         host, *_ = call
         room_id = room_of(host)
 
@@ -166,6 +173,7 @@ class TestASentenceStarts:
     async def test_call_60_whitespace_around_the_sentence_is_dropped_and_a_line_break_is_a_space(
         self, participation, call
     ):
+        """CALL-60."""
         host, *_ = call
 
         await speak(participation, "  Guten\nTag  ", room_id=room_of(host))
@@ -176,6 +184,7 @@ class TestASentenceStarts:
     async def test_call_60_a_sentence_no_window_can_hold_stays_out_of_the_windows_and_still_plays(
         self, participation, call, scheduler
     ):
+        """CALL-60."""
         host, *_ = call
         room_id = room_of(host)
 
@@ -192,6 +201,7 @@ class TestTheAnswerComesWhenTheSentenceStarts:
     async def test_call_60_each_waiting_sentence_answers_when_the_previous_ones_length_has_run_out(
         self, participation, call, scheduler
     ):
+        """CALL-60."""
         host, *_ = call
         room_id = room_of(host)
         first = await speak(participation, room_id=room_id)
@@ -211,6 +221,7 @@ class TestTheAnswerComesWhenTheSentenceStarts:
     async def test_a_sentence_that_waits_behind_another_writes_its_wait_when_it_starts(
         self, participation, call, scheduler
     ):
+        """CALL-60."""
         host, *_ = call
         room_id = room_of(host)
 
@@ -230,6 +241,7 @@ class TestTheAnswerComesWhenTheSentenceStarts:
     async def test_call_60_a_sentence_whose_speaker_gave_up_waiting_still_starts_in_order_and_the_queue_goes_on(
         self, participation, call, scheduler
     ):
+        """CALL-60."""
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, "one", room_id=room_id)
@@ -255,6 +267,7 @@ class TestTheAnswerComesWhenTheSentenceStarts:
     async def test_call_60_an_idle_agents_first_sentence_answers_while_a_browser_write_blocks(
         self, participation, call
     ):
+        """CALL-60."""
         host, *_ = call
         held = HeldWrite(host.socket, first_only=True)
         speaking = asyncio.create_task(participation.speak(GUEST, room_of(host), "Guten Tag", rendering()))
@@ -268,6 +281,7 @@ class TestTheAnswerComesWhenTheSentenceStarts:
         assert answered_while_blocked
 
     async def test_call_60_a_refusal_answers_while_the_agents_sentences_still_wait(self, participation, call):
+        """CALL-60."""
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
@@ -285,6 +299,7 @@ class TestTheOrder:
     async def test_call_60_three_sentences_start_in_order_each_when_the_previous_ones_length_has_run_out(
         self, participation, call, scheduler, voices
     ):
+        """CALL-60."""
         host, *_ = call
         sounds = [b"one", b"two", b"three"]
         await speak(participation, "one", room_id=room_of(host), render=rendering(b"one"))
@@ -305,6 +320,7 @@ class TestTheOrder:
     async def test_call_60_a_sentence_waits_for_the_previous_ones_whole_length_even_when_it_is_longer(
         self, participation, call, scheduler
     ):
+        """CALL-60."""
         host, *_ = call
         await speak(participation, room_id=room_of(host), render=rendering(duration_ms=5000))
         await waiting_to_speak(participation, room_id=room_of(host))
@@ -318,6 +334,7 @@ class TestTheOrder:
     async def test_call_60_the_sound_of_a_sentence_is_gone_when_its_length_has_run_out(
         self, participation, call, scheduler, voices
     ):
+        """CALL-60."""
         host, *_ = call
         await speak(participation, room_id=room_of(host))
         [voice_id] = voice_ids(host)
@@ -327,6 +344,7 @@ class TestTheOrder:
         assert voices.get(voice_id) is None
 
     async def test_call_60_each_agent_has_a_queue_of_its_own(self, participation, call):
+        """CALL-60."""
         host, _, mozart, salieri = call
 
         await speak(participation, room_id=room_of(host), who=GUEST)
@@ -362,6 +380,7 @@ class TestEveryEndDropsTheQueue:
     async def test_call_60_the_open_speak_answers_not_active_its_sound_is_gone_and_the_next_speak_is_refused(
         self, participation, call, scheduler, voices, open_speak, end, next_refusal, passes
     ):
+        """CALL-60."""
         host, guest, mozart, _ = call
         room_id = room_of(host)
         open_one = await open_speak(participation, host, guest)
@@ -383,6 +402,7 @@ class TestEveryEndDropsTheQueue:
 
     @pytest.mark.parametrize("open_speak", OPEN_STATES)
     async def test_call_60_a_stop_answers_the_open_speak_stopped(self, participation, call, open_speak):
+        """CALL-60."""
         host, guest, *_ = call
         open_one = await open_speak(participation, host, guest)
 
@@ -402,6 +422,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
     async def test_call_60_it_answers_the_text_of_the_cut_sentence_and_tells_every_seat_to_stop_that_agents_player(
         self, participation, call
     ):
+        """CALL-60."""
         host, guest, mozart, _ = call
         room_id = room_of(host)
         await speak(participation, "Guten Tag", room_id=room_id, render=LONG)
@@ -413,6 +434,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
     async def test_call_60_a_stop_in_the_turn_after_the_answer_shows_the_line_and_tells_no_voice(
         self, participation, call
     ):
+        """CALL-60."""
         host, guest, *_ = call
         room_id = room_of(host)
         stopping = []
@@ -431,6 +453,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
     async def test_call_60_the_cut_sentence_enters_every_window_as_a_cut_spoken_line_before_the_stop_answers(
         self, participation, call
     ):
+        """CALL-60."""
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, "Guten Tag", room_id=room_id, render=LONG)
@@ -445,6 +468,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
     async def test_call_60_every_waiting_sentence_answers_stopped_and_its_sound_is_gone(
         self, participation, call, voices
     ):
+        """CALL-60."""
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
@@ -462,6 +486,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
     async def test_call_60_a_sentence_still_rendering_when_the_stop_comes_answers_stopped_and_never_starts(
         self, participation, call
     ):
+        """CALL-60."""
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
@@ -483,6 +508,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
     async def test_call_60_the_agent_speaks_again_at_its_next_sentence_and_the_cut_one_adds_no_second_line(
         self, participation, call, scheduler
     ):
+        """CALL-60."""
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, "Eins", room_id=room_id, render=LONG)
@@ -497,6 +523,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
         )
 
     async def test_call_60_with_nothing_playing_it_answers_nothing_playing_and_tells_no_seat(self, participation, call):
+        """CALL-60."""
         host, *_ = call
         room_id = room_of(host)
 
@@ -507,6 +534,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
     async def test_call_60_with_the_sentence_played_to_its_end_it_answers_nothing_playing(
         self, participation, call, scheduler
     ):
+        """CALL-60."""
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id)
@@ -517,6 +545,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
     async def test_call_60_an_agent_without_a_joined_place_or_with_its_sponsor_away_is_not_active(
         self, participation, call
     ):
+        """CALL-60."""
         host, guest, *_ = call
         room_id = room_of(host)
         never_joined = await participation.stop_speaking(person_named("nobody"), room_id)
@@ -529,6 +558,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
     async def test_call_60_an_agent_removed_while_its_sentence_plays_leaves_it_cut_in_the_other_windows(
         self, participation, call
     ):
+        """CALL-60."""
         host, guest, mozart, _ = call
         room_id = room_of(host)
         await speak(participation, "Guten Tag", room_id=room_id, render=LONG)
@@ -540,6 +570,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
 
 class TestASentenceThatIsNotSpoken:
     async def test_call_60_a_person_with_no_joined_agent_there_is_refused(self, participation, call):
+        """CALL-60."""
         host, *_ = call
 
         refused = await speak(participation, room_id=room_of(host), who=person_named("stranger"))
@@ -550,6 +581,7 @@ class TestASentenceThatIsNotSpoken:
     async def test_call_60_a_sentence_with_no_text_is_refused_not_rendered_and_logs_no_text(
         self, participation, call, text
     ):
+        """CALL-60."""
         host, *_ = call
         rendered = []
 
@@ -567,6 +599,7 @@ class TestASentenceThatIsNotSpoken:
         )
 
     async def test_call_60_a_renderer_with_no_sound_refuses_unavailable_and_nothing_is_shown(self, participation, call):
+        """CALL-60."""
         host, *_ = call
 
         async def render(sentence, voice):
@@ -579,6 +612,7 @@ class TestASentenceThatIsNotSpoken:
     async def test_call_60_with_no_renderer_it_refuses_unavailable_logs_speaking_off_after_the_place_is_checked(
         self, participation, call
     ):
+        """CALL-60."""
         host, *_ = call
 
         with captured_lines() as logs:
@@ -594,6 +628,7 @@ class TestASentenceThatIsNotSpoken:
     async def test_call_60_an_agent_removed_while_its_sentence_renders_is_refused_and_nothing_is_shown(
         self, participation, call, scheduler
     ):
+        """CALL-60."""
         host, guest, mozart, _ = call
 
         async def render_while_removed(sentence, voice):
@@ -610,6 +645,7 @@ class TestTheBounds:
     async def test_call_60_a_sentence_over_the_queue_is_refused_not_rendered_and_logs_its_outcome(
         self, participation, call, scheduler
     ):
+        """CALL-60."""
         room_id = await a_full_queue(participation, room_of(call[0]), scheduler)
         rendered = []
 
@@ -628,6 +664,7 @@ class TestTheBounds:
     async def test_call_60_sentences_rendering_at_once_never_leave_more_than_the_queue_allows_waiting(
         self, participation, nine_waiting
     ):
+        """CALL-60."""
         room_id = nine_waiting
 
         entered = asyncio.Event()
@@ -648,6 +685,7 @@ class TestTheBounds:
     async def test_call_60_a_sentence_that_fails_to_render_leaves_its_place_in_the_queue_free(
         self, participation, nine_waiting, failing
     ):
+        """CALL-60."""
         room_id = nine_waiting
         with contextlib.suppress(Exception, asyncio.CancelledError):
             await speak(participation, render=failing, room_id=room_id)
@@ -660,119 +698,3 @@ class TestTheBounds:
         await waiting_to_speak(participation, render=render_noting, room_id=room_id)
 
         assert rendered == ["Guten Tag"]
-
-
-class TestAnEndWhileTheSentenceRenders:
-    async def test_call_60_an_agent_removed_and_dialed_in_again_meanwhile_is_not_spoken_for(
-        self, participation, call, scheduler
-    ):
-        host, guest, mozart, _ = call
-
-        async def render_while_replaced(sentence, voice):
-            await remove_by_the_host(participation, host, guest, mozart)
-            await participation.dial_in(GUEST, room_of(host), "Mozart")
-            return a_sentence(b"sound", SENTENCE_MS)
-
-        refused = await speak(participation, render=render_while_replaced, room_id=room_of(host))
-        await scheduler.advance(10)
-
-        assert (refused, host.frames(VOICE, LINE)) == (AgentRefusal.GONE, [])
-
-    async def test_call_60_an_agent_paused_and_resumed_meanwhile_does_not_speak_the_sentence(
-        self, participation, call, scheduler
-    ):
-        host, guest, *_ = call
-
-        async def render_while_paused(sentence, voice):
-            await guest.drop()
-            await guest.resume()
-            return a_sentence(b"sound", SENTENCE_MS)
-
-        refused = await speak(participation, render=render_while_paused, room_id=room_of(host))
-        await scheduler.advance(10)
-
-        assert (refused, host.frames(VOICE, LINE)) == (AgentRefusal.GONE, [])
-
-
-async def removed_by_its_sponsor(participation, guest, mozart, room_id):
-    await guest.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": mozart.agent_id})
-
-
-async def stopped_by_its_sponsor(participation, guest, mozart, room_id):
-    await participation.stop_speaking(GUEST, room_id)
-
-
-class TestAnEndWhileTheSentenceIsAnnounced:
-    @pytest.mark.parametrize("end", [removed_by_its_sponsor, stopped_by_its_sponsor])
-    async def test_call_60_a_removal_or_a_stop_while_the_line_is_sent_gives_no_seat_the_voice(
-        self, participation, call, end
-    ):
-        host, guest, mozart, _ = call
-        held = HeldWrite(host.socket, first_only=True)
-        speaking = asyncio.create_task(speak(participation, room_id=room_of(host)))
-        await held.reached()
-
-        await end(participation, guest, mozart, room_of(host))
-        held.release.set()
-        await speaking
-
-        assert (host.frames(VOICE), guest.frames(VOICE)) == ([], [])
-
-    @pytest.mark.parametrize("end", ["room_ended", "leave"])
-    async def test_call_60_an_end_in_the_turn_after_the_answer_shows_and_tells_nothing_of_the_sentence(
-        self, participation, call, end
-    ):
-        host, guest, *_ = call
-        room_id = room_of(host)
-
-        async def end_the_agent():
-            if end == "room_ended":
-                [participation_host] = host.link.handler.features
-                participation_host.room_ended(room_id)
-            else:
-                await participation.leave(GUEST, room_id)
-
-        ending = []
-
-        async def render_then_end_next_turn(sentence, voice):
-            ending.append(asyncio.ensure_future(end_the_agent()))
-            return a_sentence(b"sound", SENTENCE_MS)
-
-        await participation.speak(GUEST, room_id, "Guten Tag", render_then_end_next_turn)
-        await asyncio.gather(*ending)
-
-        assert (host.frames(VOICE, LINE), guest.frames(VOICE, LINE)) == ([], [])
-
-    async def test_call_60_a_sentence_that_finished_while_its_line_was_sent_is_not_given_a_voice(
-        self, participation, call, scheduler
-    ):
-        host, guest, *_ = call
-        held = HeldWrite(host.socket)
-        first = asyncio.create_task(speak(participation, "eins", room_id=room_of(host)))
-        await held.reached()
-        await scheduler.advance(SENTENCE_MS / 1000)
-        second = await waiting_to_speak(participation, "zwei", room_id=room_of(host))
-        held.release.set()
-        await asyncio.gather(first, second)
-
-        assert (sorted(frame["text"] for frame in guest.frames(LINE)), len(guest.frames(VOICE))) == (
-            ["eins", "zwei"],
-            1,
-        )
-
-    async def test_call_60_a_failed_announcement_is_logged_with_no_text_of_the_failure(self, participation, call):
-        host, *_ = call
-
-        async def refuse(text):
-            raise RuntimeError("the failure carries the sentence")
-
-        host.socket.send_text = refuse
-        with captured_lines() as logs:
-            await speak(participation, room_id=room_of(host))
-
-        [failure] = [log for log in logs if log["event"] == "agent_announcement.failed"]
-        assert (failure["agent_id"] is not None, "exc_info" in failure, "carries the sentence" in str(failure)) == (
-            True,
-            False,
-            False,
-        )

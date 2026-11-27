@@ -1,4 +1,4 @@
-"""CALL-60, CALL-63: a tool that names a place the agent holds no joined place in is refused as not_active, whatever the
+"""A tool that names a place the agent holds no joined place in is refused as not_active, whatever the
 tool, at HopIn's real `/mcp`."""
 
 import pytest
@@ -29,6 +29,7 @@ PLACES_OF_A_CALL_IT_IS_NOT_IN = [
     ],
 )
 def test_call_60_63_a_place_the_agent_holds_no_joined_place_in_is_not_active(joined_agent, tool, named, place):
+    """CALL-60, CALL-63."""
     dialed = joined_agent.call.call(joined_agent.token, tool, {**place, **named})
 
     assert (dialed.is_error, dialed.outcome) == (True, {"refused": "not_active"})

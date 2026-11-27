@@ -21,12 +21,14 @@ APPS = (SKAT, CHESS)
     ],
 )
 def test_a_link_to_a_table_of_the_skat_entry_becomes_its_key_and_the_call_mode_address_of_today(link):
+    """ST-08."""
     linked = linked_context(APPS, link)
 
     assert (linked.app, linked.context, linked.source) == (SKAT, KEY, f"{ORIGIN}/t/{KEY}?mode=call")
 
 
 def test_a_link_is_matched_against_the_path_of_the_entry_of_its_origin():
+    """ST-08."""
     linked = linked_context(APPS, "https://chess.example/play/game-7_A/live?x=1")
 
     assert (linked.app.name, linked.context) == ("chess", "game-7_A")
@@ -35,6 +37,7 @@ def test_a_link_is_matched_against_the_path_of_the_entry_of_its_origin():
 
 @pytest.mark.parametrize("key", ["a", "A_-9", "a" * 64])
 def test_a_context_key_within_the_one_bound_is_accepted_whatever_the_app(key):
+    """ST-12."""
     assert linked_context(APPS, f"{ORIGIN}/t/{key}").context == key
 
 
@@ -64,4 +67,5 @@ def test_a_context_key_within_the_one_bound_is_accepted_whatever_the_app(key):
     ],
 )
 def test_any_other_link_is_no_table_of_a_registered_app(link):
+    """ST-08."""
     assert linked_context(APPS, link) is None

@@ -1,4 +1,4 @@
-"""CALL-69 and CALL-70: a person's speech start holds the agent in real browsers, and the agent goes on or ends
+"""A person's speech start holds the agent in real browsers, and the agent goes on or ends
 silent, through a speech service that hears the sponsor's microphone and speaks the agent's sentences on one origin."""
 
 from typing import TYPE_CHECKING, Any

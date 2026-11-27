@@ -1,4 +1,4 @@
-"""CALL-69: a seat reports how far its player stood in the held sentence; the server checks the report, bounds it by its
+"""A seat reports how far its player stood in the held sentence; the server checks the report, bounds it by its
 own clock, keeps it with the hold and writes one line when the hold ends."""
 
 import asyncio
@@ -85,6 +85,7 @@ class TestTheServerChecksTheReport:
     async def test_call_69_a_played_time_that_is_no_finite_non_negative_number_is_an_invalid_message_and_counts_not(
         self, participation, call, scheduler, capsys, played_seconds
     ):
+        """CALL-69."""
         host, _, mozart, _ = call
         with configured("hopin"):
             room_id, voice_id = await held_after_playing(participation, call, scheduler)
@@ -100,6 +101,7 @@ class TestTheServerChecksTheReport:
     async def test_call_69_a_report_without_its_agent_or_voice_is_an_invalid_message(
         self, participation, call, scheduler
     ):
+        """CALL-69."""
         host, _, _, _ = call
         await held_after_playing(participation, call, scheduler)
 
@@ -111,6 +113,7 @@ class TestTheServerChecksTheReport:
     async def test_call_69_a_valid_report_is_kept_with_the_hold_and_answered_with_no_frame(
         self, participation, call, scheduler, capsys, seconds
     ):
+        """CALL-69."""
         host, _, mozart, _ = call
         with configured("hopin"):
             room_id, voice_id = await held_after_playing(participation, call, scheduler)
@@ -125,6 +128,7 @@ class TestTheServerChecksTheReport:
     async def test_call_69_a_report_above_the_servers_clock_for_the_sentence_is_cut_down_to_it_and_counted_as_cut(
         self, participation, call, scheduler, capsys
     ):
+        """CALL-69."""
         host, _, mozart, _ = call
         with configured("hopin"):
             room_id, voice_id = await held_after_playing(participation, call, scheduler)
@@ -135,6 +139,7 @@ class TestTheServerChecksTheReport:
         assert (line["seat_played_min_ms"], line["seat_report_cut_count"]) == (500, 1)
 
     async def test_call_69_a_report_within_the_clock_is_not_cut(self, participation, call, scheduler, capsys):
+        """CALL-69."""
         host, _, mozart, _ = call
         with configured("hopin"):
             room_id, voice_id = await held_after_playing(participation, call, scheduler)
@@ -147,6 +152,7 @@ class TestTheServerChecksTheReport:
     async def test_call_69_the_line_names_the_smallest_report_of_the_seats(
         self, participation, call, scheduler, capsys
     ):
+        """CALL-69."""
         host, guest, mozart, _ = call
         with configured("hopin"):
             room_id, voice_id = await held_after_playing(participation, call, scheduler)
@@ -160,6 +166,7 @@ class TestTheServerChecksTheReport:
     async def test_call_69_a_second_report_of_one_seat_for_the_hold_is_dropped(
         self, participation, call, scheduler, capsys
     ):
+        """CALL-69."""
         host, _, mozart, _ = call
         with configured("hopin"):
             room_id, voice_id = await held_after_playing(participation, call, scheduler)
@@ -180,6 +187,7 @@ class TestTheServerChecksTheReport:
     async def test_call_69_a_report_naming_another_agent_or_voice_is_dropped_without_an_answer(
         self, participation, call, scheduler, capsys, named
     ):
+        """CALL-69."""
         host, _, mozart, _ = call
         with configured("hopin"):
             room_id, voice_id = await held_after_playing(participation, call, scheduler)
@@ -196,6 +204,7 @@ class TestTheServerChecksTheReport:
     async def test_call_69_a_report_for_an_agent_that_is_joined_but_not_held_is_dropped(
         self, participation, call, scheduler, capsys
     ):
+        """CALL-69."""
         host, _, _, salieri = call
         with configured("hopin"):
             room_id, voice_id = await held_after_playing(participation, call, scheduler)
@@ -208,6 +217,7 @@ class TestTheServerChecksTheReport:
     async def test_call_69_a_report_after_the_hold_ended_is_dropped_and_counts_for_no_later_hold(
         self, participation, call, scheduler, capsys
     ):
+        """CALL-69."""
         host, guest, mozart, _ = call
         with configured("hopin"):
             room_id, voice_id = await held_after_playing(participation, call, scheduler)
@@ -220,6 +230,7 @@ class TestTheServerChecksTheReport:
         assert (line["seat_report_count"], host.frames(SignalType.ERROR)) == (0, [])
 
     async def test_call_69_a_report_for_a_hold_with_no_started_sentence_is_dropped(self, participation, call, capsys):
+        """CALL-69."""
         host, guest, mozart, _ = call
         room_id = room_of(host)
         rendered = asyncio.Event()
@@ -243,6 +254,7 @@ class TestTheServerChecksTheReport:
             pending.cancel()
 
     async def test_call_69_a_report_for_a_sentence_a_voice_failure_cut_is_dropped(self, participation, call, capsys):
+        """CALL-69."""
         host, guest, mozart, _ = call
         room_id = room_of(host)
         streamed = StreamedSentence()
@@ -284,6 +296,7 @@ class TestAHoldWritesOneLineWhenItEnds:
     async def test_call_69_each_way_a_hold_ends_writes_one_line_with_its_reason_and_ids_and_numbers_only(
         self, participation, call, scheduler, capsys, ending, end
     ):
+        """CALL-69."""
         host, guest, mozart, _ = call
         with configured("hopin"):
             room_id, voice_id = await held_after_playing(participation, call, scheduler)
@@ -319,6 +332,7 @@ class TestAHoldWritesOneLineWhenItEnds:
     async def test_call_69_a_hold_nobody_reported_leaves_the_seat_minimum_out(
         self, participation, call, scheduler, capsys
     ):
+        """CALL-69."""
         with configured("hopin"):
             room_id, _ = await held_after_playing(participation, call, scheduler)
 
@@ -329,6 +343,7 @@ class TestAHoldWritesOneLineWhenItEnds:
     async def test_call_69_a_hold_ends_once_and_a_later_hold_writes_its_own_line(
         self, participation, call, scheduler, capsys
     ):
+        """CALL-69."""
         with configured("hopin"):
             room_id, _ = await held_after_playing(participation, call, scheduler)
             await participation.continue_speaking(GUEST, room_id, "1")
