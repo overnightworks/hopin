@@ -15,7 +15,7 @@ describe("an agent's voice", () => {
     async function pageWithAgents(...agentIds: string[]) {
         const page = await installedParticipation();
         page.seat(false);
-        for (const agentId of agentIds) page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", agentId));
+        for (const agentId of agentIds) page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(agentId));
         return page;
     }
 
@@ -242,7 +242,7 @@ describe("an agent's voice", () => {
         const page = await installedParticipation();
         page.seat(false);
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, {
-            ...joined("someone", "a1"),
+            ...joined("a1"),
             framing: FIGURE_FRAMING.UPPER_BODY,
         });
         const first = page.tiles.get("agent-a1")?.framing;
@@ -342,7 +342,7 @@ describe("an agent's voice", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
         await page.players.created[0]?.sounds[0]?.start();
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a1"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
 
         expect(tileActivities(page)).toEqual([AGENT_ACTIVITY.SPEAKING]);
     });
@@ -395,7 +395,7 @@ describe("an agent's listen switch", () => {
     async function pageWithAgents(...agentIds: string[]) {
         const page = await installedParticipation();
         page.seat(false);
-        for (const agentId of agentIds) page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", agentId));
+        for (const agentId of agentIds) page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(agentId));
         return page;
     }
 
@@ -450,7 +450,7 @@ describe("an agent's listen switch", () => {
         [...page.tiles.values()][0]?.listening?.onChange(false);
 
         page.seat(false, SIGNAL_TYPE.EXISTING_PARTICIPANTS);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a1"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
 
         expect(listeningOf(page)).toEqual([true]);
     });

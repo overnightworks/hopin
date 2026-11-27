@@ -7,7 +7,7 @@ import type { CaptureOptions } from "overnightworks-speech-browser";
 import { fakeCaptures } from "./capture.fixture.ts";
 import { install } from "./index.ts";
 import { ME, installedParticipation, joined, tileActivities } from "./page.fixture.ts";
-import { AGENT_REFUSAL, FIGURE_END, HEARING_PATH, PARTICIPATION_SIGNAL } from "./wire.ts";
+import { FIGURE_END, HEARING_PATH, PARTICIPATION_SIGNAL } from "./wire.ts";
 
 // The real chat module loads the call sounds, which build an audio context when first imported.
 vi.hoisted(() => {
@@ -27,7 +27,7 @@ describe("dialed-in agents", () => {
         const page = await installedParticipation();
         page.seat(false);
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
 
         expect([...page.tiles.values()].map(({ name, sponsor, activity }) => [name, sponsor, activity])).toEqual([
             ["Claude", "Ada", AGENT_ACTIVITY.PRESENT],
@@ -39,10 +39,10 @@ describe("dialed-in agents", () => {
         page.seat(false);
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, {
-            ...joined("someone"),
+            ...joined(),
             figure: "/api/participation/figures/abc",
         });
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a2"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a2"));
 
         expect([...page.tiles.values()].map(({ figure }) => figure)).toEqual([
             "/api/participation/figures/abc",
@@ -55,11 +55,11 @@ describe("dialed-in agents", () => {
         page.seat(false);
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, {
-            ...joined("someone"),
+            ...joined(),
             figure: "/api/participation/figures/abc",
             gestures: { wave: "/api/participation/clips/def" },
         });
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a2"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a2"));
 
         expect([...page.tiles.values()].map(({ gestures }) => gestures)).toEqual([
             { wave: "/api/participation/clips/def" },
@@ -72,11 +72,11 @@ describe("dialed-in agents", () => {
         page.seat(false);
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, {
-            ...joined("someone"),
+            ...joined(),
             figure: "/api/participation/figures/abc",
             room: "/api/participation/persona-rooms/ghi",
         });
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a2"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a2"));
 
         expect([...page.tiles.values()].map(({ room }) => room)).toEqual([
             "/api/participation/persona-rooms/ghi",
@@ -88,7 +88,7 @@ describe("dialed-in agents", () => {
         const page = await installedParticipation();
         page.seat(false);
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, {
-            ...joined("someone"),
+            ...joined(),
             figure: "/api/participation/figures/abc",
         });
         const [key] = [...page.tiles.keys()];
@@ -105,36 +105,6 @@ describe("dialed-in agents", () => {
         page.endFigure("agent-gone", FIGURE_END.LOST);
 
         expect(page.sent).toEqual([]);
-    });
-
-    it.each([
-        { who: "the sponsor", host: false, sponsorId: ME },
-        { who: "the host", host: true, sponsorId: "someone" },
-    ])("CALL-49: offers the remove action to $who, and it asks the server to remove the agent", async (arrival) => {
-        const page = await installedParticipation();
-        page.seat(arrival.host, SIGNAL_TYPE.EXISTING_PARTICIPANTS);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(arrival.sponsorId));
-
-        page.tiles.get("agent-a1")?.onRemove?.();
-
-        expect(page.sent).toEqual([{ type: PARTICIPATION_SIGNAL.AGENT_REMOVE, agent_id: "a1" }]);
-    });
-
-    it("CALL-49: offers no remove action to anyone else", async () => {
-        const page = await installedParticipation();
-        page.seat(false);
-
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
-
-        expect(page.tiles.get("agent-a1")?.onRemove).toBeUndefined();
-    });
-
-    it("CALL-49: tells a person whose removal was refused that only the sponsor or the host removes the agent", async () => {
-        const page = await installedParticipation();
-
-        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.NOT_SPONSOR_OR_HOST });
-
-        expect([page.toasts.length, page.alert()]).toEqual([1, undefined]);
     });
 
     it("shows an agent's line in the chat under its name", async () => {
@@ -155,8 +125,8 @@ describe("dialed-in agents", () => {
     it("names the agents it shows to the chat, which sends each line for them through the page's frame", async () => {
         const page = await installedParticipation();
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a2"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a2"));
         page.lineReaders().send("hello");
 
         expect(page.lineReaders().names).toEqual(["Claude", "Claude"]);
@@ -165,7 +135,7 @@ describe("dialed-in agents", () => {
 
     it("names no agent to the chat once the last one left", async () => {
         const page = await installedParticipation();
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_LEFT, { agent_id: "a1" });
 
@@ -175,8 +145,8 @@ describe("dialed-in agents", () => {
     it("takes the tile away when its agent leaves, and shows a repeated join once", async () => {
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
         const whileIn = page.tiles.size;
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_LEFT, { agent_id: "a1" });
@@ -187,8 +157,8 @@ describe("dialed-in agents", () => {
     it("takes every tile away when the call ends", async () => {
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a1"));
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a2"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a2"));
 
         page.endCall();
 
@@ -200,7 +170,7 @@ describe("dialed-in agents", () => {
         async (signal) => {
             const page = await installedParticipation();
             page.seat(false);
-            page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "gone"));
+            page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("gone"));
 
             page.seat(false, signal);
 
@@ -208,18 +178,22 @@ describe("dialed-in agents", () => {
         },
     );
 
-    it("shows a re-announced agent again with the new seat's remove right", async () => {
+    it("CALL-84: shows a re-announced agent again, with the remove button the new seat's offers frame gives", async () => {
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a1"));
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a2"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a2"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: ["a1", "a2"] });
 
         page.emit(SIGNAL_TYPE.EXISTING_PARTICIPANTS, { participant_id: "new-seat", is_host: false });
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("new-seat", "a1"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
+        const beforeItsFrame = page.tiles.get("agent-a1")?.onRemove;
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: ["a1"] });
         page.tiles.get("agent-a1")?.onRemove?.();
 
-        expect([[...page.tiles.keys()], page.sent]).toEqual([
+        expect([[...page.tiles.keys()], beforeItsFrame, page.sent]).toEqual([
             ["agent-a1"],
+            undefined,
             [{ type: PARTICIPATION_SIGNAL.AGENT_REMOVE, agent_id: "a1" }],
         ]);
     });
@@ -232,7 +206,8 @@ describe("the sponsor's hearing switch on an agent's tile", () => {
     it("CALL-57: keeps the tile's other fields when the record arrives", async () => {
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, { ...joined(ME), figure: "/api/participation/figures/abc" });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, { ...joined(), figure: "/api/participation/figures/abc" });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: ["a1"] });
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on: true });
 
@@ -248,7 +223,7 @@ describe("the sponsor's hearing switch on an agent's tile", () => {
     it("CALL-57: sends the new value on a press and shows what the server answers, never its own flip", async () => {
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
         page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on: true });
 
         hearingOf(page)?.onChange(false);
@@ -265,8 +240,8 @@ describe("the sponsor's hearing switch on an agent's tile", () => {
     it("CALL-57: gives each agent its own record", async () => {
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME, "a1"));
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a2"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a2"));
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on: true });
 
@@ -276,10 +251,10 @@ describe("the sponsor's hearing switch on an agent's tile", () => {
     it("CALL-57: keeps the record when the same agent is announced again", async () => {
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
         page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on: true });
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
 
         expect(hearingOf(page)?.on).toBe(true);
     });
@@ -287,7 +262,7 @@ describe("the sponsor's hearing switch on an agent's tile", () => {
     it("CALL-57: shows no switch for an agent that is no longer on the stage", async () => {
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
         page.emit(PARTICIPATION_SIGNAL.AGENT_LEFT, { agent_id: "a1" });
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on: true });
@@ -298,11 +273,11 @@ describe("the sponsor's hearing switch on an agent's tile", () => {
     it("CALL-57: shows no switch on an agent announced again to a new seat until that seat's record comes", async () => {
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
         page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on: true });
 
         page.seat(false, SIGNAL_TYPE.EXISTING_PARTICIPANTS);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
 
         expect(hearingOf(page)).toBeUndefined();
     });
@@ -313,7 +288,7 @@ describe("the sponsor's microphone capture", () => {
     const sponsorsAgent = async (agentId = "a1") => {
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME, agentId));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(agentId));
         return page;
     };
     const record = (page: Awaited<ReturnType<typeof installedParticipation>>, on: boolean, agentId = "a1") => {
@@ -337,7 +312,7 @@ describe("the sponsor's microphone capture", () => {
     it("CALL-59: starts no capture for a seat that gets no record, however its microphone is", async () => {
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
 
         page.hear(MICROPHONE);
 
@@ -393,7 +368,7 @@ describe("the sponsor's microphone capture", () => {
 
     it("CALL-59: keeps a pressed-off switch's capture stopped when another agent leaves before the server answers", async () => {
         const page = await sponsorsAgent("a1");
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME, "a2"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a2"));
         record(page, true, "a1");
         page.hear(MICROPHONE);
         page.tiles.get("agent-a1")?.hearing?.onChange(false);
@@ -405,7 +380,7 @@ describe("the sponsor's microphone capture", () => {
 
     it("CALL-59: stops the capture on a press of one switch before the server answers and resumes it for the agent that still hears", async () => {
         const page = await sponsorsAgent("a1");
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME, "a2"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a2"));
         record(page, true, "a1");
         record(page, true, "a2");
         page.hear(MICROPHONE);
@@ -445,7 +420,7 @@ describe("the sponsor's microphone capture", () => {
         page.hear(MICROPHONE);
 
         page.seat(false, SIGNAL_TYPE.EXISTING_PARTICIPANTS);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
 
         expect([live(), captures.started]).toEqual([[], [expect.anything()]]);
     });
@@ -456,7 +431,7 @@ describe("the page's installation", () => {
         const page = await installedParticipation(install);
         page.seat(false);
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
 
         expect(tileActivities(page)).toEqual([AGENT_ACTIVITY.PRESENT]);
     });

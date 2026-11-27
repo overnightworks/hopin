@@ -49,7 +49,6 @@ def test_a_member_adds_the_owners_agent_its_tile_shows_the_name_and_the_mark_and
         expect(tile.locator(".name")).to_contain_text(scene.agent.name)
         expect(tile.locator(".ai-badge")).to_be_visible()
         expect(tile.locator(".sponsor")).to_have_text(OWNER_USERNAME)
-    expect(scene.member.locator(AGENT_TILE + " " + REMOVE)).to_have_count(0)
     assert [standing.state for standing in scene.agent.standings()] == [StandingState.ACTIVE]
 
     scene.host.locator(AGENT_TILE + " " + REMOVE).click()
@@ -220,3 +219,63 @@ def test_a_refusal_leaves_when_the_offers_change_after_it(
         expect(scene.member.get_by_role("alert")).to_have_count(0)
     finally:
         second.close()
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_member_sends_the_owners_agent_away_and_an_outsider_sees_no_button(
+    scene_of: Callable[[dict[str, Any]], Scene], form_factor: dict[str, Any]
+) -> None:
+    """CALL-84: A member of the adders group sees the remove button on the owner's agent and sends it away; a person
+    outside the group sees none; the page does not overflow."""
+    scene = scene_of(form_factor)
+    scene.member_adds_and_the_agent_accepts()
+    scene.member.keyboard.press("Escape")
+    outsider = scene.person_joins_late()
+    expect(outsider.locator(AGENT_TILE)).to_have_count(1)
+
+    expect(scene.member.locator(AGENT_TILE + " " + REMOVE)).to_have_count(1)
+    expect(outsider.locator(AGENT_TILE + " " + REMOVE)).to_have_count(0)
+    assert scene.member.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+    scene.member.locator(AGENT_TILE + " " + REMOVE).click()
+
+    for person in (*scene.everyone, outsider):
+        expect(person.locator(AGENT_TILE)).to_have_count(0)
+    assert scene.agent.standings() == ()
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_a_member_whose_group_was_revoked_is_refused_and_the_button_goes(
+    scene_of: Callable[[dict[str, Any]], Scene],
+    e2e_server: RunningServer,
+    member_of: Callable[[Page], Any],
+    form_factor: dict[str, Any],
+) -> None:
+    """CALL-84: A member whose right was revoked after the display still sees the button; the press is refused with the
+    toast, the agent stays and the button goes with the next offers frame."""
+    scene = scene_of(form_factor)
+    scene.member_adds_and_the_agent_accepts()
+    scene.member.keyboard.press("Escape")
+    remove = scene.member.locator(AGENT_TILE + " " + REMOVE)
+    expect(remove).to_have_count(1)
+    e2e_server.issuer.grant_groups(member_of(scene.member).account.id, ())
+
+    remove.click()
+
+    expect(scene.member.locator("#toasts")).to_have_text(text("de", "agent.notRemovedToast"))
+    expect(remove).to_have_count(0)
+    for person in scene.everyone:
+        expect(person.locator(AGENT_TILE)).to_have_count(1)
+    assert [standing.state for standing in scene.agent.standings()] == [StandingState.ACTIVE]
+    assert scene.member.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+
+
+def test_the_owner_sends_its_agent_away(scene_of: Callable[[dict[str, Any]], Scene]) -> None:
+    """CALL-84: The owner, who holds no right of the adders group, sends its agent away from its own seat."""
+    scene = scene_of(DESKTOP)
+    scene.member_adds_and_the_agent_accepts()
+
+    scene.owner.locator(AGENT_TILE + " " + REMOVE).click()
+
+    for person in scene.everyone:
+        expect(person.locator(AGENT_TILE)).to_have_count(0)
+    assert scene.agent.standings() == ()

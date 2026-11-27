@@ -48,7 +48,6 @@ class TestJoiningOneLiveSeat:
             "agent_id": agent.agent_id,
             "name": NAME,
             "sponsor": "guest",
-            "sponsor_id": guest.peer_id,
         }
         for browser in (host, guest):
             assert without_seq(agent_frames(browser, ParticipationSignal.AGENT_JOINED)) == [expected]

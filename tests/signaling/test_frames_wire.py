@@ -37,12 +37,13 @@ from hopin.signaling.frames import (
             id="the sender goes out under its wire key",
         ),
         pytest.param(
-            AgentOffersFrame(shown=True, full=False, offers=[Offer("k", "Bach", pending=True)]),
+            AgentOffersFrame(shown=True, full=False, offers=[Offer("k", "Bach", pending=True)], send_away=["a1"]),
             {
                 "type": "agent_offers",
                 "shown": True,
                 "full": False,
                 "offers": [{"agent_key": "k", "name": "Bach", "pending": True}],
+                "send_away": ["a1"],
             },
             id="a nested record is sent as its own object",
         ),

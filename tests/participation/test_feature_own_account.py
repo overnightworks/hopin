@@ -36,7 +36,7 @@ class TestAddingTheAgent:
         assert (standing["state"], standing["place"]["id"]) == ("invited", scene.owner.room_id)
         assert accepted.outcome == {"room": scene.owner.room_id, "name": scene.agent_name}
         joined = scene.owner.frame_of_type(JOINED)
-        assert (joined["name"], joined["sponsor_id"]) == (scene.agent_name, scene.owner.participant_id)
+        assert joined["name"] == scene.agent_name
         assert [item["state"] for item in scene.standings()] == ["active"]
 
     def test_no_frame_a_seat_receives_carries_the_agents_username(self, scene):
