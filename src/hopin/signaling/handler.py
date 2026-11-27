@@ -112,11 +112,11 @@ class SignalingHandler:
             await feature.shut_down()
         self._store.end_all()
 
-    async def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:
+    async def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:  # NOSONAR(S7503) a store read is awaited
         """The seats an account holds, parked ones included, read in one instant."""
         return tuple(self._snapshot_of(record) for _, record in self._store.held_by(account_id))
 
-    async def reach_of(self, account_id: str) -> PersonReach:
+    async def reach_of(self, account_id: str) -> PersonReach:  # NOSONAR(S7503) a store read is awaited
         """Counted in one instant like `seats_of`. A call the account hosts counts when another
         seat or an agent is in it; a host alone in its grace changes nothing for others."""
         hosted = self._room_manager.hosted_by(account_id)

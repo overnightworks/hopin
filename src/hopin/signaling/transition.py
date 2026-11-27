@@ -568,11 +568,11 @@ class FeatureTransitions:
         self._works: dict[str, _RunningWork] = {}
         self._steps = OwnTurns()
 
-    async def view(self, room_id: str | None) -> RoomView:
+    async def view(self, room_id: str | None) -> RoomView:  # NOSONAR(S7503) a store read is awaited
         """The room's view now; an ended room or none is the view of no room."""
         return self._store.load(room_id)
 
-    async def seat_view(self, peer_id: PeerId) -> RoomView:
+    async def seat_view(self, peer_id: PeerId) -> RoomView:  # NOSONAR(S7503) a store read is awaited
         """The view of the room the seat sits in."""
         return self._store.load_seat(peer_id)
 
