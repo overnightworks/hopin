@@ -1,0 +1,8 @@
+claim_id = "4b52f05e7a6e457caf769fd71e2915f2"
+agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
+role = "builder"
+base = "2895b0828f3af905bcc7672cab3fc3ce0d17e09b"
+branch = "claude/issue-1166-hopin-logs-where-held-sentence-stood"
+scope = ["docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/features/participation/index.ts", "frontend/src/lib/features/participation/indexVoice.test.ts", "frontend/src/lib/features/participation/player.fixture.ts", "frontend/src/lib/features/participation/voice.test.ts", "frontend/src/lib/features/participation/voice.ts", "frontend/src/lib/features/participation/wire.ts", "quality/baseline.toml", "src/hopin/participation/agent_speech.py", "src/hopin/participation/feature.py", "src/hopin/participation/hold_reports.py", "src/hopin/participation/speaking.py", "src/hopin/participation/vocabulary.py", "tests/e2e/conftest.py", "tests/e2e/participation/test_agent_held.py", "tests/e2e/test_connection_outcome.py", "tests/participation"]
+opened_commit = "1c2a0e163238cff60d5502706e1792a857ba7824"
+whole_reason = "One report from seat to server with its bound and its log line: the page half, the server half and the rule's text prove nothing apart."
