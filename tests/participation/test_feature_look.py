@@ -1,4 +1,4 @@
-"""CALL-63: a joined agent's look at its sponsor's camera, at participation's real feature and handler: the request to
+"""A joined agent's look at its sponsor's camera, at participation's real feature and handler: the request to
 the sponsor's browser, its answer in parts, the refusals and the bounds."""
 
 import asyncio

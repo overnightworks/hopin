@@ -28,10 +28,12 @@ def content_security_policy(sign_in_settings, call_features):
 
 
 def test_the_page_may_frame_exactly_the_origin_of_every_registered_app(sign_in_settings):
+    """ST-07."""
     policy = content_security_policy(sign_in_settings, (StageFeature((SKAT, CHESS)),))
 
     assert f"frame-src {SKAT.origin} {CHESS.origin};" in policy
 
 
 def test_without_apps_the_page_frames_nothing(sign_in_settings):
+    """ST-07."""
     assert "frame-src 'none';" in content_security_policy(sign_in_settings, ())

@@ -31,7 +31,7 @@ describe("navigation", () => {
         ["/c/", null],
         ["/x/abc", null],
         ["/c/new", null],
-    ])("reads the room id of %s as %s", (pathname, roomId) => {
+    ])("ST-14: reads the room id of %s as %s", (pathname, roomId) => {
         stubLocation(pathname);
 
         expect(getRoomIdFromUrl()).toBe(roomId);
@@ -44,7 +44,7 @@ describe("navigation", () => {
         ["/c/new", "", null],
         ["/c/abc", "?app=skat&context=a1", null],
         ["/", "?app=skat&context=a1", null],
-    ])("reads the start link of %s%s as %j", (pathname, search, startLink) => {
+    ])("ST-14: reads the start link of %s%s as %j", (pathname, search, startLink) => {
         stubLocation(pathname, search);
 
         expect(getStartLinkFromUrl()).toEqual(startLink);

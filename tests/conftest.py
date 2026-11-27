@@ -1,4 +1,5 @@
 import logging
+import socket
 from functools import partial
 from typing import TYPE_CHECKING
 
@@ -10,7 +11,8 @@ from logline.testing import configured
 pytest.register_assert_rewrite("tests.support", "tests.signaling.support", "tests.e2e.support")
 pytest.register_assert_rewrite("tests.game.support")  # game
 
-from hopin.main import main  # noqa: E402
+from hopin.config.settings import RealmSettings, ServerSettings  # noqa: E402
+from hopin.main import build_application, main, run_uvicorn, uvicorn_options  # noqa: E402
 from hopin.rooms.manager import RoomManager  # noqa: E402
 from hopin.signaling.handler import SignalingHandler  # noqa: E402
 from hopin.signaling.scheduler import InMemoryDeadlines  # noqa: E402
@@ -18,8 +20,11 @@ from tests.stores.support.postgres_identity import empty_database, postgres_stor
 from tests.support.dialed_call import serving_dialed_call  # noqa: E402
 from tests.support.fake_issuer import FakeIssuer  # noqa: E402
 from tests.support.game_environment import set_game_environment  # noqa: E402  # game
+from tests.support.in_thread_stores import in_thread_stores  # noqa: E402
+from tests.support.page_build import fixture_page_build  # noqa: E402
 from tests.support.sign_in_settings import SignInSettings, build_sign_in_settings  # noqa: E402
 from tests.support.signaling_fakes import ROOM_LIMIT, ManualScheduler, SocketAccountResolver  # noqa: E402
+from tests.support.stores import single_process_stores  # noqa: E402
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -68,6 +73,28 @@ def serve_refusal(
 def game_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """The settings environment a test needs when the game master is part of the build."""
     set_game_environment(monkeypatch)  # game
+
+
+@pytest.fixture
+def start_on_taken_port(sign_in_settings, monkeypatch: pytest.MonkeyPatch) -> Callable[[], SystemExit]:
+    """Starts the server on a port another socket holds and returns the exit uvicorn refuses it with."""
+    for name, value in sign_in_settings().environment.items():
+        monkeypatch.setenv(name, value)
+
+    def start() -> SystemExit:
+        with socket.socket() as taken:
+            taken.bind(("127.0.0.1", 0))
+            monkeypatch.setenv("HOPIN_HOST", "127.0.0.1")
+            monkeypatch.setenv("HOPIN_PORT", str(taken.getsockname()[1]))
+            settings = ServerSettings()
+            application = build_application(
+                settings, RealmSettings(), fixture_page_build(), in_thread_stores(), single_process_stores()
+            )
+            with pytest.raises(SystemExit) as refusal:
+                run_uvicorn(application, uvicorn_options(settings))
+        return refusal.value
+
+    return start
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-"""CALL-68: a held agent that states it thinks keeps the thinking standing until something ends it,
+"""A held agent that states it thinks keeps the thinking standing until something ends it,
 at participation's real feature and the agents library's real record of who may hear whom."""
 
 import pytest
@@ -34,6 +34,7 @@ async def a_hold_over_a_thinking_agent(participation, call):
 
 class TestAThinkingAgentWhileHeld:
     async def test_call_68_a_speak_refused_held_leaves_the_thinking_standing(self, participation, call):
+        """CALL-68."""
         host, guest, *_ = call
 
         await a_hold_over_a_thinking_agent(participation, call)
@@ -69,6 +70,7 @@ class TestAThinkingAgentWhileHeld:
     async def test_call_68_what_ends_the_thinking_of_a_held_agent_tells_every_seat(
         self, participation, call, scheduler, ending
     ):
+        """CALL-68."""
         host, guest, *_ = call
         room_id = await a_hold_over_a_thinking_agent(participation, call)
 
@@ -79,6 +81,7 @@ class TestAThinkingAgentWhileHeld:
     async def test_call_68_an_accepted_speak_after_the_hold_ended_ends_the_thinking(
         self, participation, call, scheduler
     ):
+        """CALL-68."""
         host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, "Eins", room_id=room_id)
@@ -94,6 +97,7 @@ class TestAThinkingAgentWhileHeld:
         assert [thoughts(seat) for seat in (host, guest)] == [[True, False]] * 2
 
     async def test_call_68_the_agents_end_leaves_no_seat_told_the_thinking_ended(self, participation, call, scheduler):
+        """CALL-68."""
         host, *_ = call
         room_id = await a_hold_over_a_thinking_agent(participation, call)
 

@@ -65,10 +65,6 @@ _STEPS: Final = logging.getLogger(__name__)
 
 RUN_ENDED_REASON: Final = "ended"
 RUN_KEY_BYTES: Final = 8
-# How a broken write is logged, by the frames it should have carried.
-_RUN_WRITE_BROKE: Final = "game_driver.failed"
-_END_WRITE_BROKE: Final = "game_end.failed"
-_COUNT_WRITE_BROKE: Final = "game_answer_count.failed"
 # A seat a slow write holds back gets only the newest count, and nothing of a run an end has ended.
 _A_NEWER_COUNT: Final = Supersedes(frozenset({GameSignal.GAME_ANSWER_COUNT}))
 _AN_END: Final = Supersedes(frozenset({GameSignal.GAME_LINE, GameSignal.GAME_VOICE, GameSignal.GAME_ANSWER_COUNT}))
@@ -106,6 +102,19 @@ class GameMaster(Protocol):
 
     async def aclose(self) -> None:
         """Release what the game master holds; called once, when the game shuts down."""
+
+
+# A broken write is logged by the frames it should have carried, by the error's type alone and never a frame's text.
+def _log_run_write_broke(error: BaseException) -> None:
+    logger.error("game_driver.failed", error_type=type(error).__name__)
+
+
+def _log_end_write_broke(error: BaseException) -> None:
+    logger.error("game_end.failed", error_type=type(error).__name__)
+
+
+def _log_count_write_broke(error: BaseException) -> None:
+    logger.error("game_answer_count.failed", error_type=type(error).__name__)
 
 
 def _refusal_frame(refusal: Refused) -> BusyRefusedFrame | RefusedFrame:
@@ -275,7 +284,7 @@ class Game(TransitionFeature):
         table = replace(table, quiz=quiz)
         present = frozenset(player for player in quiz.players if player in view.members)
         transition.put(TABLE, table)
-        transition.log_broken_writes_as(_COUNT_WRITE_BROKE)
+        transition.log_broken_writes_with(_log_count_write_broke)
         for seat in view.members:
             frame = AnswerCountFrame(
                 answered=quiz.answered_count(present),
@@ -391,7 +400,7 @@ class Game(TransitionFeature):
         run = table.run(key)
         if live.stopped or run is None or run.ended:
             return _Delivery(ended=run is not None and run.ended)
-        transition.log_broken_writes_as(_RUN_WRITE_BROKE)
+        transition.log_broken_writes_with(_log_run_write_broke)
         recipients = view.members
         quiz = self._deliver(run, outcome, recipients, transition)
         # Each phase's recipients are read in the same step that sets it, so every seat seated now is told here, a
@@ -493,7 +502,7 @@ def _end_for_everyone(view: RoomView, table: _Table, notice: EndedFrame, transit
     for run in table.runs:
         transition.stop(run.key)
     transition.put(TABLE, _Table(runs=tuple(replace(run, ended=True) for run in table.runs)))
-    transition.log_broken_writes_as(_END_WRITE_BROKE)
+    transition.log_broken_writes_with(_log_end_write_broke)
     _send_each(transition, view.members, notice, _AN_END)
     _send_each(transition, view.members, IdlePhaseFrame(GamePhase.IDLE))
 
@@ -511,7 +520,7 @@ def _tell_thinking(key: str, live: _LiveRun, view: RoomView, transition: Transit
         return
     recipients = [seat for seat in view.members if seat not in table.phase.told]
     transition.put(TABLE, replace(table, phase=replace(table.phase, told=table.phase.told | set(recipients))))
-    transition.log_broken_writes_as(_RUN_WRITE_BROKE)
+    transition.log_broken_writes_with(_log_run_write_broke)
     _send_each(transition, recipients, table.phase.frame)
 
 
@@ -521,7 +530,7 @@ def _send_voice_frame(
     view: RoomView,
     transition: Transition,
 ) -> None:
-    transition.log_broken_writes_as(_RUN_WRITE_BROKE)
+    transition.log_broken_writes_with(_log_run_write_broke)
     _send_each(transition, (seat for seat in recipients if seat in view.members), frame)
 
 

@@ -19,7 +19,7 @@ drawFigure = 135
 installedGame = 71
 
 [function_lines."frontend/src/lib/features/participation/index.ts"]
-installWith = 328
+installWith = 326
 
 [function_lines."frontend/src/lib/features/participation/page.fixture.ts"]
 installedParticipation = 154
@@ -41,3 +41,8 @@ host_a_call = [["tests/signaling/test_handler_flow.py", "open_room"]]
 
 [clones."tests/e2e/test_account_menu.py"]
 "test_session_that_ended_goes_through_the_sign_in_once_when_the_account_answers_401.end_the_session_and_answer_401" = [["tests/e2e/test_names.py", "test_home_whose_session_ended_goes_through_the_sign_in_when_the_account_answers_401.end_the_session_and_answer_401"]]
+
+[spec_citations]
+uncited = [
+    "ST-10",
+]

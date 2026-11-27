@@ -19,16 +19,19 @@ def stage_apps(monkeypatch):
 
 
 def test_unset_means_no_stage_at_all(stage_apps):
+    """ST-07."""
     assert configured_stage_feature(PUBLIC_ORIGIN) == ()
 
 
 def test_an_empty_list_means_no_stage_at_all(stage_apps):
+    """ST-07."""
     stage_apps()
 
     assert configured_stage_feature(PUBLIC_ORIGIN) == ()
 
 
 def test_each_entry_gives_an_app_and_the_feature_frames_exactly_their_origins(stage_apps):
+    """ST-07."""
     stage_apps(entry(origin="https://skat.example:8443"), entry(name="chess", origin="https://chess.example"))
 
     [feature] = configured_stage_feature(PUBLIC_ORIGIN)
@@ -57,6 +60,7 @@ def test_a_title_has_no_length_limit(stage_apps):
     ],
 )
 def test_an_origin_equal_to_the_public_origin_refuses_the_start_naming_both_settings(stage_apps, public_origin):
+    """ST-07."""
     stage_apps(entry(name="chess", origin="https://chess.example"), entry())
 
     with pytest.raises(StartRefusedError) as refusal:
@@ -67,6 +71,7 @@ def test_an_origin_equal_to_the_public_origin_refuses_the_start_naming_both_sett
 
 
 def test_another_port_is_another_origin(stage_apps):
+    """ST-07."""
     stage_apps(entry(origin="https://hopin.example:8443"))
 
     assert len(configured_stage_feature(PUBLIC_ORIGIN)) == 1

@@ -1,4 +1,4 @@
-"""CALL-60, CALL-61: the agent's `speak` when the sentence cannot be spoken or the voice fails."""
+"""The agent's `speak` when the sentence cannot be spoken or the voice fails."""
 
 import logging
 from functools import partial
@@ -86,6 +86,7 @@ class TestWhenTheSentenceCannotBeSpoken:
     def test_call_60_a_sentence_one_character_over_the_bound_is_too_long_and_nobody_is_called(
         self, joined_agent, speech_origin
     ):
+        """CALL-60."""
         dialed = speak(joined_agent, "x" * (SPEAK_MAX_CHARACTERS + 1))
 
         assert (refusal_of(dialed), speech_requests(speech_origin)) == ((True, {"refused": "too_long"}), [])
@@ -93,6 +94,7 @@ class TestWhenTheSentenceCannotBeSpoken:
     def test_call_61_an_agent_with_no_held_token_is_unavailable_and_nothing_is_written(
         self, adding_call, joined_agent, speech_origin
     ):
+        """CALL-61."""
         adding_call.issuer.refuses_token_exchange_grants = True
         for _ in range(3):
             joined_agent.call.pass_time(LEASE_SECONDS - 1)
@@ -120,6 +122,7 @@ class TestWhenTheVoiceFails:
     def test_call_61_a_sentence_speech_does_not_answer_whole_is_written_as_the_agents_line_with_one_closed_code_logged(
         self, joined_agent, speech_origin, answer, logged
     ):
+        """CALL-61."""
         speaking(speech_origin, answer)
 
         with captured_lines() as logs:
@@ -141,6 +144,7 @@ class TestWhenTheVoiceFails:
     def test_call_61_a_stream_that_breaks_off_after_the_sound_began_cuts_the_sentence_with_one_closed_code_logged(
         self, joined_agent, speech_origin, answer, logged
     ):
+        """CALL-61."""
         speaking(speech_origin, answer)
 
         with captured_lines() as logs:
@@ -161,6 +165,7 @@ class TestWhenTheVoiceFails:
     def test_call_61_a_workload_token_the_issuer_refuses_writes_the_sentence_and_speech_is_not_called(
         self, adding_call, joined_agent, speech_origin
     ):
+        """CALL-61."""
         adding_call.issuer.refuses_client_credentials_grants = True
 
         with captured_lines() as logs:
@@ -175,6 +180,7 @@ class TestWhenTheVoiceFails:
     def test_call_61_a_sentence_with_nothing_to_pronounce_is_written_and_speech_is_not_called(
         self, joined_agent, speech_origin
     ):
+        """CALL-61."""
         with captured_lines() as logs:
             written = speak(joined_agent, text="... !?")
 
@@ -189,6 +195,7 @@ class TestASentenceWithNoText:
     def test_call_60_a_blank_one_is_unavailable_with_no_text_logged_and_nobody_is_called(
         self, joined_agent, speech_origin
     ):
+        """CALL-60."""
         place = PlaceRef(kind=CALL_KIND, id=joined_agent.owner.room_id).model_dump()
         arguments = {"place": place, "text": "   "}
 
@@ -206,6 +213,7 @@ class TestAPersonsOwnAgent:
     def test_call_60_it_has_no_token_held_and_its_speak_is_unavailable_and_nobody_is_called(
         self, joined_agent, speech_origin
     ):
+        """CALL-60."""
         call = joined_agent.call
         token = call.token(joined_agent.member_account)
         call.call(token, JOIN_CALL, join_arguments(joined_agent.member))
@@ -225,6 +233,7 @@ class TestAServiceThatIsNotThere:
         return SpeechService(origin, VoiceId.THORSTEN, AUDIENCE_SCOPE)
 
     def test_call_61_the_sentence_is_written_and_unreachable_is_logged(self, joined_agent):
+        """CALL-61."""
         with captured_lines() as logs:
             written = speak(joined_agent)
 
@@ -235,6 +244,7 @@ class TestEveryEndAtTheRoute:
     def test_call_60_a_lease_that_runs_out_drops_the_sound_and_the_next_speak_is_not_active(
         self, joined_agent, speech_origin, speaking_behind
     ):
+        """CALL-60."""
         speaking(speech_origin, chunked_wav(silent_wav(LEASE_SECONDS + 1)))
         speak(joined_agent, seconds=LEASE_SECONDS + 1)
         waiting = speaking_behind()
@@ -255,6 +265,7 @@ class TestEveryEndAtTheRoute:
 
 class TestNothingLeaks:
     def test_call_60_no_frame_to_a_seat_and_no_route_answer_carries_a_token(self, joined_agent):
+        """CALL-60."""
         speak(joined_agent)
         answers = []
         for seat in (joined_agent.owner, joined_agent.member):
@@ -272,6 +283,7 @@ class TestNothingLeaks:
         assert [token for token in tokens if token in seen] == []
 
     def test_call_60_a_debug_log_of_a_sentence_carries_no_text_no_sound_and_no_token(self, joined_agent, caplog):
+        """CALL-60."""
         with caplog.at_level(logging.DEBUG), captured_lines() as logs:
             speak(joined_agent)
             sound_at(joined_agent, joined_agent.member)

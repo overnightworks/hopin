@@ -1,4 +1,4 @@
-"""CALL-63: the agent's `look` at HopIn's real `/mcp` and `/ws`: the picture it returns as an image with no text, its
+"""The agent's `look` at HopIn's real `/mcp` and `/ws`: the picture it returns as an image with no text, its
 refusals, and what no seat but the sponsor's is asked."""
 
 import base64

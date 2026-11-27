@@ -26,7 +26,6 @@ the seats it sent to woken, each writing its logged frames in the order of their
 
 import asyncio
 from dataclasses import dataclass, field, replace
-from functools import partial
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Protocol, assert_never, cast, get_args
 
@@ -35,6 +34,7 @@ import structlog
 from hopin.config.constants import RESUME_WINDOW_SECONDS
 from hopin.rooms.models import HostGrace
 from hopin.signaling.frames import PeerId
+from hopin.signaling.own_turns import OwnTurns
 from hopin.signaling.scheduler import DeadlineKind
 from hopin.signaling.seats import Park, Seats
 
@@ -163,7 +163,7 @@ class Transition(Change):
 
     frames: list[Outbound] = field(default_factory=list)
     followers: list[Callable[[RoomView, Transition], None]] = field(default_factory=list)
-    broken_write_event: str | None = None
+    log_broken_write: Callable[[BaseException], None] | None = None
 
     def send(self, peer_id: PeerId, frame: JsonObject, supersedes: Supersedes | None = None) -> None:
         """Send as the call core sends: logged for a resume, held while the seat is parked or replaying. The commit
@@ -176,10 +176,10 @@ class Transition(Change):
         this one changed; the seats of both are woken together."""
         self.followers.append(hook)
 
-    def log_broken_writes_as(self, event: str) -> None:
-        """Log a seat's broken write of this transition's frames under the event, by the error's type alone, instead of
-        raising it; every other seat has its frames either way."""
-        self.broken_write_event = event
+    def log_broken_writes_with(self, log: Callable[[BaseException], None]) -> None:
+        """Log a seat's broken write of this transition's frames with `log`, which writes the error's type alone,
+        instead of raising it; every other seat has its frames either way."""
+        self.log_broken_write = log
 
     def outbound(self) -> Sequence[Outbound]:
         return self.frames
@@ -277,11 +277,11 @@ class CoreTransition(Transition):
 
 @dataclass(frozen=True)
 class Committed:
-    """A change the store has committed: the seats it logged frames for, which are still to be woken, and the event a
-    broken write of them is logged under, none to raise it."""
+    """A change the store has committed: the seats it logged frames for, which are still to be woken, and the log a
+    broken write of them is written with, none to raise it."""
 
     woken: tuple[PeerId, ...]
-    broken_write_event: str | None = None
+    log_broken_write: Callable[[BaseException], None] | None = None
 
 
 class LiveSeats(Protocol):
@@ -496,18 +496,18 @@ class InMemoryCallStore:
 
     async def wake_committed(self, committed: Sequence[Committed]) -> None:
         """Wake the seats of transitions committed together once every one of them is logged, so a frame of one
-        supersedes the other's before any is written. A broken write raises unless each transition names the event it
-        is logged under."""
+        supersedes the other's before any is written. A broken write raises unless each transition names the log it
+        is written with."""
         woken = tuple(dict.fromkeys(peer_id for each in committed for peer_id in each.woken))
         broken_writes = await self.wake(woken)
-        events = [each.broken_write_event for each in committed]
+        logs = [each.log_broken_write for each in committed]
         if not broken_writes:
             return
-        if None in events:
+        first = logs[0]
+        if first is None or None in logs:
             raise broken_writes[0]
         for error in broken_writes:
-            # Only the type is logged, never a frame's text.
-            logger.error(events[0], error_type=type(error).__name__)
+            first(error)
 
     async def wake(self, peer_ids: tuple[PeerId, ...]) -> list[Exception]:
         """Write the woken seats' logged frames to their sockets, and name the writes that broke."""
@@ -560,7 +560,7 @@ class FeatureTransitions:
         self._store = store
         self._live_seats = live_seats
         self._works: dict[str, _RunningWork] = {}
-        self._steps: set[asyncio.Task[None]] = set()
+        self._steps = OwnTurns()
 
     def view(self, room_id: str | None) -> RoomView:
         """The room's view now; an ended room or none is the view of no room."""
@@ -614,8 +614,8 @@ class FeatureTransitions:
     def commit(self, view: RoomView, change: Change) -> list[Committed]:
         """Commit the change and start and stop its work, then each hook a transition follows with, leaving the seats
         of all of them to be woken."""
-        event = change.broken_write_event if isinstance(change, Transition) else None
-        committed = [Committed(self._store.commit(view, change), event)]
+        log = change.log_broken_write if isinstance(change, Transition) else None
+        committed = [Committed(self._store.commit(view, change), log)]
         self._start_and_stop_work(view, change)
         for follower in change.followers if isinstance(change, Transition) else ():
             followed = self._store.load(view.room_id)
@@ -644,19 +644,11 @@ class FeatureTransitions:
         finally:
             del self._works[work.key]
 
-    def in_own_turn(self, step: Coroutine[None, None, None], failed_event: str, **context: str) -> None:
+    def in_own_turn(self, step: Coroutine[None, None, None], log_failure: Callable[[BaseException], None]) -> None:
         """Run a step of the feature, such as a transition whose seats are woken, in a turn of its own, so its caller
-        never waits on a seat's write; a step that fails is logged under the event with the context, by the error's
-        type alone, and the shutdown cancels a step that still runs."""
-        task = asyncio.create_task(step)
-        self._steps.add(task)
-        task.add_done_callback(partial(self._step_ended, failed_event, context))
-
-    def _step_ended(self, failed_event: str, context: Mapping[str, str], task: asyncio.Task[None]) -> None:
-        self._steps.discard(task)
-        if not task.cancelled() and (error := task.exception()) is not None:
-            # Only the type is logged, never what the step carried.
-            logger.error(failed_event, error_type=type(error).__name__, **context)
+        never waits on a seat's write; a step that fails is written with `log_failure`, which names the error's type
+        alone, and the shutdown cancels a step that still runs."""
+        self._steps.start(step, log_failure)
 
     def cancel(self, key: str) -> None:
         """Cancel the work of that key, which runs, for a worker whose work ends only so."""
@@ -671,9 +663,8 @@ class FeatureTransitions:
 
     async def shut_down(self) -> None:
         """Stop the work and the steps and wait until they have ended."""
-        for step in self._steps:
-            step.cancel()
-        await asyncio.gather(*self._steps, return_exceptions=True)
+        self._steps.cancel()
+        await self._steps.wait()
         while self._works:
             for key in tuple(self._works):
                 self._worker.stop_work(key)
