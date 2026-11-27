@@ -3,8 +3,7 @@
 CI runs it on a copy and then proves the call still works: the `Removal drill` job, a mandatory job of the quality
 gate, is green only when both legs of `Removal drill leg` are, and each leg runs one deletion (the game's, the
 stage's) on a copy, builds the frontend there and proves the call's unit tests and a call end to end still pass.
-Removing the AI game is this deletion, plus the compose network, the three `HOPIN_AGENT__` variables, the
-`litellm_key` mount and declaration, and the doc paragraphs. Participation and its MCP connector (`agent/mcp.py`,
+Removing the AI game is this deletion, plus the doc paragraphs. Participation and its MCP connector (`agent/mcp.py`,
 `agent/tools.py`) stay, and with them the agent runtime's client without its `backend` extra, and the speech settings
 (`agent/speech_settings.py`) with the speech client they name. Removing the stage is its server package, its browser
 module, its tests and the lines marked `# stage`.
