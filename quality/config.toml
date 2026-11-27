@@ -106,4 +106,3 @@ what = 'size baseline adds function_lines frontend/src/lib/ui/pip.ts pictureInPi
 item = "overnightworks/quality#884"
 date = 2026-11-23
 reason = "adoption of the script and CSS size measurement in quality v0.25.0: the operator's ruled path records existing debt by hand"
-
