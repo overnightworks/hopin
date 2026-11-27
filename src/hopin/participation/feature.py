@@ -121,7 +121,7 @@ class Participation(TransitionFeature):
         self.speech = SpeechInWindows(self._places, hearing, self._name_of, on_window_changed, deadlines)
         self.figures = ShownFigures(self._places, deadlines, self._active_agent, self._tell, self._recipients)
         self._agent_speech = AgentSpeech(
-            voices, deadlines, self.speech, self.figures, self._write_line, self._tell_room
+            voices, deadlines, self._places, self.speech, self.figures, self._write_line, self._tell_room
         )
         self._seeing = Seeing(hearing, self._places, deadlines, self._tell, self._recipients)
         self.video_looks = VideoLooks(self._places)
@@ -227,16 +227,14 @@ class Participation(TransitionFeature):
         mood: FigureMood | None = None,
         interrupted: str | None = None,
     ) -> SpeakResult:
-        """Queue the person's agent's sentence (`AgentSpeech.speak`); the refusal when the agent holds no active place
-        there."""
+        """Queue the person's agent's sentence (`AgentSpeech.speak`); the refusal when it holds no active place."""
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
         return await self._agent_speech.speak(agent, text, render, offered, mood, interrupted)
 
     async def stop_speaking(self, person: Person, room_id: str, interrupted: str | None = None) -> StopResult:
-        """Cut the sentence the person's agent plays or holds and drop its others (`AgentSpeech.stop`); the refusal when
-        the agent holds no active place there."""
+        """Cut the sentence the person's agent plays or holds, drop its others (`AgentSpeech.stop`); or why not."""
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
@@ -245,8 +243,7 @@ class Participation(TransitionFeature):
     async def continue_speaking(
         self, person: Person, room_id: str, interrupted: str
     ) -> AgentRefusal | HoldRefusal | None:
-        """End the hold of the person's agent that `interrupted` names (`AgentSpeech.continue_speaking`); the refusal,
-        or nothing when its held sentence goes on."""
+        """End the hold of the person's agent that `interrupted` names (`AgentSpeech.continue_speaking`); or why not."""
         agent = self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):
             return agent
@@ -427,6 +424,8 @@ class Participation(TransitionFeature):
                 self._switches.on_frame(peer_id, frame, view, transition)
             case ParticipationSignal.AGENT_FIGURE_ENDED:
                 self.figures.ended(peer_id, frame, view)
+            case ParticipationSignal.AGENT_HOLD_PLAYED:
+                self._agent_speech.hold_reported(peer_id, frame, view)
             case ParticipationSignal.AGENT_LOOK_PART:
                 self._seeing.answered(peer_id, frame, part=True)
             case ParticipationSignal.AGENT_LOOK_NONE:
