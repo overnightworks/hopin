@@ -28,7 +28,7 @@
 
 ## Documents
 
-- `README.md`: read for what hopin offers, setup and the release path.
+- `README.md`: read for what hopin offers, setup.
 - `docs/configuration.md`: read for what each setting does, its default and its form.
 - `docs/VISION.md`: read to know what hopin is and deliberately is not.
 - `docs/ARCHITECTURE.md`: read before changing parts, a call's flow or the trust model.
