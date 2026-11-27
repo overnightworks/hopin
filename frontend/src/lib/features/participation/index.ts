@@ -3,17 +3,16 @@ import { createPlayer as createSpeechPlayer, startCapture } from "overnightworks
 import { flushSync, mount } from "svelte";
 import { AGENT_ACTIVITY, type FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView } from "#lib/ui/chat.svelte.ts";
-import { language, words } from "#lib/words.ts";
+import { language } from "#lib/words.ts";
 import { SIGNAL_TYPE, type ServerFrameByType } from "#lib/wire.ts";
 import "./participation.css";
 import AgentLine from "./AgentLine.svelte";
 import AgentOffers from "./AgentOffers.svelte";
 import { createHearingCapture } from "./hearing.ts";
 import { createLooks } from "./looking.ts";
-import { createAgentOffers, hereRowOf, outcomeOf, refusalOf, rowsOf, type Ending } from "./offers.svelte.ts";
+import { createAgentOffers, hereRowOf, outcomeOf, refusalOf, rowsOf, toastOf, type Ending } from "./offers.svelte.ts";
 import { createAgentVoices, type PlayerFactory } from "./voice.ts";
 import {
-    AGENT_REFUSAL,
     HEARING_PATH,
     PARTICIPATION_SIGNAL,
     type Offer,
@@ -38,8 +37,6 @@ interface ShownAgent {
 // How long the mark of a look stays on the agent's tile.
 const LOOK_MARK_MILLISECONDS = 3000;
 
-const NOT_REMOVED_TEXT = words["agent.notRemovedToast"];
-
 function tileKey(agentId: string) {
     return `agent-${agentId}`;
 }
@@ -55,8 +52,9 @@ export async function installWith(
 ): Promise<void> {
     const kitWords = await loadKitWords(language);
     let seatId = "";
-    let isHost = false;
     const shown = new Map<string, ShownAgent>();
+    // The ids of the agents the last offers frame says this seat may send away: the tile's remove button follows them.
+    let sendAway = new Set<string>();
     const capture = createHearingCapture(
         () => `${location.protocol.replace("http", "ws")}//${location.host}${HEARING_PATH}/${seatId}`,
         startCapture,
@@ -86,10 +84,6 @@ export async function installWith(
     function hearingAgents() {
         if (pressedOff.size > 0) return 0;
         return [...shown.values()].filter((agent) => agent.hearing === true).length;
-    }
-
-    function mayRemove(frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_JOINED]) {
-        return isHost || frame.sponsor_id === seatId;
     }
 
     function activityOf(agentId: string) {
@@ -137,7 +131,7 @@ export async function installWith(
                               },
                           },
                 looking,
-                onRemove: mayRemove(frame)
+                onRemove: sendAway.has(frame.agent_id)
                     ? () => {
                           core.send({ type: PARTICIPATION_SIGNAL.AGENT_REMOVE, agent_id: frame.agent_id });
                       }
@@ -246,6 +240,7 @@ export async function installWith(
         offersView.full = false;
         offersView.rows = [];
         offered = [];
+        sendAway = new Set();
         endings.clear();
         clearRefusal();
     }
@@ -272,6 +267,8 @@ export async function installWith(
         }
         offersView.shown = frame.shown;
         offersView.full = frame.full;
+        sendAway = new Set(frame.send_away);
+        for (const agent of shown.values()) draw(agent);
         drawOffers();
         flushSync();
         if (hadFocus && !offers.contains(document.activeElement)) offers.focus();
@@ -300,7 +297,6 @@ export async function installWith(
         frame: ServerFrameByType[SIGNAL_TYPE.ROOM_CREATED] | ServerFrameByType[SIGNAL_TYPE.EXISTING_PARTICIPANTS],
     ) => {
         seatId = frame.participant_id;
-        isHost = frame.is_host;
         // The server announces every agent still in the room to a new seat; one it does not announce has left.
         for (const agentId of shown.keys()) hide(agentId);
         clearOffers();
@@ -360,11 +356,9 @@ export async function installWith(
         core.receiveChatLine(featureView(AgentLine, { name: frame.name, text: frame.text }));
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_REFUSED, (frame) => {
-        if (frame.reason === AGENT_REFUSAL.NOT_SPONSOR_OR_HOST) {
-            core.showToast(NOT_REMOVED_TEXT, core.toastKind.LOCKED, null);
-        } else {
-            offersView.refusal = refusalOf(frame.reason);
-        }
+        const toast = toastOf(frame.reason, kitWords);
+        if (toast === undefined) offersView.refusal = refusalOf(frame.reason);
+        else core.showToast(toast.text, toast.kind, null);
     });
     core.onAgentFigureEnded((key, code) => {
         const agentId = [...shown.keys()].find((id) => tileKey(id) === key);

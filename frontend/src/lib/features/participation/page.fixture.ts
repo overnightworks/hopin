@@ -10,11 +10,10 @@ import { fakePlayers } from "./player.fixture.ts";
 
 export const ME = "me";
 
-export const joined = (sponsorId: string, agentId = "a1") => ({
+export const joined = (agentId = "a1") => ({
     agent_id: agentId,
     name: "Claude",
     sponsor: "Ada",
-    sponsor_id: sponsorId,
 });
 
 export const tileActivities = (page: { tiles: Map<string, AgentTile> }) =>
@@ -34,7 +33,7 @@ export async function installedParticipation(installOn?: typeof install) {
     // The tile key and framing of each call the page made to frame an agent's figure.
     const framings: [string, string][] = [];
     const thoughts: [string, boolean][] = [];
-    const toasts: string[] = [];
+    const toasts: { text: string; kind: string }[] = [];
     const lines: FeatureView[] = [];
     // The link the page last handed the chat for the agents that read its lines.
     let lineReaders: AgentLink = { names: [], frameType: "", send: vi.fn() };
@@ -56,8 +55,8 @@ export async function installedParticipation(installOn?: typeof install) {
             (options?.transient === true ? sentTransient : sent).push(frame);
         },
         isConnected: vi.fn().mockReturnValue(true),
-        showToast: (text) => {
-            toasts.push(text);
+        showToast: (text, kind) => {
+            toasts.push({ text, kind });
         },
         toastKind: TOAST_KIND,
         showStage: vi.fn(),

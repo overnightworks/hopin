@@ -1,4 +1,6 @@
-import type { AgentControlOutcome, AgentControlRefusal, AgentRow, TurnOutcome } from "overnightworks-design";
+import type { AgentControlOutcome, AgentControlRefusal, AgentRow, KitWords, TurnOutcome } from "overnightworks-design";
+import { words } from "#lib/words.ts";
+import { TOAST_KIND, type ToastKind } from "#lib/ui/toast.svelte.ts";
 import { AGENT_REFUSAL, INVITATION_OUTCOME, TURN_OUTCOME, type Offer } from "./wire.ts";
 
 /** What the page shows of the agents a seat may call: whether the control shows, whether no place is free for an agent,
@@ -82,4 +84,14 @@ const REFUSAL_OF_REASON: Partial<Record<string, AgentControlRefusal>> = {
 /** The kit's reason for a refusal of an add; any reason the page does not know reads as a failed try. */
 export function refusalOf(reason: string): AgentControlRefusal {
     return REFUSAL_OF_REASON[reason] ?? "try-again";
+}
+
+/** The toast a refused send-away shows, which no reason of the control stands for: not allowed to remove, or a read that
+ * failed; any other reason is the control's own. */
+export function toastOf(reason: string, kitWords: KitWords): { text: string; kind: ToastKind } | undefined {
+    const toasts: Partial<Record<string, { text: string; kind: ToastKind }>> = {
+        [AGENT_REFUSAL.NOT_ALLOWED_TO_SEND_AWAY]: { text: words["agent.notRemovedToast"], kind: TOAST_KIND.LOCKED },
+        [AGENT_REFUSAL.SEND_AWAY_UNAVAILABLE]: { text: kitWords["agent.tryAgain"], kind: TOAST_KIND.FAILED },
+    };
+    return toasts[reason];
 }
