@@ -90,7 +90,7 @@ from hopin.signaling.identity import SessionIdentityResolver
 from hopin.signaling.own_turns import OwnTurns
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Coroutine
+    from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Coroutine, Mapping
 
     from fastapi import FastAPI
     from redis.asyncio import Redis as AsyncRedis
@@ -423,12 +423,11 @@ def _file_endpoint(
 
 def _add_file_routes(
     router: APIRouter,
-    stores: tuple[FigureStore, ...],
+    stores: Mapping[ServedFileKind, FigureStore],
     participation: Callable[[], Participation],
 ) -> None:
-    """One route per served file kind, each answering only a file the current participation names; `stores` holds the
-    store of each kind in the order of `SERVED_FILE_KINDS`."""
-    for kind, store in zip(SERVED_FILE_KINDS, stores, strict=True):
+    """One route per served file kind, each answering only a file the current participation names."""
+    for kind, store in stores.items():
         router.add_api_route(
             f"{kind.path}/{{sha256}}",
             _file_endpoint(store, partial(_named_by_participation, kind, participation)),
@@ -493,7 +492,7 @@ class ParticipationFeature:
         )
         hearing_tokens = self._hearing_tokens(deadlines, scheduler, auth_config)
         voice = self._voice(relying_party, hearing_tokens)
-        stores = tuple(self._store_of(kind) for kind in SERVED_FILE_KINDS)
+        stores = {kind: self._store_of(kind) for kind in SERVED_FILE_KINDS}
         opening = self._opening(relying_party, turn_relay, built, scheduler, auth_config)
         front = self._front(built, relying_party, voice, opening)
 
@@ -507,7 +506,7 @@ class ParticipationFeature:
                 if opening is not None:
                     await opening.shut_down()
                 await built.shut_down()
-                for store in stores:
+                for store in stores.values():
                     store.shut_down()
 
         router = APIRouter(lifespan=lifespan)
