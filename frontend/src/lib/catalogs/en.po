@@ -684,8 +684,8 @@ msgid "Tisch entfernen"
 msgstr "Remove table"
 
 msgctxt "agent.notRemovedToast"
-msgid "Nur wer die KI geholt hat oder der Host kann sie entfernen."
-msgstr "Only the person who brought the AI or the host can remove it."
+msgid "Du darfst diese KI nicht entfernen."
+msgstr "You may not remove this AI."
 
 msgctxt "agent.badge"
 msgid "AI"

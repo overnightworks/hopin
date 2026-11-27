@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { REMEMBERED_REQUESTS } from "./looking.ts";
-import { ME, installedParticipation, joined } from "./page.fixture.ts";
+import { installedParticipation, joined } from "./page.fixture.ts";
 import {
     LOOK_ANSWER_SECONDS,
     LOOK_MAX_BYTES,
@@ -22,7 +22,7 @@ const seeingOf = (page: Page, agentId = "a1") => page.tiles.get(`agent-${agentId
 async function pageWithAgent() {
     const page = await installedParticipation();
     page.seat(false);
-    page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+    page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
     return page;
 }
 
@@ -68,7 +68,7 @@ describe("the sponsor's seeing switch on an agent's tile", () => {
         const page = await pageWithAgent();
         page.emit(PARTICIPATION_SIGNAL.AGENT_SEEING, { agent_id: "a1", on: true });
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(ME));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
 
         expect(seeingOf(page)?.on).toBe(true);
     });
@@ -196,7 +196,7 @@ describe("a look at the person's camera", () => {
         vi.useFakeTimers();
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_LOOKED, { agent_id: "a1" });
 

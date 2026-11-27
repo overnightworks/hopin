@@ -3,7 +3,14 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.support.calls import join, open_call, open_host
+from tests.e2e.support.calls import (
+    add_init_scripts,
+    join,
+    join_by_link,
+    open_call,
+    open_host,
+    record_page_errors,
+)
 from tests.e2e.support.dialed_agent import (
     AGENT_HEARING_SWITCH,
     AGENT_TILE,
@@ -32,9 +39,18 @@ def test_a_dialed_in_agent_shows_as_a_tile_every_page_sees_and_its_sponsor_or_th
     e2e_server: RunningServer,
     page_errors: list[str],
     agent_of: Callable[[Page], Agent],
+    member_of: Callable[[Page], Any],
+    grant_adders: Callable[[str], None],
 ) -> None:
-    """CALL-48, CALL-49, CALL-50: A dialed-in agent shows with its sponsor; its sponsor or the host removes it."""
-    host, guest, invite_link = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
+    """CALL-48, CALL-49, CALL-50: A dialed-in agent shows with its sponsor; its sponsor or the host removes it, and a
+    member of the adders group who is not its sponsor sees no remove button."""
+    host, invite_link = open_host(open_person, e2e_server.base_url, page_errors, DESKTOP)
+    guest = record_page_errors(open_person(**DESKTOP), page_errors)
+    add_init_scripts(guest, (RECORD_PEER_CONNECTIONS,))
+    grant_adders(member_of(guest).account.id)
+    join_by_link(guest, invite_link)
+    wait_for_peer_count(host, 1)
+    wait_for_peer_count(guest, 1)
     bystander = join(open_person, invite_link, DESKTOP, (RECORD_PEER_CONNECTIONS,), page_errors)
     wait_for_peer_count(bystander, 2)
 

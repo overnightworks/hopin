@@ -1,10 +1,10 @@
-"""What each seat of a call may add: the agents it is offered, whether its control shows, and the facts the calling
-standard decides an add on, as the seats' membership in the realm group of agent adders a read of their groups found
-it and the call's seats give them."""
+"""What each seat of a call may add and send away: the agents it is offered, whether its control shows, the joined
+agents it may send away, and the facts the calling standard decides an add and a send-away on, as the seats' membership
+in the realm group of agent adders a read of their groups found it and the call's seats give them."""
 
 from typing import TYPE_CHECKING, cast
 
-from agents.calling import AcceptFacts, CallFacts, Invited, OpenInvitation, OwnerAt, invite
+from agents.calling import AcceptFacts, CallFacts, Invited, OpenInvitation, OwnerAt, invite, send_away_allowed
 
 from hopin.errors import InvalidMessageError
 from hopin.participation.frames import AgentOffersFrame, AgentRefusedFrame, Offer
@@ -43,16 +43,17 @@ class Offers:
         self._seat_views = seat_views
         self.group_reads = GroupReads()
 
-    def keep(self, read: GroupsRead, groups: frozenset[str] | None, room_id: str) -> Membership | None:
-        """Keep the membership a read found; an add's read answers it, a read for the offers answers nothing."""
-        memberships = self._seat_views.of(read.seat, room_id).memberships
-        memberships[AGENT_ADDERS_GROUP] = membership_in(groups, AGENT_ADDERS_GROUP)
-        return None if read.adding is None else memberships[AGENT_ADDERS_GROUP]
+    def keep(self, read: GroupsRead, groups: frozenset[str] | None, room_id: str) -> Membership:
+        """Keep the membership a read found, which the act the read was for decides on."""
+        membership = membership_in(groups, AGENT_ADDERS_GROUP)
+        self._seat_views.of(read.seat, room_id).memberships[AGENT_ADDERS_GROUP] = membership
+        return membership
 
     def send(self, view: RoomView, transition: Transition, agents: LiveAgents, *, read: bool = True) -> None:
-        """Send each seat the agents it may add, whether its control shows and whether no place is free for an agent,
-        when they differ from what it was last sent. `read` starts the reads of memberships still unknown or failed;
-        the read that just ended asks for none, so a failure retries at the next trigger."""
+        """Send each seat the agents it may add, whether its control shows, whether no place is free for an agent and
+        the joined agents it may send away, when they differ from what it was last sent. `read` starts the reads of
+        memberships still unknown or failed; the read that just ended asks for none, so a failure retries at the next
+        trigger."""
         if view.room_id is None:  # the room has ended
             return
         if read:
@@ -62,11 +63,16 @@ class Offers:
             seat = self._seat_views.of(peer_id, view.room_id)
             offers = self._offers_for(view, peer_id, agents)
             shown = self._control_shown_to(view, peer_id, offers)
-            if (offers, shown, full) != (seat.offered, seat.shown, seat.full):
+            send_away = self._send_away_of(view, peer_id)
+            if (offers, shown, full, send_away) != (seat.offered, seat.shown, seat.full, seat.send_away):
                 seat.offered = offers
                 seat.shown = shown
                 seat.full = full
-                transition.send(peer_id, AgentOffersFrame(shown=shown, full=full, offers=list(offers)).to_json())
+                seat.send_away = send_away
+                transition.send(
+                    peer_id,
+                    AgentOffersFrame(shown=shown, full=full, offers=list(offers), send_away=list(send_away)).to_json(),
+                )
 
     def on_add(
         self, agents: LiveAgents, peer_id: PeerId, frame: ForeignFrame, view: RoomView, transition: Transition
@@ -80,6 +86,42 @@ class Offers:
             transition.send(peer_id, AgentRefusedFrame(AgentRefusal.GONE).to_json())
             return
         transition.dispatch(self.group_reads.for_add(peer_id, live))
+
+    def on_send_away(
+        self, peer_id: PeerId, frame: ForeignFrame, view: RoomView, transition: Transition
+    ) -> DialedAgent | None:
+        """The joined agent the frame names when the sender may send it away on the facts of the call now; else read
+        the sender's groups afresh, which then decides it, for an agent with an account of its own, or refuse a person's
+        own agent's send-away. An agent that is not in the sender's room is not sent away."""
+        agent_id = frame.data.get("agent_id")
+        if not isinstance(agent_id, str):
+            raise InvalidMessageError("A removal needs the agent's id")
+        agent = next((agent for agent in self._places.joined_in(view.room_id) if agent.agent_id == agent_id), None)
+        if agent is None:
+            return None
+        if self._may_send_away(view, peer_id, agent, None):
+            return agent
+        if agent.owner is None:
+            transition.send(peer_id, AgentRefusedFrame(AgentRefusal.NOT_ALLOWED_TO_SEND_AWAY).to_json())
+        else:
+            transition.dispatch(self.group_reads.for_send_away(peer_id, agent))
+        return None
+
+    def after_send_away_read(
+        self, view: RoomView, peer_id: PeerId, agent: DialedAgent, membership: Membership
+    ) -> DialedAgent | AgentRefusal | None:
+        """The send-away as it stands after the fresh read: the agent when it is to go, nothing when it is gone, or was
+        replaced by a new join, since the press, else why the sender is refused. A failed read decides with no
+        membership and refuses as unavailable only when that refuses."""
+        if self._places.get(agent.person, agent.room_id) != agent:
+            return None
+        if self._may_send_away(view, peer_id, agent, membership):
+            return agent
+        return (
+            AgentRefusal.SEND_AWAY_UNAVAILABLE
+            if membership is Membership.FAILED
+            else AgentRefusal.NOT_ALLOWED_TO_SEND_AWAY
+        )
 
     def call(
         self,
@@ -141,6 +183,31 @@ class Offers:
                 and read not in transition.dispatched
             ):
                 transition.dispatch(read)
+
+    def _send_away_of(self, view: RoomView, peer_id: PeerId) -> tuple[str, ...]:
+        """The ids of the joined agents a seat may send away on what its last read found, which the display never
+        waits to refresh."""
+        room_id = cast("str", view.room_id)
+        membership = self._seat_views.of(peer_id, room_id).memberships.get(AGENT_ADDERS_GROUP)
+        return tuple(
+            sorted(
+                agent.agent_id
+                for agent in self._places.joined_in(room_id)
+                if self._may_send_away(view, peer_id, agent, membership)
+            )
+        )
+
+    @staticmethod
+    def _may_send_away(view: RoomView, peer_id: PeerId, agent: DialedAgent, membership: Membership | None) -> bool:
+        """The calling standard's decision on the facts of the call: a membership counts for an agent with an account of
+        its own only; the owner is any seat of its account, and the host's right, or for a person's own agent its
+        sponsor's, is the place's own."""
+        return send_away_allowed(
+            sender_present=view.room_of(peer_id) is not None,
+            sender_is_member=agent.owner is not None and membership is Membership.MEMBER,
+            sender_is_owner=agent.owner is not None and peer_id in view.seats_in(agent.owner),
+            place_right=view.is_host(peer_id) or (agent.owner is None and peer_id == agent.sponsor),
+        )
 
     def _control_shown_to(self, view: RoomView, peer_id: PeerId, offers: Sequence[Offer]) -> bool:
         """The control shows to a seat with an offer, to the call's host and to a member of the agent adders group, even
