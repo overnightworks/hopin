@@ -1,0 +1,8 @@
+claim_id = "d0a2f8f1f0a540a78111878d8a512b79"
+agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
+role = "builder"
+base = "2895b0828f3af905bcc7672cab3fc3ce0d17e09b"
+branch = "claude/issue-1195-hopin-sends-away-by-calling-standard"
+scope = ["docs/ARCHITECTURE.md", "docs/call.md", "frontend/src/lib/catalogs", "frontend/src/lib/features/participation", "frontend/src/lib/words", "src/hopin/participation", "src/hopin/words.py", "tests/e2e/participation", "tests/e2e/support", "tests/participation", "tests/signaling/test_frames_wire.py"]
+opened_commit = "5057c345fb79b776ef526cdb05cb3a8e5f8061a0"
+whole_reason = "One right from the press to the server's decision and back to the tile's button: the server half and the page half prove nothing apart."
