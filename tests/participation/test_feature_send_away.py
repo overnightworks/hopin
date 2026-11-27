@@ -76,8 +76,7 @@ class Call:
         return [len(browser.frames(LEFT)) for browser in browsers]
 
 
-@pytest_asyncio.fixture
-async def call(link, participation, listeners):
+async def joined_call(link, participation, listeners):
     host = await link.join("host")
     owner = await link.join(OWNER, host.room_id)
     member = await link.join("guest", host.room_id)
@@ -91,6 +90,11 @@ async def call(link, participation, listeners):
     scene.agent = await scene.accept(standing.invitation)
     await let_reads_finish()
     return scene
+
+
+@pytest_asyncio.fixture
+async def call(link, participation, listeners):
+    return await joined_call(link, participation, listeners)
 
 
 def refusals_sent_to(browser):
@@ -286,6 +290,7 @@ class TestWhoIsToldItMayBeSentAway:
     @pytest.mark.parametrize(
         ("who", "sees_it"),
         [("member", True), ("owner", True), ("host", True), ("bystander", False)],
+        ids=["member-sees-it", "owner-sees-it", "host-sees-it", "bystander-does-not"],
     )
     async def test_the_offers_frame_names_the_agent_to_each_seat_that_may_send_it_away_and_to_no_other(
         self, call, link, who, sees_it
@@ -305,21 +310,10 @@ class TestWhoIsToldItMayBeSentAway:
         self, link, participation, listeners, groups_of_seat, who
     ):
         groups_of_seat[who] = None
-        host = await link.join("host")
-        owner = await link.join(OWNER, host.room_id)
-        member = await link.join("guest", host.room_id)
-        await agent_calls_and_listens(participation, listeners)
-        await let_reads_finish()
-        [offer] = offers_sent_to(member)
-        await member.say({"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offer["agent_key"]})
-        await let_reads_finish()
-        [standing] = participation.standings_of(AGENT)
-        agent = await participation.accept(
-            AGENT, acceptance_of(host.room_id, standing.invitation.invitation_id, standing.invitation.epoch), None
-        )
-        await let_reads_finish()
 
-        assert send_away_told_to({"owner": owner, "host": host}[who]) == [agent.agent_id]
+        call = await joined_call(link, participation, listeners)
+
+        assert send_away_told_to(getattr(call, who)) == [call.agent.agent_id]
 
     async def test_a_seat_whose_own_read_failed_is_offered_no_send_away_by_membership(self, call, link, groups_of_seat):
         groups_of_seat["bystander"] = None

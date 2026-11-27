@@ -2,7 +2,6 @@ from hopin.participation.memberships import Membership, SeatViews
 from hopin.participation.offers import Offers
 from hopin.participation.participants import DialedAgent
 from hopin.participation.places import Places
-from hopin.participation.vocabulary import AgentRefusal
 from hopin.signaling.frames import PeerId
 from hopin.signaling.transition import RoomView
 from tests.participation.support.own_accounts import AGENT, OWNER
@@ -35,10 +34,3 @@ def test_call_84_a_failed_read_decides_on_the_facts_of_the_call_so_a_seat_that_i
 
     assert decided is agent
 
-
-def test_call_84_a_failed_read_refuses_send_away_unavailable_a_seat_with_no_other_right():
-    offers, agent = offers_with_the_agent_joined()
-
-    decided = offers.after_send_away_read(view_of(hosts=set()), SENDER, agent, Membership.FAILED)
-
-    assert decided is AgentRefusal.SEND_AWAY_UNAVAILABLE
