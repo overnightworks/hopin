@@ -20,7 +20,7 @@ from webauth.config import installed_web_auth_config
 from hopin.agent.mcp import ParticipationFeature
 from hopin.agent.speech_settings import SpeechService
 from hopin.app import create_app
-from hopin.main import uvicorn_options
+from hopin.main import uvicorn_config, uvicorn_options
 from hopin.participation.figure_transport import get_figure_over_https
 from hopin.participation.voice import VoiceStore
 from hopin.signaling.handler import SignalingHandler
@@ -201,7 +201,7 @@ def participation_feature(
 def tls_server(app: FastAPI, settings: ServerSettings, certificate: tuple[Path, Path]) -> uvicorn.Server:
     key_file, certificate_file = certificate
     return uvicorn.Server(
-        uvicorn.Config(app, **uvicorn_options(settings), ssl_keyfile=str(key_file), ssl_certfile=str(certificate_file))
+        uvicorn_config(app, uvicorn_options(settings), ssl_keyfile=str(key_file), ssl_certfile=str(certificate_file))
     )
 
 

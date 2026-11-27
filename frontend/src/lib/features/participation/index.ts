@@ -10,7 +10,17 @@ import AgentLine from "./AgentLine.svelte";
 import AgentOffers from "./AgentOffers.svelte";
 import { createHearingCapture } from "./hearing.ts";
 import { createLooks } from "./looking.ts";
-import { createAgentOffers, hereRowOf, outcomeOf, refusalOf, rowsOf, toastOf, type Ending } from "./offers.svelte.ts";
+import {
+    createAgentOffers,
+    dropLapsedEnding,
+    hereRowOf,
+    keepStandingEndings,
+    outcomeOf,
+    refusalOf,
+    rowsOf,
+    toastOf,
+    type Ending,
+} from "./offers.svelte.ts";
 import { createAgentVoices, type HeldPlace, type PlayerFactory } from "./voice.ts";
 import {
     HEARING_PATH,
@@ -226,6 +236,10 @@ export async function installWith(
         props: {
             view: offersView,
             words: kitWords,
+            onOutcomeEnd: (agentKey: string) => {
+                dropLapsedEnding(endings, offered, agentKey);
+                drawOffers();
+            },
             onCall: (agentKey: string) => {
                 clearRefusal();
                 core.send({ type: PARTICIPATION_SIGNAL.AGENT_ADD, agent_key: agentKey });
@@ -269,13 +283,7 @@ export async function installWith(
         const hadFocus = offers.contains(document.activeElement);
         clearRefusal();
         offered = frame.offers;
-        const pending = new Set(offered.filter((offer) => offer.pending).map((offer) => offer.agent_key));
-        const listed = new Set(offered.map((offer) => offer.agent_key));
-        // An owner-away row outlives the agent's absence from the list and goes when the owner is back.
-        for (const [key, { outcome }] of endings) {
-            const stays = outcome === "owner-absent" ? !listed.has(key) : listed.has(key) && !pending.has(key);
-            if (!stays) endings.delete(key);
-        }
+        keepStandingEndings(endings, offered);
         offersView.shown = frame.shown;
         offersView.full = frame.full;
         sendAway = new Set(frame.send_away);

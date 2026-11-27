@@ -34,6 +34,7 @@ import argparse
 import asyncio
 import re
 import sys
+from contextlib import suppress
 from typing import TYPE_CHECKING, TypedDict
 
 import structlog
@@ -52,7 +53,7 @@ from hopin.agent.verdict_check import BackendOf, add_command, configured_agreeme
 from hopin.agent.video_settings import VideoSettings
 from hopin.app import create_app
 from hopin.auth.sign_in import LoggingAuditSink
-from hopin.config.constants import UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
+from hopin.config.constants import UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.secret_files import StartRefusedError
 from hopin.config.settings import DatabaseSettings, RealmSettings, ServerSettings
 from hopin.game.verdict_repeatability import passes, printed  # game
@@ -106,8 +107,6 @@ class UvicornOptions(TypedDict):
     ws: str
     access_log: bool
     proxy_headers: bool
-    log_level: str
-    log_config: None
 
 
 def uvicorn_options(settings: ServerSettings) -> UvicornOptions:
@@ -117,8 +116,6 @@ def uvicorn_options(settings: ServerSettings) -> UvicornOptions:
         ws=UVICORN_WEBSOCKET_IMPLEMENTATION,
         access_log=False,
         proxy_headers=False,
-        log_level=UVICORN_LOG_LEVEL,
-        log_config=None,
     )
 
 
@@ -168,8 +165,30 @@ def build_application(
     )
 
 
+def uvicorn_config(
+    application: FastAPI,
+    options: UvicornOptions,
+    *,
+    ssl_keyfile: str | None = None,
+    ssl_certfile: str | None = None,
+) -> uvicorn.Config:
+    return uvicorn.Config(
+        application,
+        host=options["host"],
+        port=options["port"],
+        ws=options["ws"],
+        access_log=options["access_log"],
+        proxy_headers=options["proxy_headers"],
+        log_config=None,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
+    )
+
+
 def run_uvicorn(application: FastAPI, options: UvicornOptions) -> None:
-    uvicorn.run(application, **options)
+    # Server.run itself exits with uvicorn's startup-failure code when a start never comes up.
+    with suppress(KeyboardInterrupt):
+        uvicorn.Server(uvicorn_config(application, options)).run()
 
 
 def serve(

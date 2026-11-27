@@ -17,7 +17,7 @@ from webauth.config import installed_web_auth_config
 
 from hopin.config.constants import AUTH_CALLBACK_PATH, HEALTH_PATH, WEBSOCKET_PATH, SignalType
 from hopin.config.settings import RealmSettings, ServerSettings
-from hopin.main import serve
+from hopin.main import serve, uvicorn_config
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.signed_in import SeededMember, handshake_headers, seed_member
@@ -46,6 +46,11 @@ class Output:
 def _logger_state() -> list[tuple[list[logging.Handler], int, bool, bool]]:
     loggers = [logging.getLogger(name) for name in UVICORN_LOGGER_NAMES]
     return [(list(item.handlers), item.level, item.propagate, item.disabled) for item in loggers]
+
+
+def _handlers() -> list[list[logging.Handler]]:
+    named = [logging.getLogger(name) for name in ("", *UVICORN_LOGGER_NAMES)]
+    return [list(item.handlers) for item in named]
 
 
 @contextmanager
@@ -92,7 +97,7 @@ async def started_server(
     listening = socket.socket()
     listening.bind((LOCALHOST, 0))
     listening.listen()
-    server = uvicorn.Server(uvicorn.Config(app, **options))
+    server = uvicorn.Server(uvicorn_config(app, options))
     serving = asyncio.create_task(server.serve(sockets=[listening]))
 
     def read() -> str:
@@ -186,6 +191,18 @@ class TestServerLogging:
         lines = [json.loads(line) for line in started_server.read().splitlines()]
         refusals = [(line["level"], line.get("reason")) for line in lines if line["event"] == "http_request.refused"]
         assert refusals == [("warning", "invalid_request")]
+
+    def test_the_start_path_leaves_uvicorn_no_logging_setup_of_its_own(
+        self, start_on_taken_port, uvicorn_loggers_restored, game_environment
+    ) -> None:
+        # Handlers another test leaked would differ from run to run; the fixture puts them back afterwards.
+        for name in UVICORN_LOGGER_NAMES:
+            logging.getLogger(name).handlers.clear()
+        before = _handlers()
+
+        start_on_taken_port()
+
+        assert _handlers() == before
 
     def test_logger_state_is_restored_when_the_fixture_ends(self) -> None:
         with preserved_uvicorn_loggers():
