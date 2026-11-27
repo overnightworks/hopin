@@ -3,6 +3,6 @@ agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
 role = "builder"
 base = "a08797258ba1b90dc8bfc46b5b8111ba8cfe6cb8"
 branch = "claude/issue-1178-call-52-ended-rows-match-the-control"
-scope = ["docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/features/participation", "pyproject.toml", "tests/e2e/participation", "uv.lock"]
+scope = ["docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/features/participation", "pyproject.toml", "quality/baseline.toml", "tests/e2e/participation", "uv.lock"]
 opened_commit = "28b8e3057d63ba03496c44fede2def650b492632"
 whole_reason = "The kit release, the wiring that hands it the drop and the rule that states it prove nothing apart."
