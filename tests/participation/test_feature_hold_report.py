@@ -79,6 +79,7 @@ class TestTheServerChecksTheReport:
             pytest.param(-0.1, id="negative"),
             pytest.param(math.inf, id="infinite"),
             pytest.param(math.nan, id="not a number"),
+            pytest.param(10**400, id="an integer too large for a float"),
         ],
     )
     async def test_call_69_a_played_time_that_is_no_finite_non_negative_number_is_an_invalid_message_and_counts_not(

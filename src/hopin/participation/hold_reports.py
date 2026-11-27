@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from hopin.errors import InvalidMessageError
+from hopin.participation.speaking import milliseconds
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -17,7 +18,15 @@ if TYPE_CHECKING:
     from hopin.signaling.frames import ForeignFrame, PeerId
     from hopin.signaling.transition import RoomView
 
-MILLISECONDS_PER_SECOND = 1000
+
+def _finite_non_negative_seconds(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    try:
+        seconds = float(value)
+    except OverflowError:
+        return None
+    return seconds if math.isfinite(seconds) and seconds >= 0 else None
 
 
 @dataclass
@@ -46,15 +55,8 @@ class HoldReports:
         sentence played is cut down to it."""
         agent_id = frame.data.get("agent_id")
         voice_id = frame.data.get("voice_id")
-        played = frame.data.get("played_seconds")
-        if (
-            not isinstance(agent_id, str)
-            or not isinstance(voice_id, str)
-            or isinstance(played, bool)
-            or not isinstance(played, int | float)
-            or not math.isfinite(played)
-            or played < 0
-        ):
+        played = _finite_non_negative_seconds(frame.data.get("played_seconds"))
+        if not isinstance(agent_id, str) or not isinstance(voice_id, str) or played is None:
             raise InvalidMessageError(
                 "A hold report needs the agent's id, the voice's id and the finite played seconds"
             )
@@ -77,7 +79,7 @@ class HoldReports:
         reports = self._reports.get(hold_id, _Reports())
         fields = {"seat_report_count": len(reports.played), "seat_report_cut_count": reports.cut}
         if reports.played:
-            fields["seat_played_min_ms"] = round(min(reports.played.values()) * MILLISECONDS_PER_SECOND)
+            fields["seat_played_min_ms"] = milliseconds(min(reports.played.values()))
         return fields
 
     def clear(self, hold_id: str) -> None:

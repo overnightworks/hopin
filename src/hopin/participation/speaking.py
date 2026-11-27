@@ -41,6 +41,11 @@ if TYPE_CHECKING:
 
 MILLISECONDS_PER_SECOND: Final = 1000
 
+
+def milliseconds(seconds: float) -> int:
+    return round(seconds * MILLISECONDS_PER_SECOND)
+
+
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 _STEPS: Final = logging.getLogger(__name__)
 

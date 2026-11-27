@@ -13,7 +13,7 @@ from hopin.participation.frames import (
     AgentVoiceFrame,
 )
 from hopin.participation.hold_reports import HoldReports
-from hopin.participation.speaking import MILLISECONDS_PER_SECOND, Speaking, SpeakResult, StopResult
+from hopin.participation.speaking import Speaking, SpeakResult, StopResult, milliseconds
 from hopin.participation.telling import send_in_room, voices_of
 from hopin.participation.text import clean_line, one_line
 from hopin.participation.vocabulary import HoldRefusal, SpeakFailure, SpeakStop
@@ -186,7 +186,7 @@ class AgentSpeech:
         self._speech.hold_ended(agent)
         hold.timer.reason(hold.ending.value)
         if hold.played_seconds is not None:
-            hold.timer.add(played_ms=round(hold.played_seconds * MILLISECONDS_PER_SECOND))
+            hold.timer.add(played_ms=milliseconds(hold.played_seconds))
         hold.timer.add(**self._reports.counts(hold.id))
         hold.timer.end()
         self._reports.clear(hold.id)
