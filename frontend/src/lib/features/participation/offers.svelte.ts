@@ -55,6 +55,22 @@ export function rowsOf(here: readonly AgentRow[], offers: Offer[], endings: Read
     return [...here, ...offeredRows, ...unlistedRows];
 }
 
+/** Keeps the ended rows an offers frame leaves standing: an owner-away row outlives the agent's absence from the list
+ * and goes when the owner is back; any other goes when the agent is invited again or no longer listed. */
+export function keepStandingEndings(endings: Map<string, Ending>, offers: readonly Offer[]): void {
+    for (const [key, { outcome }] of endings) {
+        const offer = offers.find((candidate) => candidate.agent_key === key);
+        const stays = outcome === "owner-absent" ? offer === undefined : offer !== undefined && !offer.pending;
+        if (!stays) endings.delete(key);
+    }
+}
+
+/** Drops the ended row of an agent the seat is no longer offered once its outcome has run out; the row of an offered
+ * agent stays, and the control then shows its call key. */
+export function dropLapsedEnding(endings: Map<string, Ending>, offers: readonly Offer[], key: string): void {
+    if (!offers.some((offer) => offer.agent_key === key)) endings.delete(key);
+}
+
 const OUTCOME_OF_ENDING: Record<INVITATION_OUTCOME, AgentControlOutcome> = {
     [INVITATION_OUTCOME.NO_ANSWER]: "no-answer",
     [INVITATION_OUTCOME.BUSY]: "busy",

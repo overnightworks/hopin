@@ -32,6 +32,9 @@ END_SCREEN = "[data-screen=end]"
 QUIET_SECONDS = 2
 LAPSE_WITHIN_MILLISECONDS = (LISTEN_ALLOWANCE_SECONDS + 10) * 1000
 
+# The kit shows an outcome for a few seconds before the row changes; the wait is a generous bound, not its duration.
+OUTCOME_LAPSE_TIMEOUT_MILLISECONDS = 15_000
+
 
 @pytest.mark.parametrize("form_factor", FORM_FACTORS)
 def test_a_member_adds_the_owners_agent_its_tile_shows_the_name_and_the_mark_and_the_host_removes_it(
@@ -153,6 +156,19 @@ def test_an_invitation_whose_owner_left_before_the_agent_joined_shows_the_adder_
     expect(scene.offer_of_agent(scene.member)).to_have_count(1)
     expect(scene.offer_of_agent(scene.member)).not_to_contain_text(kit_text("de", "agent.ownerAbsent"))
     assert scene.agent.standings() == ()
+
+
+def test_an_owner_away_row_of_an_agent_that_is_not_listed_goes_when_its_outcome_has_run_out(
+    scene_of: Callable[[dict[str, Any]], Scene],
+) -> None:
+    """CALL-52: After the kit's outcome has run out, the row of an agent the seat is no longer offered shows no call
+    key; the row goes."""
+    scene = scene_of(DESKTOP)
+    scene.member_adds(scene.agent)
+    scene.owner.click(LEAVE)
+    expect(scene.offer_of_agent(scene.member)).to_contain_text(kit_text("de", "agent.ownerAbsent"))
+
+    expect(scene.offer_of_agent(scene.member)).to_have_count(0, timeout=OUTCOME_LAPSE_TIMEOUT_MILLISECONDS)
 
 
 def test_a_member_outside_the_adders_group_is_offered_no_add(

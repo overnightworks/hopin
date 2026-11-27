@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from "vitest";
+import { flushSync } from "svelte";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { installedParticipation, joined } from "./page.fixture.ts";
 import { refusalOf } from "./offers.svelte.ts";
 import { AGENT_REFUSAL, INVITATION_OUTCOME, PARTICIPATION_SIGNAL, TURN_OUTCOME } from "./wire.ts";
@@ -10,6 +11,10 @@ vi.hoisted(() => {
 });
 
 describe("calling an agent that has an account of its own", () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     const offered = (name: string, pending = false, key = "k1") => ({ agent_key: key, name, pending });
     const names = (page: Awaited<ReturnType<typeof installedParticipation>>) =>
         page.offers().map((row) => row.querySelector(".name")?.textContent);
@@ -199,6 +204,46 @@ describe("calling an agent that has an account of its own", () => {
         page.offers()[0]?.closest("dialog")?.dispatchEvent(new Event("close"));
 
         expect(page.offers()).toEqual([]);
+    });
+
+    // The kit's outcome lasts a few seconds; any longer wait than that reaches its end.
+    const AFTER_THE_OUTCOME_MILLISECONDS = 60_000;
+
+    it.each([INVITATION_OUTCOME.NO_ANSWER, INVITATION_OUTCOME.BUSY, INVITATION_OUTCOME.OWNER_AWAY])(
+        "CALL-52: takes the %s row of an agent that is not offered away when its outcome has run out",
+        async (outcome) => {
+            vi.useFakeTimers();
+            const page = await installedParticipation();
+            page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
+            page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, { agent_key: "k1", name: "Mozart", outcome });
+
+            flushSync();
+            vi.advanceTimersByTime(AFTER_THE_OUTCOME_MILLISECONDS);
+            flushSync();
+
+            expect([names(page), page.buttons()]).toEqual([[], []]);
+        },
+    );
+
+    it("CALL-52: shows the call key on the row of an agent that is still offered when its outcome has run out", async () => {
+        vi.useFakeTimers();
+        const page = await installedParticipation();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
+            agent_key: "k1",
+            name: "Mozart",
+            outcome: INVITATION_OUTCOME.NO_ANSWER,
+        });
+
+        flushSync();
+        vi.advanceTimersByTime(AFTER_THE_OUTCOME_MILLISECONDS);
+        flushSync();
+
+        expect([names(page), page.buttons().length, page.offers()[0]?.textContent]).toEqual([
+            ["Mozart"],
+            1,
+            expect.not.stringContaining("Keine Antwort"),
+        ]);
     });
 
     it("CALL-52: takes an outcome away with the control at a fresh join", async () => {
