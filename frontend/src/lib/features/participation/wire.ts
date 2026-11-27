@@ -35,7 +35,8 @@ export enum AGENT_REFUSAL {
     BUSY = "busy",
     SPONSOR_AWAY = "sponsor_away",
     GONE = "gone",
-    NOT_SPONSOR_OR_HOST = "not_sponsor_or_host",
+    NOT_ALLOWED_TO_SEND_AWAY = "not_allowed_to_send_away",
+    SEND_AWAY_UNAVAILABLE = "send_away_unavailable",
     NOT_SPONSOR = "not_sponsor",
     INVITATION_ONLY = "invitation_only",
     OWN_ACCOUNT_ONLY = "own_account_only",
@@ -113,7 +114,6 @@ export type AgentJoinedFrame = {
     agent_id: string;
     name: string;
     sponsor: string;
-    sponsor_id: string;
     figure?: string;
     gestures?: Record<string, string>;
     room?: string;
@@ -198,6 +198,7 @@ export type AgentOffersFrame = {
     shown: boolean;
     full: boolean;
     offers: Offer[];
+    send_away: string[];
 };
 
 export type AgentInvitationEndedFrame = {

@@ -118,7 +118,7 @@ class TestAnInvitation:
         assert (agent.name, agent.sponsor) == (NAME, invited.owner.peer_id)
         for browser in (invited.owner, invited.member):
             [joined] = frames_of(browser, ParticipationSignal.AGENT_JOINED)
-            assert (joined["name"], joined["sponsor"], joined["sponsor_id"]) == (NAME, OWNER, invited.owner.peer_id)
+            assert (joined["name"], joined["sponsor"]) == (NAME, OWNER)
         assert [standing.state for standing in invited.participation.standings_of(AGENT)] == [PlaceState.ACTIVE]
 
     async def test_accepting_it_withdraws_the_offer_from_every_seat(self, invited):
@@ -512,29 +512,6 @@ class TestAnAgentInTheCall:
         joined = frames_of(invited.member, ParticipationSignal.AGENT_JOINED)
         left = frames_of(invited.member, ParticipationSignal.AGENT_LEFT)
         assert joined[0]["agent_id"] == left[0]["agent_id"] != joined[1]["agent_id"]
-
-    async def test_its_sponsor_removes_it_and_an_old_accept_is_stale(self, invited):
-        agent = await invited.accept()
-
-        await invited.owner.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
-
-        assert invited.participation.standings_of(AGENT) == ()
-        assert await invited.accept() is AgentRefusal.STALE_INVITATION
-
-    async def test_the_host_removes_it_but_another_guest_is_refused(self, invited, link):
-        agent = await invited.accept()
-        bystander = await link.join("bystander", invited.owner.room_id)
-
-        await bystander.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
-        refused = [frame["reason"] for frame in bystander.frames(ParticipationSignal.AGENT_REFUSED)]
-        still_there = len(invited.participation.standings_of(AGENT))
-        await invited.owner.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
-
-        assert (refused, still_there, invited.participation.standings_of(AGENT)) == (
-            [AgentRefusal.NOT_SPONSOR_OR_HOST.value],
-            1,
-            (),
-        )
 
     async def test_it_leaves_with_its_owners_seat_for_good_and_its_standing_signals(self, invited, changes):
         await invited.accept()

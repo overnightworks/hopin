@@ -14,12 +14,11 @@ if TYPE_CHECKING:
 
 
 def test_the_joined_frame_sends_no_figure_or_gestures_it_does_not_have() -> None:
-    assert AgentJoinedFrame("a1", "Mozart", "Ana", "p1").to_json() == {
+    assert AgentJoinedFrame("a1", "Mozart", "Ana").to_json() == {
         "type": ParticipationSignal.AGENT_JOINED.value,
         "agent_id": "a1",
         "name": "Mozart",
         "sponsor": "Ana",
-        "sponsor_id": "p1",
     }
 
 

@@ -47,9 +47,10 @@ class Caller:
 
 @dataclass(frozen=True)
 class DialedAgent:
-    """An agent in a call. Its person is whose token it uses; its sponsor is the seat that decides where it may be and
-    when it goes. Today both are the one person who dialed it in. Its voices are the speech voices its accept named
-    and the connector knows, first choice first, or none, which keeps the configured one."""
+    """An agent in a call. Its person is whose token it uses; its sponsor is the seat it is bound to. Today both are the
+    one person who dialed it in; who sends it away is CALL-49 and CALL-84. Its voices are the speech voices its accept
+    named and the connector knows, first choice first, or none, which keeps the configured one. Its owner is the
+    subject of the account an agent with an account of its own accepted for; a person's own agent has none."""
 
     agent_id: str
     name: str
@@ -58,6 +59,7 @@ class DialedAgent:
     room_id: str
     figure: Figure | None = None
     voices: tuple[str, ...] = ()
+    owner: str | None = None
 
 
 type DialOutcome = DialedAgent | AgentRefusal

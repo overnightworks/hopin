@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
+import { loadKitWords } from "overnightworks-design";
 import { flushSync } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
+import { language, words } from "#lib/words.ts";
 import { installedParticipation, joined } from "./page.fixture.ts";
 import { refusalOf } from "./offers.svelte.ts";
 import { AGENT_REFUSAL, INVITATION_OUTCOME, PARTICIPATION_SIGNAL, TURN_OUTCOME } from "./wire.ts";
@@ -51,7 +54,7 @@ describe("calling an agent that has an account of its own", () => {
         const page = await installedParticipation();
         page.seat(false);
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome });
 
@@ -62,7 +65,7 @@ describe("calling an agent that has an account of its own", () => {
         const page = await installedParticipation();
         page.seat(false);
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [] });
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: TURN_OUTCOME.BUSY });
 
@@ -77,7 +80,7 @@ describe("calling an agent that has an account of its own", () => {
         const page = await installedParticipation();
         page.seat(false);
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
         page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: TURN_OUTCOME.BUSY });
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: null });
@@ -290,7 +293,7 @@ describe("calling an agent that has an account of its own", () => {
     it("CALL-51: says that no place is free beside the agents in the call only to a seat shown the control", async () => {
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, full: true, offers: [] });
         const notShown = [page.offers().length, (page.sentence() ?? "").includes("kein Platz")];
@@ -386,5 +389,74 @@ describe("calling an agent that has an account of its own", () => {
         end(page);
 
         expect([page.shown(), page.alert()]).toEqual([false, undefined]);
+    });
+});
+
+describe("sending an agent away", () => {
+    const buttonOf = (page: Awaited<ReturnType<typeof installedParticipation>>, agentId: string) =>
+        page.tiles.get(`agent-${agentId}`)?.onRemove;
+
+    it("CALL-84: shows the remove button on the tiles the last offers frame names and on no other, and a press asks the server to send that agent away", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a2"));
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: ["a2"] });
+        buttonOf(page, "a2")?.();
+
+        expect([buttonOf(page, "a1"), page.sent]).toEqual([
+            undefined,
+            [{ type: PARTICIPATION_SIGNAL.AGENT_REMOVE, agent_id: "a2" }],
+        ]);
+    });
+
+    it.each([
+        { order: "the offers frame after the join", frameFirst: false },
+        { order: "the offers frame before the join", frameFirst: true },
+    ])("CALL-84: shows the button for $order and takes it away with a later frame", async ({ frameFirst }) => {
+        const page = await installedParticipation();
+        page.seat(false);
+        const frame = () => {
+            page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: ["a1"] });
+        };
+        if (frameFirst) frame();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
+        if (!frameFirst) frame();
+        const shownWith = typeof buttonOf(page, "a1");
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: [] });
+
+        expect([shownWith, buttonOf(page, "a1")]).toEqual(["function", undefined]);
+    });
+
+    it("CALL-84: reads an offers frame without a send-away list as an empty one", async () => {
+        const page = await installedParticipation();
+        page.seat(false);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: ["a1"] });
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [] });
+
+        expect(buttonOf(page, "a1")).toBeUndefined();
+    });
+
+    it.each([
+        {
+            refusal: AGENT_REFUSAL.NOT_ALLOWED_TO_SEND_AWAY,
+            kind: TOAST_KIND.LOCKED,
+            text: () => Promise.resolve(words["agent.notRemovedToast"]),
+        },
+        {
+            refusal: AGENT_REFUSAL.SEND_AWAY_UNAVAILABLE,
+            kind: TOAST_KIND.FAILED,
+            text: async () => (await loadKitWords(language))["agent.tryAgain"],
+        },
+    ])("CALL-84: shows $refusal as a $kind toast and leaves the control's refusal unset", async (refused) => {
+        const page = await installedParticipation();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: refused.refusal });
+
+        expect([page.toasts, page.alert()]).toEqual([[{ text: await refused.text(), kind: refused.kind }], undefined]);
     });
 });

@@ -36,7 +36,6 @@ class AgentJoinedFrame(WireFrame):
     agent_id: str
     name: str
     sponsor: str
-    sponsor_id: str
     figure: str | None = None
     gestures: dict[str, str] | None = None
     room: str | None = None
@@ -149,6 +148,7 @@ class AgentOffersFrame(WireFrame):
     shown: bool
     full: bool
     offers: list[Offer]
+    send_away: list[str]
 
 
 @dataclass(frozen=True)
@@ -207,7 +207,6 @@ def joined_frame(agent: DialedAgent, sponsor_name: str, framing: FigureFraming |
         agent_id=agent.agent_id,
         name=agent.name,
         sponsor=sponsor_name,
-        sponsor_id=agent.sponsor,
         figure=None if figure is None else figure_path(figure.sha256),
         gestures={clip.gesture: clip_path(clip.sha256) for clip in figure.clips} if figure and figure.clips else None,
         room=None if figure is None or figure.persona_room is None else persona_room_path(figure.persona_room.sha256),

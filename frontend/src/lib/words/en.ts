@@ -187,7 +187,7 @@ const translated = {
     "stage.notRemovedToast": "Only the person who brought the table or the host can remove it.",
     "stage.frameTitle": (gaps: { readonly title: string }) => gaps.title,
     "stage.removeButton": "Remove table",
-    "agent.notRemovedToast": "Only the person who brought the AI or the host can remove it.",
+    "agent.notRemovedToast": "You may not remove this AI.",
     "agent.badge": "AI",
     "chat.closeGlyph": "x",
 } satisfies Words;
