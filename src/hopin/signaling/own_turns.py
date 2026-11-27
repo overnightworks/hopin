@@ -2,8 +2,11 @@
 and a step that fails is written by the caller's own logger."""
 
 import asyncio
-from collections.abc import Callable, Coroutine
 from functools import partial
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
 
 
 class OwnTurns:
