@@ -1,0 +1,8 @@
+claim_id = "cb8c4fe94be64d39847e19402445bbd9"
+agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
+role = "builder"
+base = "a01dcdde8156529de93364ee69096312103c85d9"
+branch = "claude/issue-1150-hopin-pins-quality-v0-28-0"
+scope = [".github/workflows/ci.yml", ".github/workflows/code-scanning.yml", ".github/workflows/release.yml", "docs", "frontend", "quality/baseline.toml", "quality/config.toml", "tests"]
+opened_commit = "e64357f09ffc5fe295575ed4b30ebef0bb78433d"
+whole_reason = "The table can only be recorded under the new pin, so the pin, the citation conversion and the recorded list move in one pull request."
