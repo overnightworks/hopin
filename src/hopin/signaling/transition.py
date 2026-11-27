@@ -26,7 +26,6 @@ the seats it sent to woken, each writing its logged frames in the order of their
 
 import asyncio
 from dataclasses import dataclass, field, replace
-from functools import partial
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Protocol, assert_never, cast, get_args
 
@@ -35,6 +34,7 @@ import structlog
 from hopin.config.constants import RESUME_WINDOW_SECONDS
 from hopin.rooms.models import HostGrace
 from hopin.signaling.frames import PeerId
+from hopin.signaling.own_turns import OwnTurns
 from hopin.signaling.scheduler import DeadlineKind
 from hopin.signaling.seats import Park, Seats
 
@@ -560,7 +560,7 @@ class FeatureTransitions:
         self._store = store
         self._live_seats = live_seats
         self._works: dict[str, _RunningWork] = {}
-        self._steps: set[asyncio.Task[None]] = set()
+        self._steps = OwnTurns()
 
     def view(self, room_id: str | None) -> RoomView:
         """The room's view now; an ended room or none is the view of no room."""
@@ -648,14 +648,7 @@ class FeatureTransitions:
         """Run a step of the feature, such as a transition whose seats are woken, in a turn of its own, so its caller
         never waits on a seat's write; a step that fails is written with `log_failure`, which names the error's type
         alone, and the shutdown cancels a step that still runs."""
-        task = asyncio.create_task(step)
-        self._steps.add(task)
-        task.add_done_callback(partial(self._step_ended, log_failure))
-
-    def _step_ended(self, log_failure: Callable[[BaseException], None], task: asyncio.Task[None]) -> None:
-        self._steps.discard(task)
-        if not task.cancelled() and (error := task.exception()) is not None:
-            log_failure(error)
+        self._steps.start(step, log_failure)
 
     def cancel(self, key: str) -> None:
         """Cancel the work of that key, which runs, for a worker whose work ends only so."""
@@ -670,9 +663,8 @@ class FeatureTransitions:
 
     async def shut_down(self) -> None:
         """Stop the work and the steps and wait until they have ended."""
-        for step in self._steps:
-            step.cancel()
-        await asyncio.gather(*self._steps, return_exceptions=True)
+        self._steps.cancel()
+        await self._steps.wait()
         while self._works:
             for key in tuple(self._works):
                 self._worker.stop_work(key)

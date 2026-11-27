@@ -86,6 +86,7 @@ from hopin.participation.vocabulary import (
 )
 from hopin.participation.voice import VoiceStore, voice_endpoint
 from hopin.signaling.identity import SessionIdentityResolver
+from hopin.signaling.own_turns import OwnTurns
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable, Collection, Coroutine
@@ -142,7 +143,7 @@ class _BuiltParticipation:
     # Who listens to the standing, as the place store last said; empty while it cannot say, so no agent is offered.
     _standing_listeners: frozenset[Principal] = field(init=False, default=frozenset())
     _listeners_reads: int = field(init=False, default=0)
-    _tasks: set[asyncio.Task[None]] = field(init=False, default_factory=set)
+    _tasks: OwnTurns = field(init=False, default_factory=OwnTurns)
 
     def __post_init__(self) -> None:
         self.changes = ResourceChanges(
@@ -228,18 +229,11 @@ class _BuiltParticipation:
     def _start(
         self, work: Coroutine[None, None, None], name: str, log_failure: Callable[[BaseException], None]
     ) -> None:
-        """The synchronous hooks start their async work here; the set keeps each task until it ends."""
-        task = asyncio.create_task(work, name=name)
-        self._tasks.add(task)
-        task.add_done_callback(partial(self._ended, log_failure))
-
-    def _ended(self, log_failure: Callable[[BaseException], None], task: asyncio.Task[None]) -> None:
-        self._tasks.discard(task)
-        if not task.cancelled() and (error := task.exception()) is not None:
-            log_failure(error)
+        """The synchronous hooks start their async work here."""
+        self._tasks.start(work, log_failure, name=name)
 
     async def shut_down(self) -> None:
-        await asyncio.gather(*self._tasks, return_exceptions=True)
+        await self._tasks.wait()
 
     async def offered_tools(  # NOSONAR(S7503) OfferedTools is async
         self, declared: Collection[str], principal: Principal
