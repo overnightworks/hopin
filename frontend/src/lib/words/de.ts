@@ -361,7 +361,7 @@ export const words: Words = {
     "stage.notRemovedToast": "Nur wer den Tisch mitgebracht hat oder der Host kann ihn entfernen.",
     "stage.frameTitle": (gaps: { readonly title: string }) => gaps.title,
     "stage.removeButton": "Tisch entfernen",
-    "agent.notRemovedToast": "Nur wer die KI geholt hat oder der Host kann sie entfernen.",
+    "agent.notRemovedToast": "Du darfst diese KI nicht entfernen.",
     "agent.badge": "AI",
     "chat.closeGlyph": "x",
 };

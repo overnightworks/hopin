@@ -1,4 +1,3 @@
-import asyncio
 import json
 import threading
 import time
@@ -24,7 +23,7 @@ from hopin.signaling.handler import SignalingHandler
 from tests.participation.support.figure_scene import FILE, JOINED, joined_with
 from tests.participation.support.figures import FigureOrigin, figure_url, ok
 from tests.participation.support.hearing_scene import AUDIENCE_SCOPE
-from tests.participation.support.own_accounts import GroupReadLog, WallClock
+from tests.participation.support.own_accounts import GroupReadLog, HeldRead, WallClock
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking_scene import SOUND
 from tests.signaling.support.browsers import Link, host_and_guest
@@ -79,8 +78,8 @@ def listeners():
 
 @pytest.fixture
 def groups_of_seat():
-    """The groups the issuer holds for the seat of each name; `None` is a read that fails and an `asyncio.Event` a
-    read that waits for it and then finds the adders group. A seat never named holds none."""
+    """The groups the issuer holds for the seat of each name; `None` is a read that fails and a `HeldRead` a read that
+    waits for it to be set and then finds its groups. A seat never named holds none."""
     return {}
 
 
@@ -168,9 +167,9 @@ def handler(
     async def groups_of(connection):
         group_reads.append(connection.account.name)
         groups = groups_of_seat.get(connection.account.name, frozenset())
-        if isinstance(groups, asyncio.Event):
+        if isinstance(groups, HeldRead):
             await groups.wait()
-            return frozenset({AGENT_ADDERS_GROUP})
+            return groups.groups
         return groups
 
     handler = SignalingHandler(

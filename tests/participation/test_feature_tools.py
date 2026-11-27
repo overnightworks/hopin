@@ -35,9 +35,10 @@ class TestTheTools:
 
         assert again.outcome == first.outcome
         assert (left.outcome, left.is_error) == ({"left": True}, False)
-        assert [seat.next_frame()["type"] for _ in range(3)] == [
+        assert [seat.next_frame()["type"] for _ in range(4)] == [
             ParticipationSignal.AGENT_JOINED.value,
             ParticipationSignal.AGENT_SEEING.value,
+            ParticipationSignal.AGENT_OFFERS.value,
             ParticipationSignal.AGENT_LEFT.value,
         ]
 

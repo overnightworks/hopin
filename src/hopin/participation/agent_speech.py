@@ -14,7 +14,8 @@ from hopin.participation.frames import (
     AgentStopFrame,
     AgentVoiceFrame,
 )
-from hopin.participation.speaking import Speaking, SpeakResult, StopResult
+from hopin.participation.hold_reports import HoldReports
+from hopin.participation.speaking import Speaking, SpeakResult, StopResult, milliseconds
 from hopin.participation.telling import send_in_room, voices_of
 from hopin.participation.text import clean_line, one_line
 from hopin.participation.vocabulary import HoldRefusal, SpeakFailure, SpeakStop
@@ -24,12 +25,13 @@ if TYPE_CHECKING:
 
     from hopin.participation.frames import ParticipationFrame
     from hopin.participation.participants import DialedAgent
+    from hopin.participation.places import Places
     from hopin.participation.shown_figures import ShownFigures
-    from hopin.participation.speaking import QueuedSentence, Renderer, VoicesOffered
+    from hopin.participation.speaking import EndedHold, QueuedSentence, Renderer, VoicesOffered
     from hopin.participation.speech_in_windows import SpeechInWindows
     from hopin.participation.vocabulary import FigureMood
     from hopin.participation.voice import VoiceStore
-    from hopin.signaling.frames import PeerId
+    from hopin.signaling.frames import ForeignFrame, PeerId
     from hopin.signaling.replay import Supersedes
     from hopin.signaling.scheduler import Deadlines
     from hopin.signaling.transition import FeatureTransitions, RoomView, Transition
@@ -50,6 +52,7 @@ class AgentSpeech:
         self,
         voices: VoiceStore,
         deadlines: Deadlines,
+        places: Places,
         speech: SpeechInWindows,
         figures: ShownFigures,
         write_line: Callable[[DialedAgent, str], Awaitable[None]],
@@ -65,10 +68,11 @@ class AgentSpeech:
             self._sentence_started,
             speech.sentence_ended,
             write_line,
-            speech.hold_ended,
+            self._hold_ended,
             self._sound_ended,
             self._in_own_turn,
         )
+        self._reports = HoldReports(places, self._speaking.held_sentence)
 
     def attach(self, transitions: FeatureTransitions) -> None:
         self._transitions = transitions
@@ -128,6 +132,10 @@ class AgentSpeech:
             self._speaking.hold(agent, hold_id)
         await self._transitions.apply(room_id, partial(self._tell_held_all, list(arisen)))
 
+    def hold_reported(self, peer_id: PeerId, frame: ForeignFrame, view: RoomView) -> None:
+        """Keep what a seat reports of the sentence an agent's hold keeps (`HoldReports.reported`)."""
+        self._reports.reported(peer_id, frame, view)
+
     def hold_of(self, agent: DialedAgent) -> str | None:
         """The id of the hold that stands over the agent, none while it is not held."""
         return self._speaking.hold_of(agent)
@@ -177,6 +185,17 @@ class AgentSpeech:
         if standing:
             voice = AgentVoiceFrame(agent.agent_id, sentence.voice.id, sentence.mood)
             send_in_room(view, transition, view.members, voice, voices_of(agent))
+
+    def _hold_ended(self, agent: DialedAgent, hold: EndedHold) -> None:
+        """The hold over the agent ended: its window follows, and its line is written with the seats' reports, which are
+        then forgotten."""
+        self._speech.hold_ended(agent)
+        hold.timer.reason(hold.ending.value)
+        if hold.played_seconds is not None:
+            hold.timer.add(played_ms=milliseconds(hold.played_seconds))
+        hold.timer.add(**self._reports.counts(hold.id))
+        hold.timer.end()
+        self._reports.clear(hold.id)
 
     def _tell_held_all(self, agents: list[DialedAgent], view: RoomView, transition: Transition) -> None:
         for agent in agents:

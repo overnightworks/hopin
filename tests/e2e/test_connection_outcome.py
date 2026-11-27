@@ -1,25 +1,13 @@
 from collections import Counter
-from typing import TYPE_CHECKING
 
 import pytest
-import structlog.testing
 
 from hopin.config.constants import ConnectionOutcome
 from tests.e2e.support.mesh_pair import FIRST_CONNECTION_IS_CONNECTED, FORCE_STATE, ConnectedPair, pump_until, wait_for
 
-if TYPE_CHECKING:
-    from collections.abc import Iterator
-
 pytestmark = pytest.mark.e2e
 
 OUTCOME_EVENT = "connection.reported"
-
-
-@pytest.fixture
-def server_logs() -> Iterator[list[dict[str, str]]]:
-    """The server's log events from before the call is set up until the test ends."""
-    with structlog.testing.capture_logs() as logs:
-        yield logs
 
 
 def _outcomes(logs: list[dict[str, str]]) -> Counter[str]:

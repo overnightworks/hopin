@@ -29,6 +29,7 @@ from hopin.signaling.scheduler import DeadlineKind
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
 
+    from hopin.participation.figures import FigureVerdict
     from hopin.participation.participants import Person
     from hopin.participation.places import Places
     from hopin.signaling.frames import ForeignFrame, PeerId
@@ -66,6 +67,19 @@ class ShownFigures:
         # The seats that reported an agent's figure ended, by the agent's id, for as long as the agent is joined.
         self._ended: dict[str, set[PeerId]] = {}
         deadlines.register(DeadlineKind.THINKING, self._thinking_ran_out)
+
+    @staticmethod
+    async def log_refusals(room_id: str, verdict: FigureVerdict) -> None:
+        """Log why an accept's figure, persona room and clips were refused, each refused one."""
+        room_ref = room_reference(room_id)
+        if verdict.refusal is not None:
+            await logger.ainfo("agent_figure.refused", room_ref=room_ref, reason=verdict.refusal.value)
+        if verdict.persona_room_refusal is not None:
+            await logger.ainfo(
+                "agent_persona_room.refused", room_ref=room_ref, reason=verdict.persona_room_refusal.value
+            )
+        for gesture, clip_refusal in verdict.clip_refusals.items():
+            await logger.ainfo("agent_clip.refused", room_ref=room_ref, gesture=gesture, reason=clip_refusal.value)
 
     def named(self, sha256: str) -> tuple[NamedFigure, ...]:
         """The URLs the joined agents name for the digest."""

@@ -15,7 +15,7 @@ describe("an agent's voice", () => {
     async function pageWithAgents(...agentIds: string[]) {
         const page = await installedParticipation();
         page.seat(false);
-        for (const agentId of agentIds) page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", agentId));
+        for (const agentId of agentIds) page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(agentId));
         return page;
     }
 
@@ -112,6 +112,42 @@ describe("an agent's voice", () => {
         expect([page.players.created[0]?.paused, tileActivities(page)]).toEqual([false, [AGENT_ACTIVITY.SPEAKING]]);
     });
 
+    it("CALL-69: sends the server one report of the sentence's voice id and the seconds its player had played at the hold", async () => {
+        const page = await pageWithAgents("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
+        const [player] = page.players.created;
+        await player?.sounds[0]?.start();
+        if (player) player.playedSeconds = 1.25;
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HELD, { agent_id: "a1" });
+
+        expect(page.sent).toEqual([
+            { type: PARTICIPATION_SIGNAL.AGENT_HOLD_PLAYED, agent_id: "a1", voice_id: "first", played_seconds: 1.25 },
+        ]);
+    });
+
+    it("CALL-69: sends no report for a sentence its player never started", async () => {
+        const page = await pageWithAgents("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HELD, { agent_id: "a1" });
+
+        expect(page.sent).toEqual([]);
+    });
+
+    it("CALL-69: sends no report for an agent this browser muted", async () => {
+        const page = await pageWithAgents("a1");
+        page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
+        await page.players.created[0]?.sounds[0]?.start();
+        [...page.tiles.values()][0]?.listening?.onChange(false);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        page.emit(PARTICIPATION_SIGNAL.AGENT_HELD, { agent_id: "a1" });
+
+        expect(page.sent).toEqual([]);
+    });
+
     it("CALL-70: pauses nothing for an agent the stage does not show", async () => {
         const page = await pageWithAgents();
 
@@ -206,7 +242,7 @@ describe("an agent's voice", () => {
         const page = await installedParticipation();
         page.seat(false);
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, {
-            ...joined("someone", "a1"),
+            ...joined("a1"),
             framing: FIGURE_FRAMING.UPPER_BODY,
         });
         const first = page.tiles.get("agent-a1")?.framing;
@@ -306,7 +342,7 @@ describe("an agent's voice", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_VOICE, voiceOf("a1", "first"));
         await page.players.created[0]?.sounds[0]?.start();
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a1"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
 
         expect(tileActivities(page)).toEqual([AGENT_ACTIVITY.SPEAKING]);
     });
@@ -359,7 +395,7 @@ describe("an agent's listen switch", () => {
     async function pageWithAgents(...agentIds: string[]) {
         const page = await installedParticipation();
         page.seat(false);
-        for (const agentId of agentIds) page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", agentId));
+        for (const agentId of agentIds) page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined(agentId));
         return page;
     }
 
@@ -414,7 +450,7 @@ describe("an agent's listen switch", () => {
         [...page.tiles.values()][0]?.listening?.onChange(false);
 
         page.seat(false, SIGNAL_TYPE.EXISTING_PARTICIPANTS);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("someone", "a1"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
 
         expect(listeningOf(page)).toEqual([true]);
     });
