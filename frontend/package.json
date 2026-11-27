@@ -33,7 +33,7 @@
         "monocart-coverage-reports": "^3.2.1",
         "overnightworks-design": "https://github.com/overnightworks/design/releases/download/v0.41.0/overnightworks-design-0.41.0.tgz",
         "overnightworks-figure": "https://github.com/overnightworks/figure/releases/download/v0.10.0/overnightworks-figure-0.10.0.tgz",
-        "overnightworks-speech-browser": "https://github.com/overnightworks/speech/releases/download/v0.26.0/overnightworks-speech-browser-0.26.0.tgz",
+        "overnightworks-speech-browser": "https://github.com/overnightworks/speech/releases/download/v0.27.0/overnightworks-speech-browser-0.27.0.tgz",
         "prettier": "^3.10.1",
         "prettier-plugin-svelte": "^4.2.0",
         "svelte": "^5.58.0",
