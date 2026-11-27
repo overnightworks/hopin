@@ -32,6 +32,7 @@ SENTENCE_SECONDS = 4.0
 HELD_SENTENCE = "Guten Tag"
 ANSWERING_SENTENCE = "Moment, ich höre"
 PLAYBACK_WAIT_MILLISECONDS = 15_000
+HOLD_ENDED = "agent_hold.ended"
 
 
 @pytest.fixture(scope="module")
@@ -281,3 +282,23 @@ def test_a_person_who_starts_afresh_after_a_continue_holds_the_agent_again_under
 
     for person in held.everyone:
         expect(person.locator(AGENT_TILE)).not_to_have_class(SPEAKING_TILE)
+
+
+@pytest.mark.parametrize("form_factor", FORM_FACTORS)
+def test_every_seat_of_a_held_agent_reports_where_its_player_stood_once(
+    held: HeldAgent, server_logs: list[dict[str, Any]]
+) -> None:
+    """CALL-69: every browser whose player paused for the hold sends one report of the sentence's voice and its played
+    seconds, which the hold's line counts once for each seat when the hold ends."""
+    for person in held.everyone:
+        person.wait_for_function("() => window.contextsSuspended > 0", timeout=PLAYBACK_WAIT_MILLISECONDS)
+    settle(held.speaker.scene.owner)
+
+    held.call(STOP_SPEAKING_TOOL, interrupted="1")
+
+    until(
+        held.speaker.scene.owner, lambda: any(entry["event"] == HOLD_ENDED for entry in server_logs), "the hold's line"
+    )
+    [line] = [entry for entry in server_logs if entry["event"] == HOLD_ENDED]
+    assert line["seat_report_count"] == len(held.everyone)
+    assert line["seat_played_min_ms"] <= line["played_ms"]
