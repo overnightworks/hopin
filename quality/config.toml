@@ -12,6 +12,18 @@ date = 2026-11-12
 reason = "renamed to say what holds, only the connector reaches the speech service; the forbidden modules are unchanged"
 
 [[gate.loosened]]
+what = 'import contract "Participation names no agent runtime" ignores hopin.participation.** -> agents.calling'
+item = "overnightworks/agents#1073"
+date = 2026-11-22
+reason = "participation decides who may call and accept for whose agent with the library's calling standard"
+
+[[gate.loosened]]
+what = 'import contract "Participation names no agent runtime" ignores hopin.participation.** -> agents.member'
+item = "overnightworks/agents#1073"
+date = 2026-11-22
+reason = "participation reads the member records the calling standard's tools carry"
+
+[[gate.loosened]]
 what = 'size baseline adds file_lines frontend/src/lib/assets/hopin.css 2049'
 item = "overnightworks/quality#884"
 date = 2026-11-23

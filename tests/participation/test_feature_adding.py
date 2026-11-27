@@ -1,4 +1,5 @@
 import pytest
+from agents.member import INVITATION_SECONDS
 
 from hopin.config.constants import ErrorReason, SignalType
 from hopin.participation.memberships import AGENT_ADDERS_GROUP
@@ -7,6 +8,7 @@ from tests.participation.support.own_accounts import (
     AGENT,
     NAME,
     OWNER,
+    acceptance_of,
     agent_calls,
     agent_calls_and_listens,
     agent_listens,
@@ -152,6 +154,29 @@ class TestWhoIsOfferedTheAgent:
         assert (reads_before, offers_before, offers_sent_to(member)[0]["name"]) == (1, None, NAME)
 
 
+async def arrange_non_member_with_owner_absent(link, owner, member, participation, listeners, groups_of_seat, offer):
+    stranger = await link.join("stranger", owner.room_id)
+    await owner.drop(code=1000)
+    return stranger
+
+
+async def arrange_not_listening_with_place_full(link, owner, member, participation, listeners, groups_of_seat, offer):
+    await agent_stops_listening(participation, listeners)
+    for number in range(ROOM_LIMIT - 2):
+        await link.join(f"person{number}", owner.room_id)
+    return member
+
+
+async def arrange_other_invitation_with_owner_parked(
+    link, owner, member, participation, listeners, groups_of_seat, offer
+):
+    groups_of_seat["second"] = frozenset({AGENT_ADDERS_GROUP})
+    second = await link.join("second", owner.room_id)
+    await add(second, offer["agent_key"])
+    await owner.drop()
+    return member
+
+
 @pytest.mark.usefixtures("members")
 class TestAnAdd:
     async def test_an_add_of_a_non_member_is_not_adder_and_opens_no_invitation(self, link, participation, listeners):
@@ -182,10 +207,10 @@ class TestAnAdd:
 
         assert (refusals_sent_to(stranger), len(participation.standings_of(AGENT))) == ([], 1)
 
-    async def test_an_add_after_the_agents_listen_has_ended_is_served_and_opens_the_invitation(
+    async def test_an_add_of_an_agent_that_does_not_listen_is_refused_not_listening_and_opens_no_invitation(
         self, link, participation, listeners
     ):
-        """CALL-51: An add checks the agent's lease, not its listen, so an add in a re-listen gap is served."""
+        """CALL-51 (CALLING-1): An add of an agent that does not listen on its standing is refused."""
         _owner, member = await owner_and_member(link)
         await agent_calls_and_listens(participation, listeners)
         await let_reads_finish()
@@ -195,9 +220,10 @@ class TestAnAdd:
 
         await add(member, offer["agent_key"])
 
-        assert refusals_sent_to(member) == []
-        [standing] = participation.standings_of(AGENT)
-        assert standing.state.value == "invited"
+        assert (refusals_sent_to(member), participation.standings_of(AGENT)) == (
+            [AgentRefusal.NOT_LISTENING.value],
+            (),
+        )
 
     async def test_an_add_opens_an_invitation_the_adder_sees_pending_and_no_other_member_is_offered(
         self, link, participation, groups_of_seat, listeners
@@ -215,16 +241,100 @@ class TestAnAdd:
         [standing] = participation.standings_of(AGENT)
         assert standing.state.value == "invited"
 
-    async def test_a_second_add_of_an_invited_agent_is_already_there(self, link, participation, listeners):
+    async def test_a_repeated_add_by_the_inviting_seat_returns_its_invitation_with_its_id_and_timer_and_no_refusal(
+        self, link, participation, listeners, scheduler
+    ):
+        """CALL-51 (CALLING-6): A repeated add by the seat that made the open invitation returns that invitation and
+        changes nothing."""
         _owner, member = await owner_and_member(link)
         await agent_calls_and_listens(participation, listeners)
         await let_reads_finish()
         [offer] = offers_sent_to(member)
         await add(member, offer["agent_key"])
+        [standing] = participation.standings_of(AGENT)
+        timers = scheduler.pending_timers()
+
+        await add(member, offer["agent_key"])
+
+        assert (refusals_sent_to(member), participation.standings_of(AGENT), scheduler.pending_timers()) == (
+            [],
+            (standing,),
+            timers,
+        )
+
+    async def test_an_add_after_the_invitation_lapsed_opens_a_new_one_for_the_same_seat(
+        self, link, participation, listeners, scheduler
+    ):
+        """CALL-51 (CALLING-6): An add after the invitation ran out opens a new invitation."""
+        _owner, member = await owner_and_member(link)
+        await agent_calls_and_listens(participation, listeners)
+        await let_reads_finish()
+        [offer] = offers_sent_to(member)
+        await add(member, offer["agent_key"])
+        [first] = participation.standings_of(AGENT)
+        await scheduler.advance(INVITATION_SECONDS - 1)
+        await agent_calls(participation)  # the agent keeps calling, so its lease holds
+        await scheduler.advance(1)
+
+        await add(member, offer["agent_key"])
+
+        [second] = participation.standings_of(AGENT)
+        assert (refusals_sent_to(member), second.invitation.invitation_id != first.invitation.invitation_id) == (
+            [],
+            True,
+        )
+
+    async def test_an_add_of_an_agent_that_is_joined_is_refused_already_there(self, link, participation, listeners):
+        """CALL-51 (CALLING-4): An add of an agent already in the call is refused."""
+        owner, member = await owner_and_member(link)
+        await agent_calls_and_listens(participation, listeners)
+        await let_reads_finish()
+        [offer] = offers_sent_to(member)
+        await add(member, offer["agent_key"])
+        [standing] = participation.standings_of(AGENT)
+        await participation.accept(
+            AGENT, acceptance_of(owner.room_id, standing.invitation.invitation_id, standing.invitation.epoch), None
+        )
 
         await add(member, offer["agent_key"])
 
         assert refusals_sent_to(member) == [AgentRefusal.ALREADY_THERE.value]
+
+    async def test_an_add_by_another_seat_while_an_invitation_is_open_is_refused_invited_by_another(
+        self, link, participation, groups_of_seat, listeners
+    ):
+        """CALL-51 (CALLING-5): An add while another seat's invitation is open is refused, and the invitation stays."""
+        groups_of_seat["second"] = frozenset({AGENT_ADDERS_GROUP})
+        owner, member = await owner_and_member(link)
+        second = await link.join("second", owner.room_id)
+        await agent_calls_and_listens(participation, listeners)
+        await let_reads_finish()
+        [offer] = offers_sent_to(member)
+        await add(member, offer["agent_key"])
+        [standing] = participation.standings_of(AGENT)
+
+        await add(second, offer["agent_key"])
+
+        assert (refusals_sent_to(second), participation.standings_of(AGENT)) == (
+            [AgentRefusal.INVITED_BY_ANOTHER.value],
+            (standing,),
+        )
+
+    async def test_the_owners_second_seat_adding_while_the_first_seats_invitation_is_open_is_invited_by_another(
+        self, link, participation, groups_of_seat, listeners
+    ):
+        """CALL-51 (CALLING-5): The owner's other seat is another seat: its add meets the open invitation first."""
+        groups_of_seat[OWNER] = frozenset({AGENT_ADDERS_GROUP})
+        owner = await link.join(OWNER)
+        await agent_calls_and_listens(participation, listeners)
+        await let_reads_finish()
+        [offer] = offers_sent_to(owner)
+        await add(owner, offer["agent_key"])
+        second_seat = await link.join(OWNER, owner.room_id)
+
+        await add(second_seat, offer["agent_key"])
+
+        assert refusals_sent_to(second_seat) == [AgentRefusal.INVITED_BY_ANOTHER.value]
 
     async def test_an_add_while_the_owners_seat_sponsors_another_agent_opens_an_invitation(
         self, link, participation, listeners
@@ -294,6 +404,45 @@ class TestAnAdd:
         await add(member, offer["agent_key"])
 
         assert (refusals_sent_to(member), len(offers_sent_to(member))) == ([AgentRefusal.SPONSOR_AWAY.value], 1)
+
+    async def test_an_add_while_the_owner_has_no_seat_is_refused_no_seat(self, link, participation, listeners):
+        """CALL-51: An add while the agent's owner has no seat in the call is refused."""
+        owner, member = await owner_and_member(link)
+        await agent_calls_and_listens(participation, listeners)
+        await let_reads_finish()
+        [offer] = offers_sent_to(member)
+        await owner.drop(code=1000)
+
+        await add(member, offer["agent_key"])
+
+        assert refusals_sent_to(member) == [AgentRefusal.NO_SEAT.value]
+
+    @pytest.mark.parametrize(
+        ("arrange", "refusal"),
+        [
+            pytest.param(arrange_non_member_with_owner_absent, AgentRefusal.NOT_ADDER, id="non_member_before_owner"),
+            pytest.param(arrange_not_listening_with_place_full, AgentRefusal.NOT_LISTENING, id="listening_before_seat"),
+            pytest.param(
+                arrange_other_invitation_with_owner_parked,
+                AgentRefusal.INVITED_BY_ANOTHER,
+                id="invitation_before_owner",
+            ),
+        ],
+    )
+    async def test_when_several_refusals_hold_the_first_in_the_standards_order_shows(
+        self, link, participation, groups_of_seat, listeners, arrange, refusal
+    ):
+        """CALL-51 (CALLING-1 to 6): The adder's membership, the agent's listen and the open invitation of another
+        seat come before the owner's seat and a free place."""
+        owner, member = await owner_and_member(link)
+        await agent_calls_and_listens(participation, listeners)
+        await let_reads_finish()
+        [offer] = offers_sent_to(member)
+
+        adder = await arrange(link, owner, member, participation, listeners, groups_of_seat, offer)
+        await add(adder, offer["agent_key"])
+
+        assert refusals_sent_to(adder) == [refusal.value]
 
     async def test_an_add_of_a_key_no_agent_holds_is_gone(self, link, participation):
         _owner, member = await owner_and_member(link)

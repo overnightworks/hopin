@@ -9,6 +9,7 @@ from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
 from tests.participation.support.own_accounts import (
     AGENT,
     OWNER,
+    acceptance_of,
     agent_calls_and_listens,
     let_reads_finish,
     let_reads_start,
@@ -88,15 +89,16 @@ class TestAnAddWhoseFreshReadIsStillRunning:
             [],
         )
 
-    async def test_it_is_refused_when_the_owners_seat_was_replaced_meanwhile(
+    async def test_it_is_refused_when_the_owners_seat_left_meanwhile(
         self, link, participation, groups_of_seat, group_reads, listeners
     ):
+        """CALL-51 (CALLING-21): The call is decided on the call as the fresh read leaves it: an owner with no seat is
+        refused."""
         owner, member, release = await self.add_with_a_held_read(
             link, participation, groups_of_seat, group_reads, listeners
         )
 
         await owner.drop(code=1000)
-        await link.join(OWNER, owner.room_id)
         release.set()
         await link.settle(member.socket)
         await let_reads_finish()
@@ -105,6 +107,27 @@ class TestAnAddWhoseFreshReadIsStillRunning:
             participation.standings_of(AGENT),
             [frame["reason"] for frame in member.frames(ParticipationSignal.AGENT_REFUSED)],
         ) == ((), [AgentRefusal.NO_SEAT.value])
+
+    async def test_it_binds_the_invitation_to_the_seat_the_owner_holds_when_the_read_ends(
+        self, link, participation, groups_of_seat, group_reads, listeners
+    ):
+        """CALL-51 (CALLING-21): The call is decided on the call as the fresh read leaves it: an owner whose seat was
+        replaced meanwhile is at the new one."""
+        owner, member, release = await self.add_with_a_held_read(
+            link, participation, groups_of_seat, group_reads, listeners
+        )
+
+        await owner.drop(code=1000)
+        replacement = await link.join(OWNER, owner.room_id)
+        release.set()
+        await link.settle(member.socket)
+        await let_reads_finish()
+        [standing] = participation.standings_of(AGENT)
+        accepted = await participation.accept(
+            AGENT, acceptance_of(owner.room_id, standing.invitation.invitation_id, standing.invitation.epoch), None
+        )
+
+        assert (member.frames(ParticipationSignal.AGENT_REFUSED), accepted.sponsor) == ([], replacement.peer_id)
 
     async def test_it_is_refused_when_the_agents_lease_ran_out_meanwhile(
         self, link, participation, groups_of_seat, scheduler, group_reads, listeners

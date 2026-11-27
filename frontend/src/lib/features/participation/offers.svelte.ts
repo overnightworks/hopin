@@ -58,7 +58,7 @@ export function rowsOf(here: readonly AgentRow[], offers: Offer[], endings: Read
 const OUTCOME_OF_ENDING: Record<INVITATION_OUTCOME, AgentControlOutcome> = {
     [INVITATION_OUTCOME.NO_ANSWER]: "no-answer",
     [INVITATION_OUTCOME.BUSY]: "busy",
-    [INVITATION_OUTCOME.OWNER_ABSENT]: "owner-absent",
+    [INVITATION_OUTCOME.OWNER_AWAY]: "owner-absent",
 };
 
 /** The kit's outcome for the way an invitation ended. */
@@ -72,6 +72,8 @@ const REFUSAL_OF_REASON: Partial<Record<string, AgentControlRefusal>> = {
     [AGENT_REFUSAL.SPONSOR_AWAY]: "owner-absent",
     [AGENT_REFUSAL.BUSY]: "place-full",
     [AGENT_REFUSAL.ALREADY_THERE]: "agent-unavailable",
+    [AGENT_REFUSAL.NOT_LISTENING]: "agent-unavailable",
+    [AGENT_REFUSAL.INVITED_BY_ANOTHER]: "agent-unavailable",
     [AGENT_REFUSAL.GONE]: "agent-unavailable",
     [AGENT_REFUSAL.TWO_SEATS]: "agent-unavailable",
     [AGENT_REFUSAL.UNAVAILABLE]: "try-again",

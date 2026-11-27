@@ -98,7 +98,7 @@ describe("calling an agent that has an account of its own", () => {
     it.each([
         [INVITATION_OUTCOME.NO_ANSWER, "Keine Antwort"],
         [INVITATION_OUTCOME.BUSY, "Gerade beschäftigt"],
-        [INVITATION_OUTCOME.OWNER_ABSENT, "Sein Besitzer ist nicht hier."],
+        [INVITATION_OUTCOME.OWNER_AWAY, "Sein Besitzer ist nicht hier."],
     ])(
         "CALL-52: shows an invitation that ended as %s as the kit's row for it, with no call button",
         async (outcome, words) => {
@@ -163,7 +163,7 @@ describe("calling an agent that has an account of its own", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
             agent_key: "k1",
             name: "Mozart",
-            outcome: INVITATION_OUTCOME.OWNER_ABSENT,
+            outcome: INVITATION_OUTCOME.OWNER_AWAY,
         });
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Bach", false, "k2")] });
 
@@ -179,7 +179,7 @@ describe("calling an agent that has an account of its own", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
             agent_key: "k1",
             name: "Mozart",
-            outcome: INVITATION_OUTCOME.OWNER_ABSENT,
+            outcome: INVITATION_OUTCOME.OWNER_AWAY,
         });
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [offered("Mozart")] });
@@ -193,7 +193,7 @@ describe("calling an agent that has an account of its own", () => {
         page.emit(PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED, {
             agent_key: "k1",
             name: "Mozart",
-            outcome: INVITATION_OUTCOME.OWNER_ABSENT,
+            outcome: INVITATION_OUTCOME.OWNER_AWAY,
         });
 
         page.offers()[0]?.closest("dialog")?.dispatchEvent(new Event("close"));
@@ -281,6 +281,8 @@ describe("calling an agent that has an account of its own", () => {
         [AGENT_REFUSAL.SPONSOR_AWAY, "owner-absent"],
         [AGENT_REFUSAL.BUSY, "place-full"],
         [AGENT_REFUSAL.ALREADY_THERE, "agent-unavailable"],
+        [AGENT_REFUSAL.NOT_LISTENING, "agent-unavailable"],
+        [AGENT_REFUSAL.INVITED_BY_ANOTHER, "agent-unavailable"],
         [AGENT_REFUSAL.GONE, "agent-unavailable"],
         [AGENT_REFUSAL.TWO_SEATS, "agent-unavailable"],
         [AGENT_REFUSAL.UNAVAILABLE, "try-again"],

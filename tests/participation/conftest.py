@@ -9,7 +9,7 @@ from typing import NamedTuple
 import pytest
 import pytest_asyncio
 from agents.mcp_server.hearing import MemberHearing
-from agents.member import ACCEPT_INVITATION_TOOL, INVITATION_SECONDS, LEASE_SECONDS, STANDING_URI
+from agents.member import ACCEPT_INVITATION_TOOL, LEASE_SECONDS, STANDING_URI
 from speech_client.wire import VoiceId
 
 from hopin.agent.hearing import MemberHearingRecord
@@ -24,7 +24,7 @@ from hopin.signaling.handler import SignalingHandler
 from tests.participation.support.figure_scene import FILE, JOINED, joined_with
 from tests.participation.support.figures import FigureOrigin, figure_url, ok
 from tests.participation.support.hearing_scene import AUDIENCE_SCOPE
-from tests.participation.support.own_accounts import WALL_CLOCK_SECONDS, GroupReadLog
+from tests.participation.support.own_accounts import GroupReadLog, WallClock
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking_scene import SOUND
 from tests.signaling.support.browsers import Link, host_and_guest
@@ -146,9 +146,16 @@ def voices():
 
 
 @pytest.fixture
+def wall_clock(scheduler):
+    """The wall clock invitations end by; a test steps it on its own with `step`."""
+    return WallClock(scheduler)
+
+
+@pytest.fixture
 def handler(
     room_manager,
     scheduler,
+    wall_clock,
     deadlines,
     changes,
     window_changes,
@@ -175,10 +182,9 @@ def handler(
             Participation(
                 deadlines=deadlines,
                 lease_seconds=LEASE_SECONDS,
-                invitation_seconds=INVITATION_SECONDS,
                 on_changed=changes,
                 on_window_changed=lambda person, room_id: window_changes.append((person, room_id)),
-                wall_clock=lambda: WALL_CLOCK_SECONDS,
+                wall_clock=wall_clock,
                 groups_of=groups_of,
                 figure_sources=(),
                 listens_to_standing=lambda person: person in listeners,

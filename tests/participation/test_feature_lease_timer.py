@@ -56,7 +56,6 @@ def _participation(deadlines, changed):
     return Participation(
         deadlines=deadlines,
         lease_seconds=LEASE,
-        invitation_seconds=LEASE,
         on_changed=changed.append,
         on_window_changed=lambda person, room_id: None,
         wall_clock=lambda: 0.0,

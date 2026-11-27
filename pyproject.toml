@@ -262,6 +262,8 @@ type = "forbidden"
 source_modules = ["hopin.participation"]
 # agent_runtime_client stays forbidden beside agents, because quality's gate counts a struck forbidden module as a loosening.
 forbidden_modules = ["agents", "agent_runtime_client", "speech_client", "speech_runtime_client", "video_client", "httpx2"]
+# Participation reaches only the calling standard and the member records of the agents library.
+ignore_imports = ["hopin.participation.** -> agents.calling", "hopin.participation.** -> agents.member"]
 
 [[tool.importlinter.contracts]]
 id = "agent-service-only-through-the-game"

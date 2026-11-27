@@ -5,12 +5,13 @@ import json
 
 import pytest
 import structlog.testing
+from agents.calling import CallOutcome
 from agents.member import ACCEPT_INVITATION_TOOL, DECLINE_INVITATION_TOOL, STANDING_URI, PlaceRef, place_window_uri
 
 from hopin.agent.mcp import OFFERS_RECOMPUTE_TASK_NAME
 from hopin.config.constants import MAX_PARTICIPANTS_PER_ROOM
 from hopin.participation.feature import Participation
-from hopin.participation.vocabulary import AgentRefusal, InvitationOutcome, ParticipationSignal
+from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS
 from tests.support.dialed_call import accept_arguments
 from tests.support.log_lines import captured_lines
@@ -120,11 +121,11 @@ def decline_arguments(standing):
 
 
 SECRET = "secret-value"
-MALFORMED = {
-    "a_forbidden_key": lambda valid: {**valid, "voice": SECRET},
-    "a_bad_epoch": lambda valid: {**valid, "epoch": SECRET},
-    "a_bad_place_id": lambda valid: {**valid, "place": {**valid["place"], "id": 5}},
-}
+MALFORMED = (
+    pytest.param(lambda valid: {**valid, "voice": SECRET}, "[key]", id="a_forbidden_key"),
+    pytest.param(lambda valid: {**valid, "epoch": SECRET}, "epoch", id="a_bad_epoch"),
+    pytest.param(lambda valid: {**valid, "place": {**valid["place"], "id": 5}}, "place.id", id="a_bad_place_id"),
+)
 
 
 @pytest.mark.parametrize(
@@ -135,9 +136,7 @@ MALFORMED = {
 class TestAMalformedInvitationCall:
     """CALL-52: an accept or a decline whose arguments the agents contract refuses."""
 
-    @pytest.mark.parametrize(
-        ("malform", "path"), zip(MALFORMED.values(), ["[key]", "epoch", "place.id"], strict=True), ids=MALFORMED.keys()
-    )
+    @pytest.mark.parametrize(("malform", "path"), MALFORMED)
     def test_it_is_a_tool_error_naming_the_field_path_and_no_value_or_refusal_code(
         self, scene, tool, arguments_of, malform, path
     ):
@@ -212,7 +211,7 @@ class TestDecliningTheInvitation:
         dialed = scene.call.call(scene.token, DECLINE_INVITATION_TOOL, decline_arguments(standing))
 
         ended = scene.member.frame_of_type(INVITATION_ENDED)
-        assert (dialed.is_error, ended["outcome"], scene.standings()) == (False, InvitationOutcome.BUSY.value, [])
+        assert (dialed.is_error, ended["outcome"], scene.standings()) == (False, CallOutcome.BUSY.value, [])
         assert INVITATION_ENDED not in [frame["type"] for frame in scene.owner.received]
 
     def test_a_declined_agent_is_offered_to_the_adder_again_and_can_be_invited_anew(self, scene):

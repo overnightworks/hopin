@@ -2,6 +2,14 @@
 
 import asyncio
 
+from agents.member import (
+    AcceptInvitationArguments,
+    DeclineInvitationArguments,
+    DeclineInvitationReason,
+    PlaceRef,
+)
+
+from hopin.agent.tools import CALL_KIND
 from hopin.participation.group_reads import GROUPS_READ_TASK_NAME
 from hopin.participation.participants import OwnAccount
 from hopin.participation.vocabulary import ParticipationSignal
@@ -12,6 +20,21 @@ OWNER = "owner"
 AGENT = person_named("agent-subject")
 NAME = "Claude"
 WALL_CLOCK_SECONDS = 1000.0
+
+
+class WallClock:
+    """The call's wall clock: it starts at `WALL_CLOCK_SECONDS`, moves with the scheduler's clock and steps by itself
+    when a test says so, as a clock that is set does."""
+
+    def __init__(self, scheduler):
+        self._scheduler = scheduler
+        self._stepped_seconds = 0.0
+
+    def __call__(self):
+        return WALL_CLOCK_SECONDS + self._scheduler.now() + self._stepped_seconds
+
+    def step(self, seconds):
+        self._stepped_seconds += seconds
 
 
 async def agent_calls(participation, *, owner=OWNER, name=NAME):
@@ -84,3 +107,18 @@ def control_shown_to(browser):
     """Whether the last `agent_offers` frame the browser was sent shows the control, or nothing when it got none."""
     frames = browser.frames(ParticipationSignal.AGENT_OFFERS)
     return frames[-1]["shown"] if frames else None
+
+
+def acceptance_of(room_id, invitation_id, epoch):
+    """The arguments of an accept of that invitation in the room, as the agents contract parses them."""
+    return AcceptInvitationArguments(place=PlaceRef(kind=CALL_KIND, id=room_id), invitation=invitation_id, epoch=epoch)
+
+
+def busy_decline_of(room_id, invitation_id, epoch):
+    """The arguments of a decline of that invitation in the room with the reason busy."""
+    return DeclineInvitationArguments(
+        place=PlaceRef(kind=CALL_KIND, id=room_id),
+        invitation=invitation_id,
+        epoch=epoch,
+        reason=DeclineInvitationReason.BUSY,
+    )

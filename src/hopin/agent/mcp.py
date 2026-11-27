@@ -14,7 +14,7 @@ import logging
 import time
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from functools import partial
 from typing import TYPE_CHECKING, Final
 
@@ -26,7 +26,6 @@ from agents.mcp_wire import MCP_ENDPOINT_PATH
 from agents.member import (
     ACCEPT_INVITATION_TOOL,
     GESTURE_TOOL,
-    INVITATION_SECONDS,
     LEASE_SECONDS,
     SET_FRAMING_TOOL,
     STANDING_URI,
@@ -152,7 +151,6 @@ class _BuiltParticipation:
         self.participation = Participation(
             self.deadlines,
             LEASE_SECONDS,
-            INVITATION_SECONDS,
             self._tell_changed,
             self._tell_window_changed,
             self.wall_clock,
@@ -328,9 +326,7 @@ def _standing_of(standing: PlaceStanding) -> Standing:
     invitation = (
         None
         if invited is None
-        else Invitation(
-            id=invited.invitation_id, epoch=invited.epoch, expires_at=datetime.fromtimestamp(invited.expires_at, UTC)
-        )
+        else Invitation(id=invited.invitation_id, epoch=invited.epoch, expires_at=invited.expires_at)
     )
     return Standing(
         place=PlaceRef(kind=CALL_KIND, id=standing.room_id),

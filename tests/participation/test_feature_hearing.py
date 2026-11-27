@@ -26,6 +26,7 @@ from tests.participation.support.hearing_scene import heard
 from tests.participation.support.own_accounts import (
     AGENT,
     OWNER,
+    acceptance_of,
     agent_calls_and_listens,
     let_reads_finish,
     offers_sent_to,
@@ -111,7 +112,9 @@ async def invitation_of(link, participation, listeners):
         await let_reads_finish()
         [standing] = participation.standings_of(AGENT)
         invitation = standing.invitation
-        agent = await participation.accept(AGENT, owner.room_id, invitation.invitation_id, invitation.epoch, None)
+        agent = await participation.accept(
+            AGENT, acceptance_of(owner.room_id, invitation.invitation_id, invitation.epoch), None
+        )
         return owner, member, agent
 
     return add_by
