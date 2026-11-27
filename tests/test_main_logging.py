@@ -195,6 +195,9 @@ class TestServerLogging:
     def test_the_start_path_leaves_uvicorn_no_logging_setup_of_its_own(
         self, start_on_taken_port, uvicorn_loggers_restored, game_environment
     ) -> None:
+        # Handlers another test leaked would differ from run to run; the fixture puts them back afterwards.
+        for name in UVICORN_LOGGER_NAMES:
+            logging.getLogger(name).handlers.clear()
         before = _handlers()
 
         start_on_taken_port()
