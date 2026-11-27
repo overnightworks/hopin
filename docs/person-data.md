@@ -12,7 +12,7 @@ HopIn holds a person's account (name and role) and their sessions in its own Pos
 
 **The game master.** What a quiz run sends, to whom and on whose access is ruled in `docs/game-master.md`: the runs and their count (GM-05, GM-22), the starter's access and the single refresh grant (GM-08, GM-20), the API group (GM-19, GM-11), what the gateway receives and what never leaves the call (GM-21), the reveal request's answers (GM-43) and verdicts (GM-40), the counted score (GM-24), a spent budget (GM-13), the gateway call and its key (GM-42), what is never logged (GM-44), and the voice (GM-21, GM-32, GM-34, GM-36). HopIn logs no token in the voice path and not the voice's audio. HopIn keeps the quiz in memory until it ends. The gateway is the fleet's LiteLLM gateway (`litellm-front`). No token reaches a browser. The game's server side lives in `src/hopin/game/` and its agent connector in `src/hopin/agent/`, and `src/hopin/main.py` switches it in.
 
-The shape of `export.json` follows the fleet's shared people contract (`docs/people.md` in the edge repository). HopIn admits only an admin's signed-in browser session, not an access token, so hal cannot call either route yet.
+The shape of `export.json` follows the fleet's shared people contract (`docs/people.md` in the edge repository). HopIn admits only an admin's signed-in browser session, not an access token, so an access token cannot call either route.
 
 ### Erasing a person
 
