@@ -282,10 +282,7 @@ class Participation(TransitionFeature):
 
     async def standings_of(self, person: Person) -> tuple[PlaceStanding, ...]:
         """Every place the person holds as it reads now; a place it was removed from is absent."""
-        standings = []
-        for room, place in self._places.of_person(person):
-            standings.append(await self._standing_in(person, room, place))
-        return tuple(standings)
+        return (*[await self._standing_in(person, room, place) for room, place in self._places.of_person(person)],)
 
     async def open_hearing(
         self, account: Person, seat: PeerId, holds_token: Callable[[Person], bool]
