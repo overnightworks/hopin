@@ -19,7 +19,7 @@ drawFigure = 135
 installedGame = 71
 
 [function_lines."frontend/src/lib/features/participation/index.ts"]
-installWith = 328
+installWith = 326
 
 [function_lines."frontend/src/lib/features/participation/page.fixture.ts"]
 installedParticipation = 154
