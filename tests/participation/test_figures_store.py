@@ -9,8 +9,8 @@ import pytest
 import pytest_asyncio
 from logline import Outcome
 
-from hopin.participation.figures import FigureStore, NamedFigure
-from hopin.participation.vocabulary import FIGURE_CACHE_BYTES, FIGURE_FETCH_WORKERS, FIGURE_MAX_BYTES, FigureRefusal
+from hopin.participation.figures import FIGURE_FILES, FigureStore, NamedFigure
+from hopin.participation.vocabulary import FIGURE_FETCH_WORKERS, FigureRefusal
 from hopin.rooms.reference import room_reference
 from tests.participation.support.figures import WAIT_SECONDS, figure_url
 from tests.support.log_lines import captured_lines
@@ -123,10 +123,10 @@ class TestTheCache:
     async def test_past_its_bound_the_least_recently_used_file_goes_and_is_fetched_again_when_read(
         self, store, fetches
     ):
-        fits = FIGURE_CACHE_BYTES // FIGURE_MAX_BYTES
+        fits = FIGURE_FILES.cache_bytes // FIGURE_FILES.max_bytes
         urls = [figure_url(f"figure-{number}.glb") for number in range(fits + 1)]
         for url in urls:
-            fetches.outcomes[url] = bytes(FIGURE_MAX_BYTES)
+            fetches.outcomes[url] = bytes(FIGURE_FILES.max_bytes)
         for number, url in enumerate(urls[:fits]):
             await store.bytes_of(digest(number), named(url))
         await store.bytes_of(digest(0), named(urls[0]))

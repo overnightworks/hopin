@@ -11,7 +11,8 @@ from agents.member import SET_FRAMING_TOOL, SPEAK_TOOL, PlaceRef
 from playwright.sync_api import expect
 
 from hopin.agent.tools import CALL_KIND
-from hopin.participation.vocabulary import CLIP_PATH, FIGURE_MODULE, VOICE_PATH, FigureMood
+from hopin.participation.figures import CLIP_FILES
+from hopin.participation.vocabulary import FIGURE_MODULE, VOICE_PATH, FigureMood
 from tests.e2e.support.client_manifest import entry_of, urls_of_the_chunks_of
 from tests.e2e.support.dialed_agent import AGENT_TILE, room_of_link
 from tests.e2e.support.media import LOUD, SILENCE, SPEAK_ON_DEMAND
@@ -139,7 +140,7 @@ def open_person(
         page.on(
             "response",
             lambda response: (
-                answers.append(response.status) if urlsplit(response.url).path.startswith(CLIP_PATH) else None
+                answers.append(response.status) if urlsplit(response.url).path.startswith(CLIP_FILES.path) else None
             ),
         )
         if clock_faked:

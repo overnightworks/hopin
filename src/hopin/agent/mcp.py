@@ -70,18 +70,19 @@ from hopin.agent.video_session import VideoOpening
 from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS, REDIS_AGENTS_KEY_PREFIX
 from hopin.participation.feature import Participation
 from hopin.participation.figure_transport import get_figure_over_https
-from hopin.participation.figures import FigureSource, FigureStore, FigureTransport, NamedFigure, fetch_figure
+from hopin.participation.figures import (
+    SERVED_FILE_KINDS,
+    FigureSource,
+    FigureStore,
+    FigureTransport,
+    NamedFigure,
+    ServedFileKind,
+    fetch_figure,
+)
 from hopin.participation.hearing import Hearing
 from hopin.participation.participants import Caller, OwnAccount, Person
 from hopin.participation.vocabulary import (
-    CLIP_CACHE_BYTES,
-    CLIP_MAX_BYTES,
-    CLIP_PATH,
-    FIGURE_PATH,
     HEARING_PATH,
-    PERSONA_ROOM_CACHE_BYTES,
-    PERSONA_ROOM_MAX_BYTES,
-    PERSONA_ROOM_PATH,
     VOICE_PATH,
 )
 from hopin.participation.voice import VoiceStore, voice_endpoint
@@ -264,14 +265,6 @@ def _log_place_signal_failed(error: BaseException) -> None:
     logger.error(PLACE_SIGNAL_FAILED_EVENT, exc_info=error)
 
 
-def _clip_fetch_step(room_ref: str) -> StepTimer:
-    return StepTimer("clip_fetch.ended", _STEPS, room_ref=room_ref)
-
-
-def _persona_room_fetch_step(room_ref: str) -> StepTimer:
-    return StepTimer("persona_room_fetch.ended", _STEPS, room_ref=room_ref)
-
-
 def _call_window_uri(room_id: str) -> str:
     return place_window_uri(PlaceRef(kind=CALL_KIND, id=room_id))
 
@@ -430,27 +423,23 @@ def _file_endpoint(
 
 def _add_file_routes(
     router: APIRouter,
-    stores: tuple[FigureStore, FigureStore, FigureStore],
+    stores: tuple[FigureStore, ...],
     participation: Callable[[], Participation],
 ) -> None:
-    """The figure, clip and persona room routes, each answering only a file the current participation names; `stores`
-    holds the store of each kind in that order."""
-    figures, clips, persona_rooms = stores
-    router.add_api_route(
-        f"{FIGURE_PATH}/{{sha256}}",
-        _file_endpoint(figures, lambda sha256: participation().figures.named(sha256)),
-        methods=READ_METHODS,
-    )
-    router.add_api_route(
-        f"{CLIP_PATH}/{{sha256}}",
-        _file_endpoint(clips, lambda sha256: participation().figures.named_clips(sha256)),
-        methods=READ_METHODS,
-    )
-    router.add_api_route(
-        f"{PERSONA_ROOM_PATH}/{{sha256}}",
-        _file_endpoint(persona_rooms, lambda sha256: participation().figures.named_persona_rooms(sha256)),
-        methods=READ_METHODS,
-    )
+    """One route per served file kind, each answering only a file the current participation names; `stores` holds the
+    store of each kind in the order of `SERVED_FILE_KINDS`."""
+    for kind, store in zip(SERVED_FILE_KINDS, stores, strict=True):
+        router.add_api_route(
+            f"{kind.path}/{{sha256}}",
+            _file_endpoint(store, partial(_named_by_participation, kind, participation)),
+            methods=READ_METHODS,
+        )
+
+
+def _named_by_participation(
+    kind: ServedFileKind, participation: Callable[[], Participation], sha256: str
+) -> tuple[NamedFigure, ...]:
+    return participation().figures.named(kind, sha256)
 
 
 @dataclass(frozen=True)
@@ -504,11 +493,7 @@ class ParticipationFeature:
         )
         hearing_tokens = self._hearing_tokens(deadlines, scheduler, auth_config)
         voice = self._voice(relying_party, hearing_tokens)
-        stores = (
-            FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic)),
-            self._store_within(CLIP_MAX_BYTES, CLIP_CACHE_BYTES, _clip_fetch_step),
-            self._store_within(PERSONA_ROOM_MAX_BYTES, PERSONA_ROOM_CACHE_BYTES, _persona_room_fetch_step),
-        )
+        stores = tuple(self._store_of(kind) for kind in SERVED_FILE_KINDS)
         opening = self._opening(relying_party, turn_relay, built, scheduler, auth_config)
         front = self._front(built, relying_party, voice, opening)
 
@@ -538,12 +523,12 @@ class ParticipationFeature:
         self._add_hearing_route(router, built.current, relying_party, scheduler, hearing_tokens)
         return BuiltParticipationFeature(built.participation, router, self._resource())
 
-    def _store_within(self, max_bytes: int, cache_bytes: int, step: Callable[[str], StepTimer]) -> FigureStore:
-        """The store of one kind of file beside the figure's, with its own byte bound, cache and step line."""
+    def _store_of(self, kind: ServedFileKind) -> FigureStore:
+        """The store of one kind of file, with its byte bound, cache and step line."""
         return FigureStore(
-            partial(fetch_figure, self.figure_transport, monotonic=time.monotonic, max_bytes=max_bytes),
-            cache_bytes=cache_bytes,
-            step=step,
+            partial(fetch_figure, self.figure_transport, monotonic=time.monotonic, max_bytes=kind.max_bytes),
+            cache_bytes=kind.cache_bytes,
+            step=kind.fetch_step,
         )
 
     def _add_hearing_route(

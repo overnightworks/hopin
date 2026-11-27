@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import structlog
 
 from hopin.errors import InvalidMessageError
-from hopin.participation.figures import NamedFigure
+from hopin.participation.figures import NamedFigure, ServedFileKind
 from hopin.participation.frames import (
     AgentFramingFrame,
     AgentGestureFrame,
@@ -81,32 +81,13 @@ class ShownFigures:
         for gesture, clip_refusal in verdict.clip_refusals.items():
             await logger.ainfo("agent_clip.refused", room_ref=room_ref, gesture=gesture, reason=clip_refusal.value)
 
-    def named(self, sha256: str) -> tuple[NamedFigure, ...]:
-        """The URLs the joined agents name for the digest."""
+    def named(self, kind: ServedFileKind, sha256: str) -> tuple[NamedFigure, ...]:
+        """The URLs the joined agents name for the digest of a file of the kind."""
         return tuple(
-            NamedFigure(agent.room_id, agent.figure.url)
-            for agent in self._places.joined()
-            if agent.figure is not None and agent.figure.sha256 == sha256
-        )
-
-    def named_clips(self, sha256: str) -> tuple[NamedFigure, ...]:
-        """The URLs the joined agents name for the digest of a clip."""
-        return tuple(
-            NamedFigure(agent.room_id, clip.url)
+            NamedFigure(agent.room_id, url)
             for agent in self._places.joined()
             if agent.figure is not None
-            for clip in agent.figure.clips
-            if clip.sha256 == sha256
-        )
-
-    def named_persona_rooms(self, sha256: str) -> tuple[NamedFigure, ...]:
-        """The URLs the joined agents name for the digest of a persona room."""
-        return tuple(
-            NamedFigure(agent.room_id, agent.figure.persona_room.url)
-            for agent in self._places.joined()
-            if agent.figure is not None
-            and agent.figure.persona_room is not None
-            and agent.figure.persona_room.sha256 == sha256
+            for url in kind.named_by(agent.figure, sha256)
         )
 
     def shown_by(self, person: Person) -> bool:

@@ -9,7 +9,7 @@ import pytest
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import expect
 
-from hopin.participation.vocabulary import PERSONA_ROOM_PATH
+from hopin.participation.figures import PERSONA_ROOM_FILES
 from tests.e2e.support.dialed_agent import AGENT_TILE
 from tests.e2e.support.people import FORM_FACTORS
 from tests.participation.support.figures import FigureOrigin, digest_of, figure_url, glb, ok
@@ -124,13 +124,13 @@ def open_person(open_person: Callable[..., Page], room_answers: dict[Page, list[
     def open_recording(**options: Any) -> Page:
         page = open_person(**options)
         page.clock.install()
-        page.add_init_script(f"({RECORD_ROOM_FETCHES})({PERSONA_ROOM_PATH!r})")
-        page.evaluate(RECORD_ROOM_FETCHES, PERSONA_ROOM_PATH)
+        page.add_init_script(f"({RECORD_ROOM_FETCHES})({PERSONA_ROOM_FILES.path!r})")
+        page.evaluate(RECORD_ROOM_FETCHES, PERSONA_ROOM_FILES.path)
         answers = room_answers.setdefault(page, [])
         page.on(
             "response",
             lambda response: (
-                answers.append(response) if urlsplit(response.url).path.startswith(PERSONA_ROOM_PATH) else None
+                answers.append(response) if urlsplit(response.url).path.startswith(PERSONA_ROOM_FILES.path) else None
             ),
         )
         return page
