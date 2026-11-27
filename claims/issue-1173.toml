@@ -3,6 +3,6 @@ agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
 role = "builder"
 base = "2895b0828f3af905bcc7672cab3fc3ce0d17e09b"
 branch = "claude/issue-1173-hopin-log-calls-meet-logline-standard"
-scope = ["src/hopin/agent/mcp.py", "src/hopin/main.py", "src/hopin/participation/figures.py", "src/hopin/signaling/transition.py", "src/hopin/stores/redis.py"]
+scope = ["src/hopin/agent/mcp.py", "src/hopin/config/constants.py", "src/hopin/game/table.py", "src/hopin/main.py", "src/hopin/participation/agent_speech.py", "src/hopin/participation/figures.py", "src/hopin/signaling/own_turns.py", "src/hopin/signaling/transition.py", "src/hopin/stores/redis.py", "tests/conftest.py", "tests/e2e/support/server.py", "tests/participation/test_feature_own_account.py", "tests/support/signaling_fakes.py", "tests/test_main.py", "tests/test_main_logging.py"]
 opened_commit = "fb2cf4c572f2c678d55e60466b106b28a850ee5a"
 whole_reason = "One standard's findings across five modules, each a few lines; split they would cost five reviews of the same rule table."
