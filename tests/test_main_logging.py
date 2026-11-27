@@ -17,7 +17,7 @@ from webauth.config import installed_web_auth_config
 
 from hopin.config.constants import AUTH_CALLBACK_PATH, HEALTH_PATH, WEBSOCKET_PATH, SignalType
 from hopin.config.settings import RealmSettings, ServerSettings
-from hopin.main import build_application, run_uvicorn, serve, uvicorn_config, uvicorn_options
+from hopin.main import serve, uvicorn_config
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import fixture_page_build
 from tests.support.signed_in import SeededMember, handshake_headers, seed_member
@@ -193,21 +193,11 @@ class TestServerLogging:
         assert refusals == [("warning", "invalid_request")]
 
     def test_the_start_path_leaves_uvicorn_no_logging_setup_of_its_own(
-        self, sign_in_settings, monkeypatch, uvicorn_loggers_restored, game_environment
+        self, start_on_taken_port, uvicorn_loggers_restored, game_environment
     ) -> None:
-        for name, value in sign_in_settings(host=LOCALHOST).environment.items():
-            monkeypatch.setenv(name, value)
-        with socket.socket() as taken:
-            taken.bind((LOCALHOST, 0))
-            monkeypatch.setenv("HOPIN_PORT", str(taken.getsockname()[1]))
-            settings = ServerSettings()
-            application = build_application(
-                settings, RealmSettings(), fixture_page_build(), in_thread_stores(), single_process_stores()
-            )
-            before = _handlers()
+        before = _handlers()
 
-            with pytest.raises(SystemExit):
-                run_uvicorn(application, uvicorn_options(settings))
+        start_on_taken_port()
 
         assert _handlers() == before
 

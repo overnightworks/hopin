@@ -8,11 +8,12 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from pydantic_settings import BaseSettings
 from starlette.websockets import WebSocketDisconnect
+from uvicorn.config import STARTUP_FAILURE
 
 import hopin
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.settings import RealmSettings, ServerSettings
-from hopin.main import SETTINGS_CLASSES, UvicornOptions, build_application, main, run_uvicorn, serve, uvicorn_options
+from hopin.main import SETTINGS_CLASSES, UvicornOptions, build_application, main, serve
 from hopin.participation.vocabulary import HEARING_PATH
 from hopin.web.page_build import SHELL_FILE
 from tests.support.dialed_call import METADATA_PATH
@@ -66,24 +67,8 @@ class TestMain:
     def test_writes_no_access_line(self, serve_over_test_stores):
         assert serve_over_test_stores()["access_log"] is False
 
-    def test_hands_the_application_and_its_options_to_uvicorn_which_refuses_a_taken_port(
-        self, sign_in_settings, monkeypatch
-    ):
-        for name, value in sign_in_settings().environment.items():
-            monkeypatch.setenv(name, value)
-        with socket.socket() as taken:
-            taken.bind(("127.0.0.1", 0))
-            monkeypatch.setenv("HOPIN_HOST", "127.0.0.1")
-            monkeypatch.setenv("HOPIN_PORT", str(taken.getsockname()[1]))
-            settings = ServerSettings()
-            application = build_application(
-                settings, TEST_REALM, fixture_page_build(), in_thread_stores(), single_process_stores()
-            )
-
-            with pytest.raises(SystemExit) as refusal:
-                run_uvicorn(application, uvicorn_options(settings))
-
-        assert refusal.value.code != 0
+    def test_hands_the_application_and_its_options_to_uvicorn_which_refuses_a_taken_port(self, start_on_taken_port):
+        assert start_on_taken_port().code == STARTUP_FAILURE
 
     def test_leaves_the_client_address_to_the_trusted_proxy_setting(self, serve_over_test_stores):
         assert serve_over_test_stores()["proxy_headers"] is False

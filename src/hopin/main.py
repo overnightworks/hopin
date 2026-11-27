@@ -42,6 +42,7 @@ import uvicorn
 from logline import configure
 from pydantic import ValidationError
 from pydantic_settings.exceptions import SettingsError
+from uvicorn.config import STARTUP_FAILURE
 
 from hopin.agent.backend import gateway_backend  # game
 from hopin.agent.feature import configured_game_feature  # game
@@ -186,11 +187,12 @@ def uvicorn_config(
 
 
 def run_uvicorn(application: FastAPI, options: UvicornOptions) -> None:
+    # Mirrors the tail of uvicorn.run: a start that never came up exits with uvicorn's startup-failure code.
     server = uvicorn.Server(uvicorn_config(application, options))
     with suppress(KeyboardInterrupt):
         server.run()
     if not server.started:
-        sys.exit(1)
+        sys.exit(STARTUP_FAILURE)
 
 
 def serve(
