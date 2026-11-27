@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 from agents.member import LEASE_SECONDS
 
@@ -9,6 +7,7 @@ from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
 from tests.participation.support.own_accounts import (
     AGENT,
     OWNER,
+    HeldRead,
     acceptance_of,
     agent_calls_and_listens,
     let_reads_finish,
@@ -26,7 +25,7 @@ class TestAGroupReadThatIsStillRunning:
         self, link, participation, groups_of_seat, group_reads, listeners
     ):
         owner = await link.join(OWNER)
-        groups_of_seat["guest"] = release = asyncio.Event()
+        groups_of_seat["guest"] = release = HeldRead()
         member = await link.join("guest", owner.room_id)
         await agent_calls_and_listens(participation, listeners)
         await let_reads_start(group_reads, 1)
@@ -41,7 +40,7 @@ class TestAGroupReadThatIsStillRunning:
         self, link, participation, groups_of_seat, group_reads, listeners
     ):
         owner = await link.join(OWNER)
-        groups_of_seat["guest"] = release = asyncio.Event()
+        groups_of_seat["guest"] = release = HeldRead()
         member = await link.join("guest", owner.room_id)
         await agent_calls_and_listens(participation, listeners)
         await let_reads_start(group_reads, 1)
@@ -61,7 +60,7 @@ class TestAnAddWhoseFreshReadIsStillRunning:
         await agent_calls_and_listens(participation, listeners)
         await let_reads_finish()
         [offer] = offers_sent_to(member)
-        groups_of_seat["guest"] = release = asyncio.Event()
+        groups_of_seat["guest"] = release = HeldRead()
         member.sent_count += 1
         add = {"type": ParticipationSignal.AGENT_ADD.value, "agent_key": offer["agent_key"]}
         reads_before = len(group_reads)
@@ -151,7 +150,7 @@ class TestReadsThatAreAlreadyRunning:
     ):
         owner = await link.join(OWNER)
         await link.join("guest", owner.room_id)
-        groups_of_seat["guest"] = release = asyncio.Event()
+        groups_of_seat["guest"] = release = HeldRead()
         await agent_calls_and_listens(participation, listeners)
         await let_reads_start(group_reads, 1)
 

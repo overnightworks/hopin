@@ -4,7 +4,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Final, cast
 
 import structlog
-from agents.calling import AcceptRefused, Ended, OpenInvitation, check_accept, check_decline, expired
+from agents.calling import AcceptRefused, Ended, OpenInvitation, after_send_away, check_accept, check_decline, expired
 from agents.member import DeclineInvitationRefusal
 
 from hopin.errors import InvalidMessageError
@@ -17,6 +17,7 @@ from hopin.participation.frames import (
     AgentRefusedFrame,
     ParticipationFrame,
 )
+from hopin.participation.group_reads import Adding, SendingAway
 from hopin.participation.line_budget import full_budget, spent_on_a_line
 from hopin.participation.live_agents import LiveAgents
 from hopin.participation.memberships import Membership, SeatViews
@@ -202,7 +203,8 @@ class Participation(TransitionFeature):
             return AgentRefusal.GONE
         if view.is_parked(agent.sponsor):
             return AgentRefusal.SPONSOR_AWAY
-        self._remove(view, agent, transition)
+        self._places.take_out(agent.person, agent.room_id)
+        self._removed(view, agent, transition)
         return None
 
     async def say(self, person: Person, room_id: str, text: str) -> AgentRefusal | None:
@@ -325,14 +327,7 @@ class Participation(TransitionFeature):
         outcome = await self._transitions.apply(room_id, partial(self._accept, person, accepted, verdict, voices))
         if isinstance(outcome, DialedAgent):
             await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_ref, reason="accepted")
-            if verdict.refusal is not None:
-                await logger.ainfo("agent_figure.refused", room_ref=room_ref, reason=verdict.refusal.value)
-            if verdict.persona_room_refusal is not None:
-                await logger.ainfo(
-                    "agent_persona_room.refused", room_ref=room_ref, reason=verdict.persona_room_refusal.value
-                )
-            for gesture, clip_refusal in verdict.clip_refusals.items():
-                await logger.ainfo("agent_clip.refused", room_ref=room_ref, gesture=gesture, reason=clip_refusal.value)
+            await self.figures.log_refusals(room_id, verdict)
             await self._update_offers(room_id)
         elif outcome is not AgentRefusal.STALE_INVITATION:
             await logger.ainfo(INVITATION_CLOSED_EVENT, room_ref=room_ref, reason="refused")
@@ -360,9 +355,8 @@ class Participation(TransitionFeature):
                 self._end_invitation(view, person, decided.ended, transition)
             return AgentRefusal(decided.refusal.value)
         sponsor = PeerId(invitation.bound_to)
-        agent = DialedAgent(
-            secrets.token_hex(AGENT_ID_BYTES), live.name, person, sponsor, room_id, verdict.shown, voices
-        )
+        agent_id = secrets.token_hex(AGENT_ID_BYTES)
+        agent = DialedAgent(agent_id, live.name, person, sponsor, room_id, verdict.shown, voices, invitation.owner)
         self._places.write(person, room_id, decided.entry)
         self._deadlines.cancel(DeadlineKind.INVITATION, invitation_key(person, room_id))
         self._seat(view, agent, transition, brought_by_sponsor=invitation.inviter == invitation.bound_to)
@@ -415,8 +409,8 @@ class Participation(TransitionFeature):
     def on_frame(self, view: RoomView, peer_id: PeerId, frame: ForeignFrame, transition: Transition) -> bool:
         match frame.signal_type:
             case ParticipationSignal.AGENT_REMOVE:
-                if self._on_remove(peer_id, frame, view, transition) is not None:
-                    transition.follow(self._offer)
+                if agent := self._offers.on_send_away(peer_id, frame, view, transition):
+                    self._send_away(view, agent, transition)
             case ParticipationSignal.AGENT_ADD:
                 self._offers.on_add(self._live, peer_id, frame, view, transition)
             case ParticipationSignal.LINE_FOR_AGENTS:
@@ -440,7 +434,7 @@ class Participation(TransitionFeature):
         if view.room_id is None:  # pragma: no cover - a seat is in its room when it is announced
             return
         self._seat_views.joined(peer_id, view.room_id)
-        for agent in [agent for agent in self._places.joined() if agent.room_id == view.room_id]:
+        for agent in self._places.joined_in(view.room_id):
             tell_joined(view, agent, self.figures.framing_of(agent), [peer_id], transition)
             self.figures.tell_turn_state(agent, peer_id, transition)
             self._agent_speech.tell_held(view, transition, agent, peer_id)
@@ -497,7 +491,7 @@ class Participation(TransitionFeature):
                 )
                 self._deadlines.cancel(DeadlineKind.INVITATION, invitation_key(person, room_id))
             else:
-                self._places.remove(person, room_id)
+                self._places.take_out(person, room_id)
         if invitations:
             self._abandoned[peer_id] = invitations
         joined = [place for _, _, place in bound if isinstance(place, DialedAgent)]
@@ -568,15 +562,22 @@ class Participation(TransitionFeature):
     def _groups_read(
         self, read: GroupsRead, groups: frozenset[str] | None, view: RoomView, transition: Transition
     ) -> None:
-        """Keep the memberships a read found and act on them, unless the seat has left meanwhile: the read for an add
-        decides the add, and a read for the offers asks for no other, so a failure retries at the next trigger."""
+        """Keep the memberships a read found and let the act it was for decide on them, unless the seat has left
+        meanwhile; a read for the offers asks for no act, so a failure retries at the next trigger."""
         if view.room_of(read.seat) is None:
             return
         membership = self._offers.keep(read, groups, cast("str", view.room_id))
-        adding = read.adding
-        if adding is None:
-            self._offer(view, transition, read=False)
-            return
+        match read.act:
+            case Adding() as adding:
+                self._added(view, read.seat, adding, membership, transition)
+            case SendingAway() as sending:
+                self._sent_away(view, read.seat, sending, membership, transition)
+            case None:
+                self._offer(view, transition, read=False)
+
+    def _added(
+        self, view: RoomView, seat: PeerId, adding: Adding, membership: Membership, transition: Transition
+    ) -> None:
         refusal: AgentRefusal | None
         lapsed: Ended | None = None
         if membership is Membership.FAILED:
@@ -584,33 +585,26 @@ class Participation(TransitionFeature):
         else:
             now = self._now()
             lapsed = self._close_lapsed(view, adding.agent.person, now)
-            refusal = self._invite(
-                view, read.seat, adding.agent, now, inviter_is_member=membership is Membership.MEMBER
-            )
+            refusal = self._invite(view, seat, adding.agent, now, inviter_is_member=membership is Membership.MEMBER)
         self._offer(view, transition)
         if lapsed is not None:
             # The call replaced an invitation that ran out unnoticed; its inviter hears of it after the final offers.
             self._tell_outcome(view, adding.agent.person, lapsed, transition)
         if refusal is not None:
             # After the offers: every offers frame a seat gets after a refusal is a later one, which clears it.
-            transition.send(read.seat, AgentRefusedFrame(refusal).to_json())
+            transition.send(seat, AgentRefusedFrame(refusal).to_json())
 
-    def _on_remove(self, peer_id: PeerId, frame: ForeignFrame, view: RoomView, transition: Transition) -> str | None:
-        """Remove the agent the frame names; the room it was removed from, or nothing."""
-        agent_id = frame.data.get("agent_id")
-        if not isinstance(agent_id, str):
-            raise InvalidMessageError("A removal needs the agent's id")
-        agent = next(
-            (agent for agent in self._places.joined() if agent.agent_id == agent_id and agent.room_id == view.room_id),
-            None,
-        )
-        if agent is None:
-            return None
-        if peer_id != agent.sponsor and not view.is_host(peer_id):
-            transition.send(peer_id, AgentRefusedFrame(AgentRefusal.NOT_SPONSOR_OR_HOST).to_json())
-            return None
-        self._remove(view, agent, transition)
-        return agent.room_id
+    def _sent_away(
+        self, view: RoomView, seat: PeerId, sending: SendingAway, membership: Membership, transition: Transition
+    ) -> None:
+        """Send the agent away when the call as the read leaves it allows it, else the offers go before any refusal."""
+        decided = self._offers.after_send_away_read(view, seat, sending.agent, membership)
+        if isinstance(decided, DialedAgent):
+            self._send_away(view, decided, transition)
+            return
+        self._offer(view, transition)
+        if decided is not None:
+            transition.send(seat, AgentRefusedFrame(decided).to_json())
 
     def _close_lapsed(self, view: RoomView, person: Person, now: datetime) -> Ended | None:
         """End the person's invitation in the room when the wall clock lapsed it, so the call replaces it with a new
@@ -716,7 +710,7 @@ class Participation(TransitionFeature):
     def _lease_ended_in(self, person: Person, view: RoomView, transition: Transition) -> None:
         room_id = cast("str", view.room_id)  # the person's place is in it, and the room's end drops its places
         place = self._places.get(person, room_id)
-        self._places.remove(person, room_id)
+        self._places.take_out(person, room_id)
         if isinstance(place, DialedAgent):
             self._agent_ended(place, transition)
             tell_left(place, view.members, transition)
@@ -769,8 +763,14 @@ class Participation(TransitionFeature):
         """The room's seats now, none once the room has ended."""
         return list(self._transitions.view(room_id).members)
 
-    def _remove(self, view: RoomView, agent: DialedAgent, transition: Transition) -> None:
-        self._places.remove(agent.person, agent.room_id)
+    def _send_away(self, view: RoomView, agent: DialedAgent, transition: Transition) -> None:
+        """Take the agent away as the calling standard's send-away decides, and tell every seat, offers included."""
+        row = after_send_away(self._places.entry(agent.person, agent.room_id))
+        self._places.remove(agent.person, agent.room_id, row)
+        self._removed(view, agent, transition)
+        transition.follow(self._offer)
+
+    def _removed(self, view: RoomView, agent: DialedAgent, transition: Transition) -> None:
         self._agent_ended(agent, transition)
         self._on_changed(agent.person)
         tell_left(agent, view.members, transition)

@@ -118,7 +118,7 @@ class TestAnInvitation:
         assert (agent.name, agent.sponsor) == (NAME, invited.owner.peer_id)
         for browser in (invited.owner, invited.member):
             [joined] = frames_of(browser, ParticipationSignal.AGENT_JOINED)
-            assert (joined["name"], joined["sponsor"], joined["sponsor_id"]) == (NAME, OWNER, invited.owner.peer_id)
+            assert (joined["name"], joined["sponsor"]) == (NAME, OWNER)
         assert [standing.state for standing in invited.participation.standings_of(AGENT)] == [PlaceState.ACTIVE]
 
     async def test_accepting_it_withdraws_the_offer_from_every_seat(self, invited):
@@ -521,7 +521,7 @@ class TestAnAgentInTheCall:
         assert invited.participation.standings_of(AGENT) == ()
         assert await invited.accept() is AgentRefusal.STALE_INVITATION
 
-    async def test_the_host_removes_it_but_another_guest_is_refused(self, invited, link):
+    async def test_call_84_the_host_removes_it_but_another_guest_is_refused(self, invited, link):
         agent = await invited.accept()
         bystander = await link.join("bystander", invited.owner.room_id)
 
@@ -531,7 +531,7 @@ class TestAnAgentInTheCall:
         await invited.owner.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
 
         assert (refused, still_there, invited.participation.standings_of(AGENT)) == (
-            [AgentRefusal.NOT_SPONSOR_OR_HOST.value],
+            [AgentRefusal.NOT_ALLOWED_TO_SEND_AWAY.value],
             1,
             (),
         )

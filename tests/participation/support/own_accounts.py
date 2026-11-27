@@ -11,6 +11,7 @@ from agents.member import (
 
 from hopin.agent.tools import CALL_KIND
 from hopin.participation.group_reads import GROUPS_READ_TASK_NAME
+from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from hopin.participation.participants import OwnAccount
 from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.support.people import person_named
@@ -59,14 +60,29 @@ async def agent_stops_listening(participation, listeners):
     await participation.listening_changed()
 
 
-def _running_reads():
-    return [task for task in asyncio.all_tasks() if task.get_name().startswith(GROUPS_READ_TASK_NAME)]
+class HeldRead(asyncio.Event):
+    """A read of a seat's groups that waits until it is set and then finds `groups`: the adders group, or none for a
+    read that fails."""
+
+    def __init__(self, groups=frozenset({AGENT_ADDERS_GROUP})):
+        super().__init__()
+        self.groups = groups
 
 
-async def let_reads_finish():
-    """Wait until every read of a seat's groups that is running has ended, with its announcement."""
+def _running_reads(apart_from):
+    left_running = f"{GROUPS_READ_TASK_NAME}:{apart_from.peer_id}" if apart_from else None
+    return [
+        task
+        for task in asyncio.all_tasks()
+        if task.get_name().startswith(GROUPS_READ_TASK_NAME) and not task.get_name().startswith(left_running or "\0")
+    ]
+
+
+async def let_reads_finish(*, apart_from=None):
+    """Wait until every read of a seat's groups that is running has ended, with its announcement, except the reads of
+    the seat of the browser a test holds back."""
     async with asyncio.timeout(SETTLE_TIMEOUT_SECONDS):
-        while reads := _running_reads():
+        while reads := _running_reads(apart_from):
             await asyncio.gather(*reads)
 
 
@@ -94,6 +110,13 @@ def offers_sent_to(browser):
     """The offers of the last `agent_offers` frame the browser was sent, or nothing when it got none."""
     frames = browser.frames(ParticipationSignal.AGENT_OFFERS)
     return frames[-1]["offers"] if frames else None
+
+
+def send_away_told_to(browser):
+    """The ids of the agents the last `agent_offers` frame the browser was sent names as ones it may send away, or
+    nothing when it got none."""
+    frames = browser.frames(ParticipationSignal.AGENT_OFFERS)
+    return frames[-1]["send_away"] if frames else None
 
 
 def full_told_to(browser):

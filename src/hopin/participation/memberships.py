@@ -21,8 +21,8 @@ class Membership(StrEnum):
 
 @dataclass
 class SeatView:
-    """What participation keeps of a seat in a room: its group memberships as last read, the offers last sent and,
-    once it wrote a line for the agents, the budget of its lines."""
+    """What participation keeps of a seat in a room: its group memberships as last read, the offers last sent,
+    the ids of the joined agents it may send away, and, once it wrote a line for the agents, the budget of its lines."""
 
     room_id: str
     line_budget: LineBudget | None = None
@@ -30,6 +30,7 @@ class SeatView:
     offered: tuple[Offer, ...] = ()
     shown: bool = False
     full: bool = False
+    send_away: tuple[str, ...] = ()
 
 
 class SeatViews:

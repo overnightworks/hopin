@@ -3,9 +3,11 @@
 A joined agent's place holds its chat window and the times of its recent lines and looks, which go with the place.
 
 The table is pure state with no clock and no I/O; the calling standard (`agents.calling`) decides when an invitation
-ends and the table writes the row it returns. A removal raises the epoch of its (agent, room), so an invitation made
-before it is stale. An invitation's expiry, decline or an owner's leaving leaves the epoch as it is: a new invitation
-is a new id.
+ends and a send-away and the table writes the row it returns. A send-away writes the row `after_send_away` returns,
+which has raised the epoch of its (agent, room), so an invitation made before it is stale. An agent that leaves without
+being sent away (its own leave, the end of its lease, its owner's departure) raises the epoch by the app's own rule
+(CALLING-13), in `take_out`. An invitation's expiry, decline or an owner's leaving leaves the epoch as it is: a new
+invitation is a new id.
 """
 
 import json
@@ -132,12 +134,17 @@ class Places:
         self._windows[(person, room_id)] = ChatWindow(agent.agent_id)
         self._look_times[(person, room_id)] = ()
 
-    def remove(self, person: Person, room_id: str) -> None:
-        """Take the place, which must exist, away and raise its epoch."""
-        del self._places[(person, room_id)]
+    def remove(self, person: Person, room_id: str, row: BookEntry) -> None:
+        """Take the place, which must exist, away as a send-away: hold the row the calling standard's `after_send_away`
+        returned, which carries the raised epoch and no invitation."""
+        self.write(person, room_id, row)
         self._windows.pop((person, room_id), None)
         self._look_times.pop((person, room_id), None)
-        self._epochs[(person, room_id)] = self.epoch_of(person, room_id) + 1
+
+    def take_out(self, person: Person, room_id: str) -> None:
+        """Take the place, which must exist, away for an agent that leaves without being sent away, and raise its epoch
+        by the app's own rule (CALLING-13), as a send-away does."""
+        self.remove(person, room_id, BookEntry(epoch=self.epoch_of(person, room_id) + 1))
 
     def drop_room(self, room_id: str) -> None:
         for key in [key for key in {*self._places, *self._epochs} if key[1] == room_id]:
@@ -184,3 +191,6 @@ class Places:
 
     def joined(self) -> list[DialedAgent]:
         return [place for place in self._places.values() if not isinstance(place, OpenInvitation)]
+
+    def joined_in(self, room_id: str | None) -> list[DialedAgent]:
+        return [agent for agent in self.joined() if agent.room_id == room_id]
