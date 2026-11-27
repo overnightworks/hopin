@@ -25,6 +25,7 @@ export enum PARTICIPATION_SIGNAL {
     AGENT_LOOKED = "agent_looked",
     AGENT_INVITATION_ENDED = "agent_invitation_ended",
     AGENT_FIGURE_ENDED = "agent_figure_ended",
+    AGENT_HOLD_PLAYED = "agent_hold_played",
 }
 
 export enum AGENT_REFUSAL {
