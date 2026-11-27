@@ -181,7 +181,7 @@ class _BuiltParticipation:
         self._follow_listeners()
 
     def _follow_listeners(self) -> None:
-        self._start(self._read_listeners(), OFFERS_RECOMPUTE_TASK_NAME, OFFERS_RECOMPUTE_FAILED_EVENT)
+        self._start(self._read_listeners(), OFFERS_RECOMPUTE_TASK_NAME, _log_offers_recompute_failed)
 
     async def _read_listeners(self) -> None:
         """Reads who listens and recomputes the offers on it. Only the newest read counts: an older one that ends later
@@ -201,14 +201,14 @@ class _BuiltParticipation:
         self._start(
             self._announce(_principal_of_person(person), STANDING_URI, tools_too=True),
             PLACE_SIGNAL_TASK_NAME,
-            PLACE_SIGNAL_FAILED_EVENT,
+            _log_place_signal_failed,
         )
 
     def _tell_window_changed(self, person: Person, room_id: str) -> None:
         self._start(
             self._announce(_principal_of_person(person), _call_window_uri(room_id), tools_too=False),
             PLACE_SIGNAL_TASK_NAME,
-            PLACE_SIGNAL_FAILED_EVENT,
+            _log_place_signal_failed,
         )
 
     async def _announce(self, principal: Principal, uri: str, *, tools_too: bool) -> None:
@@ -225,16 +225,18 @@ class _BuiltParticipation:
         except PlaceStoreError:
             logger.error(PLACE_SIGNAL_FAILED_EVENT)
 
-    def _start(self, work: Coroutine[None, None, None], name: str, failed_event: str) -> None:
+    def _start(
+        self, work: Coroutine[None, None, None], name: str, log_failure: Callable[[BaseException], None]
+    ) -> None:
         """The synchronous hooks start their async work here; the set keeps each task until it ends."""
         task = asyncio.create_task(work, name=name)
         self._tasks.add(task)
-        task.add_done_callback(partial(self._ended, failed_event))
+        task.add_done_callback(partial(self._ended, log_failure))
 
-    def _ended(self, failed_event: str, task: asyncio.Task[None]) -> None:
+    def _ended(self, log_failure: Callable[[BaseException], None], task: asyncio.Task[None]) -> None:
         self._tasks.discard(task)
         if not task.cancelled() and (error := task.exception()) is not None:
-            logger.error(failed_event, exc_info=error)
+            log_failure(error)
 
     async def shut_down(self) -> None:
         await asyncio.gather(*self._tasks, return_exceptions=True)
@@ -258,6 +260,22 @@ class BuiltParticipationFeature:
     feature: TransitionFeature
     router: APIRouter
     bearer_resource: ProtectedResource
+
+
+def _log_offers_recompute_failed(error: BaseException) -> None:
+    logger.error(OFFERS_RECOMPUTE_FAILED_EVENT, exc_info=error)
+
+
+def _log_place_signal_failed(error: BaseException) -> None:
+    logger.error(PLACE_SIGNAL_FAILED_EVENT, exc_info=error)
+
+
+def _clip_fetch_step(room_ref: str) -> StepTimer:
+    return StepTimer("clip_fetch.ended", _STEPS, room_ref=room_ref)
+
+
+def _persona_room_fetch_step(room_ref: str) -> StepTimer:
+    return StepTimer("persona_room_fetch.ended", _STEPS, room_ref=room_ref)
 
 
 def _call_window_uri(room_id: str) -> str:
@@ -494,8 +512,8 @@ class ParticipationFeature:
         voice = self._voice(relying_party, hearing_tokens)
         stores = (
             FigureStore(partial(fetch_figure, self.figure_transport, monotonic=time.monotonic)),
-            self._store_within(CLIP_MAX_BYTES, CLIP_CACHE_BYTES, "clip_fetch.ended"),
-            self._store_within(PERSONA_ROOM_MAX_BYTES, PERSONA_ROOM_CACHE_BYTES, "persona_room_fetch.ended"),
+            self._store_within(CLIP_MAX_BYTES, CLIP_CACHE_BYTES, _clip_fetch_step),
+            self._store_within(PERSONA_ROOM_MAX_BYTES, PERSONA_ROOM_CACHE_BYTES, _persona_room_fetch_step),
         )
         opening = self._opening(relying_party, turn_relay, built, scheduler, auth_config)
         front = self._front(built, relying_party, voice, opening)
@@ -526,12 +544,12 @@ class ParticipationFeature:
         self._add_hearing_route(router, built.current, relying_party, scheduler, hearing_tokens)
         return BuiltParticipationFeature(built.participation, router, self._resource())
 
-    def _store_within(self, max_bytes: int, cache_bytes: int, step_event: str) -> FigureStore:
+    def _store_within(self, max_bytes: int, cache_bytes: int, step: Callable[[str], StepTimer]) -> FigureStore:
         """The store of one kind of file beside the figure's, with its own byte bound, cache and step line."""
         return FigureStore(
             partial(fetch_figure, self.figure_transport, monotonic=time.monotonic, max_bytes=max_bytes),
             cache_bytes=cache_bytes,
-            step_event=step_event,
+            step=step,
         )
 
     def _add_hearing_route(

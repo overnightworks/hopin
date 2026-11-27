@@ -72,7 +72,6 @@ SERVER_ERROR_CLOSE_CODE = 1011
 PEER_ID_BYTES = 16
 
 UVICORN_WEBSOCKET_IMPLEMENTATION = "websockets-sansio"
-UVICORN_LOG_LEVEL = "warning"
 
 
 @dataclass(frozen=True)

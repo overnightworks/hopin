@@ -260,7 +260,7 @@ class WorkingFeature(TransitionFeature):
         if frame.signal_type == "work":
             transition.dispatch(Work(key, peer_id))
         elif frame.signal_type == "step":
-            self._transitions.in_own_turn(self._step(key), "working.step_failed")
+            self._transitions.in_own_turn(self._step(key), lambda _error: None)
         else:
             transition.stop(key)
         return True

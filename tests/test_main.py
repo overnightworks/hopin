@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings
 from starlette.websockets import WebSocketDisconnect
 
 import hopin
-from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, UVICORN_LOG_LEVEL, UVICORN_WEBSOCKET_IMPLEMENTATION
+from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, UVICORN_WEBSOCKET_IMPLEMENTATION
 from hopin.config.settings import RealmSettings, ServerSettings
 from hopin.main import SETTINGS_CLASSES, UvicornOptions, build_application, main, run_uvicorn, serve, uvicorn_options
 from hopin.participation.vocabulary import HEARING_PATH
@@ -63,10 +63,8 @@ class TestMain:
     def test_serves_websockets_with_the_sans_io_implementation(self, serve_over_test_stores):
         assert serve_over_test_stores()["ws"] == UVICORN_WEBSOCKET_IMPLEMENTATION
 
-    def test_writes_no_access_line_and_logs_only_warnings(self, serve_over_test_stores):
-        options = serve_over_test_stores()
-        assert options["access_log"] is False
-        assert options["log_level"] == UVICORN_LOG_LEVEL
+    def test_writes_no_access_line(self, serve_over_test_stores):
+        assert serve_over_test_stores()["access_log"] is False
 
     def test_hands_the_application_and_its_options_to_uvicorn_which_refuses_a_taken_port(
         self, sign_in_settings, monkeypatch
@@ -86,9 +84,6 @@ class TestMain:
                 run_uvicorn(application, uvicorn_options(settings))
 
         assert refusal.value.code != 0
-
-    def test_leaves_uvicorn_no_logging_setup_of_its_own(self, sign_in_settings):
-        assert uvicorn_options(sign_in_settings().settings)["log_config"] is None
 
     def test_leaves_the_client_address_to_the_trusted_proxy_setting(self, serve_over_test_stores):
         assert serve_over_test_stores()["proxy_headers"] is False

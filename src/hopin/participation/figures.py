@@ -288,21 +288,25 @@ def _verified(body: bytes, sha256: str) -> bytes | FigureRefusal:
     return body
 
 
+def figure_fetch_step(room_ref: str) -> StepTimer:
+    return StepTimer("figure_fetch.ended", _STEPS, room_ref=room_ref)
+
+
 class FigureStore:
     """The verified files of one kind by digest (figures, clips or persona rooms), least recently used first, within
     `cache_bytes`. A digest has one fetch at a time, and fetches run on two workers of their own, so stalled ones cannot
-    starve the loop's default executor. Each fetch writes a `step_event` line."""
+    starve the loop's default executor. Each fetch writes the line of its `step`."""
 
     def __init__(
         self,
         fetch: Callable[[Figure], bytes | FigureRefusal],
         *,
         cache_bytes: int = FIGURE_CACHE_BYTES,
-        step_event: str = "figure_fetch.ended",
+        step: Callable[[str], StepTimer] = figure_fetch_step,
     ) -> None:
         self._fetch_one = fetch
         self._cache_bytes = cache_bytes
-        self._step_event = step_event
+        self._step = step
         self._executor = ThreadPoolExecutor(max_workers=FIGURE_FETCH_WORKERS, thread_name_prefix=FETCH_THREAD_PREFIX)
         self._cache: OrderedDict[str, bytes] = OrderedDict()
         self._fetches: dict[str, asyncio.Task[bytes | None]] = {}
@@ -328,7 +332,7 @@ class FigureStore:
         loop = asyncio.get_running_loop()
         try:
             for figure in named:
-                async with StepTimer(self._step_event, _STEPS, room_ref=room_reference(figure.room_id)) as step:
+                async with self._step(room_reference(figure.room_id)) as step:
                     outcome = await loop.run_in_executor(self._executor, self._fetch_one, Figure(figure.url, sha256))
                     if isinstance(outcome, FigureRefusal):
                         step.refuse(outcome.value)

@@ -5,6 +5,8 @@ which are its voices, that a person holds it, that it goes on and that its sound
 from functools import partial
 from typing import TYPE_CHECKING
 
+import structlog
+
 from hopin.participation.frames import (
     AgentContinuedFrame,
     AgentHeldFrame,
@@ -32,8 +34,12 @@ if TYPE_CHECKING:
     from hopin.signaling.scheduler import Deadlines
     from hopin.signaling.transition import FeatureTransitions, RoomView, Transition
 
-ANNOUNCEMENT_FAILED_EVENT = "agent_announcement.failed"
-"""The log event of a step of an agent's sentences that failed, such as showing a started one."""
+logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+
+def _log_announcement_failed(agent_id: str, error: BaseException) -> None:
+    """A step of an agent's sentences that failed, such as showing a started one, by the error's type alone."""
+    logger.error("agent_announcement.failed", error_type=type(error).__name__, agent_id=agent_id)
 
 
 class AgentSpeech:
@@ -183,4 +189,4 @@ class AgentSpeech:
         return self._speaking.is_speaking(agent) or self._is_held(agent)
 
     def _in_own_turn(self, agent: DialedAgent, step: Coroutine[None, None, None]) -> None:
-        self._transitions.in_own_turn(step, ANNOUNCEMENT_FAILED_EVENT, agent_id=agent.agent_id)
+        self._transitions.in_own_turn(step, partial(_log_announcement_failed, agent.agent_id))

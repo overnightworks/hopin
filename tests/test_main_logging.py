@@ -92,7 +92,7 @@ async def started_server(
     listening = socket.socket()
     listening.bind((LOCALHOST, 0))
     listening.listen()
-    server = uvicorn.Server(uvicorn.Config(app, **options))
+    server = uvicorn.Server(uvicorn.Config(app, log_config=None, **options))
     serving = asyncio.create_task(server.serve(sockets=[listening]))
 
     def read() -> str:
