@@ -35,3 +35,5 @@
 - `docs/call.md`: read before changing a call's behaviour; it maps each rule to its test.
 - `docs/game-master.md`: read before changing the game master; it maps each rule to its test.
 - `docs/stage.md`: read before changing the stage on which a call shows a registered app's table.
+- `docs/agent-endpoint.md`: read before changing the MCP endpoint, its admission or its tools.
+- `docs/runbooks/release.md`: read before dispatching a release.

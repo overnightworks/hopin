@@ -2,7 +2,7 @@
 
 This page lists every setting of HopIn, its default and its form, for the person who sets HopIn up.
 
-`src/hopin/config/settings.py` owns the settings; every one is an environment variable with the `HOPIN_` prefix, except the nine `REALM_` keys, which name HopIn's objects in the Keycloak realm, the AI gateway's group and the speech scope under the same keys in every app. The client secret, the session signing key and the two TURN key files are the exception in content: the variables name files, HopIn reads them at start, and the secrets never enter the environment.
+Every setting is an environment variable with the `HOPIN_` prefix, except the nine `REALM_` keys, which name HopIn's objects in the Keycloak realm, the AI gateway's group and the speech scope under the same keys in every app. The settings classes own them: `src/hopin/config/settings.py` the database, server and realm settings, and the classes named below the table the game, speech, video, participation and stage ones. The client secret, the session signing key and the two TURN key files are the exception in content: the variables name files, HopIn reads them at start, and the secrets never enter the environment.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -44,9 +44,9 @@ This page lists every setting of HopIn, its default and its form, for the person
 | `HOPIN_VIDEO__ORIGIN` | unset | The video service's http origin (scheme, host and optional port, no path); unset means no video code runs. With it set, TURN on and agents speaking, an agent whose accept lists a video look ahead of its figure look gets a video session on the service (CALL-81); no page shows it yet |
 | `HOPIN_VIDEO__AUDIENCE_SCOPE` | required when the origin is set | The one Keycloak scope whose token the video service admits; HopIn exchanges an agent's token for it alone at the agent's accept, and the scope never enters a person's sign-in |
 
-The `HOPIN_AGENT__` settings are read by the connector's `AgentSettings`, the `HOPIN_SPEECH__` ones by its `SpeechSettings` (which stays when the game is removed), the `HOPIN_VIDEO__` ones by its `VideoSettings`, and `HOPIN_FIGURE_SOURCES` by participation's `ParticipationSettings`; a missing or malformed one stops the start and echoes no input.
+The `HOPIN_AGENT__` settings are read by the connector's `AgentSettings`, the `HOPIN_SPEECH__` ones by its `SpeechSettings` (which stays when the game is removed), the `HOPIN_VIDEO__` ones by its `VideoSettings`, and `HOPIN_FIGURE_SOURCES` by participation's `ParticipationSettings`, and `HOPIN_STAGE_APPS` by the stage's `StageSettings`; a missing or malformed one stops the start and echoes no input.
 
-Agents dial in through `POST /mcp` with a bearer token and need no setting: the endpoint's audience is `HOPIN_PUBLIC_ORIGIN` + `/mcp`, and the realm decides who may use it (see [README's "A person's own agent"](../README.md#a-persons-own-agent)). HopIn refuses to start without the required `HOPIN_` settings, any of the seven `REALM_` keys (a group key that is no group path included), or the required `HOPIN_AGENT__` settings, without the page build (`make frontend` writes it), when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
+Agents dial in through `POST /mcp` with a bearer token and need no setting: the endpoint's audience is `HOPIN_PUBLIC_ORIGIN` + `/mcp`, and the realm decides who may use it (see [docs/agent-endpoint.md](agent-endpoint.md)). HopIn refuses to start without the required `HOPIN_` settings, any of the seven `REALM_` keys `RealmSettings` reads, which are all but `REALM_AI_GROUP` and `REALM_SPEECH_SCOPE` (a group key that is no group path included), or the required `HOPIN_AGENT__` settings, without the page build (`make frontend` writes it), when a secret file cannot be read, or when TURN is on and a key file is missing, empty or malformed, and says which setting is at fault, never what a file holds.
 
 ## Sign-in client
 
