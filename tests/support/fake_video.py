@@ -181,7 +181,9 @@ class FakeVideo:
         self.sessions.arrive(session)
         try:
             connection.send(
-                SessionCreated(session=SessionInfo(id="session-one", look=look, video=PICTURE)).model_dump_json()
+                SessionCreated(
+                    session=SessionInfo(id="session-one", look=look, video=PICTURE, max_queued_audio_seconds=2.0)
+                ).model_dump_json()
             )
             self._serve(connection, session)
         except ConnectionClosed:

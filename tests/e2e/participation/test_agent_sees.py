@@ -1,4 +1,3 @@
-import base64
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -18,7 +17,6 @@ pytestmark = pytest.mark.e2e
 
 CAMERA_BUTTON = "#videoBtn"
 LOOK_MARK = AGENT_TILE + " .look-mark"
-JPEG_MEDIA_TYPE = "image/jpeg"
 
 
 class Sponsor:
@@ -91,11 +89,9 @@ def test_a_look_returns_one_jpeg_of_the_sponsors_camera_and_marks_the_agents_til
         expect(page.locator(LOOK_MARK)).to_have_count(1)
     result = answer.result(REQUEST_SECONDS)
 
-    assert not result.is_error
-    [block] = result.content
-    assert block.type == "image"
-    assert block.mime_type == JPEG_MEDIA_TYPE
-    width, height = size_of(base64.b64decode(block.data)) or (0, 0)
+    assert (result.is_error, result.content) == (False, "")
+    assert result.image is not None
+    width, height = size_of(result.image.content) or (0, 0)
     assert 0 < max(width, height) <= LOOK_MAX_PIXELS
     for page in sponsor.scene.everyone:
         expect(page.locator(LOOK_MARK)).to_have_count(0)

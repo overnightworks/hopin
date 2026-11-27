@@ -171,7 +171,9 @@ class Dialed:
 
 @dataclass
 class DialedCall:
-    """A HopIn instance whose issuer is a fake, with the means to seat people and to call its MCP endpoint."""
+    """A HopIn instance whose issuer is a fake, with the means to seat people and to call its MCP endpoint as a raw wire
+    probe: it sends the headers and `_meta` it is given and shows the gate's status codes, protocol errors, undeclared
+    tools and frame order, which a typed client never sends or shows."""
 
     issuer: FakeIssuer
     stores: InThreadIdentity

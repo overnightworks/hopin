@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from agents.member import StandingState
 from design.words import text as kit_text
 from playwright.sync_api import Locator, Page, expect
 
@@ -20,7 +21,6 @@ from tests.e2e.support.dialed_agent import (
 )
 from tests.e2e.support.hearing_hops import Hops, open_person, settle, until  # noqa: F401 - the fixture is used by name
 from tests.e2e.support.people import FORM_FACTORS
-from tests.support.dialed_call import window_uri
 from tests.support.fake_speech import a_sentence
 
 if TYPE_CHECKING:
@@ -96,8 +96,7 @@ class Seat:
             session.say(event)
 
     def heard_by(self, agent: OwnAccountAgent) -> list[str]:
-        window = agent.read(window_uri(self.room))
-        return [line["text"] for line in window["entries"] if line["spoken"]]
+        return [line.text for line in agent.window(self.room).entries if line.spoken]
 
 
 @pytest.fixture
@@ -213,7 +212,7 @@ def test_a_full_call_refuses_an_agent_and_a_person_and_a_place_an_agent_leaves_a
         for agent in (own_account_agent, second_own_account_agent):
             scene.member_adds_and_accepts(agent)
         scene.member_adds(third)
-        [invited] = [standing for standing in third.standings() if standing["state"] == "invited"]
+        [invited] = [standing for standing in third.standings() if standing.state is StandingState.INVITED]
         join_by_link(open_person(**form_factor), scene.link)
         expect(scene.host.locator(COUNT)).to_have_text(str(len(scene.everyone) + 1))
 

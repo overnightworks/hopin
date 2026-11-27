@@ -147,7 +147,7 @@ Every process reaches one Redis at `HOPIN_REDIS_URL`, holding the rate limit win
 
 **Headers.** webauth's Content-Security-Policy with the build's script and style hashes, a Permissions-Policy and the build's cache rules (`web/page_build.py`).
 
-**Persistence.** Only the accounts and sessions in Postgres, Redis's rate limit windows and the connector's place records outlast a restart; rooms, seats and replay logs live in process memory. The README's A Person's Data says what HopIn holds about a person.
+**Persistence.** Only the accounts and sessions in Postgres, Redis's rate limit windows and the connector's place records outlast a restart; rooms, seats and replay logs live in process memory. docs/person-data.md says what HopIn holds about a person.
 
 **Deadlines.** Every timer that outlives a connection is a named deadline behind the `Deadlines` port (`signaling/scheduler.py`). **Logging.** Conventions are in the docstring of `src/hopin/main.py`.
 

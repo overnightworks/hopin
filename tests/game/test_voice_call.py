@@ -59,7 +59,7 @@ def types_of(frames):
 
 class TestTheVoiceInARealCall:
     def test_both_seats_are_sent_the_voice_after_the_question_and_fetch_the_same_wav_only_with_a_session(self, call):
-        """GM-32: Both seats are sent the voice after the question and fetch the same wav only with a session."""
+        """GM-21, GM-32: Both seats are sent the voice after the question and fetch the same wav only with a session."""
         host, guest, guest_member = call.host_and_guest()
 
         guest.start()

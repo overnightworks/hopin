@@ -22,9 +22,9 @@
         "@eslint/js": "^10.0.1",
         "@jridgewell/sourcemap-codec": "^1.6.0",
         "@sveltejs/adapter-static": "^4.0.1",
-        "@sveltejs/kit": "^3.2.0",
+        "@sveltejs/kit": "^3.4.0",
         "@sveltejs/vite-plugin-svelte": "^7.3.1",
-        "@vitest/coverage-v8": "^5.1.0",
+        "@vitest/coverage-v8": "^5.1.1",
         "eslint": "^10.15.0",
         "eslint-config-prettier": "^10.1.5",
         "eslint-plugin-svelte": "^3.24.1",
@@ -33,14 +33,14 @@
         "monocart-coverage-reports": "^3.2.1",
         "overnightworks-design": "https://github.com/overnightworks/design/releases/download/v0.41.0/overnightworks-design-0.41.0.tgz",
         "overnightworks-figure": "https://github.com/overnightworks/figure/releases/download/v0.10.0/overnightworks-figure-0.10.0.tgz",
-        "overnightworks-speech-browser": "https://github.com/overnightworks/speech/releases/download/v0.24.0/overnightworks-speech-browser-0.24.0.tgz",
+        "overnightworks-speech-browser": "https://github.com/overnightworks/speech/releases/download/v0.26.0/overnightworks-speech-browser-0.26.0.tgz",
         "prettier": "^3.10.1",
-        "prettier-plugin-svelte": "^4.1.1",
-        "svelte": "^5.57.2",
+        "prettier-plugin-svelte": "^4.2.0",
+        "svelte": "^5.58.0",
         "svelte-check": "^4.7.8",
         "typescript": "^6.0.0",
         "typescript-eslint": "^8.73.0",
         "vite": "^8.3.8",
-        "vitest": "^5.1.0"
+        "vitest": "^5.1.1"
     }
 }
