@@ -11,7 +11,7 @@ import AgentOffers from "./AgentOffers.svelte";
 import { createHearingCapture } from "./hearing.ts";
 import { createLooks } from "./looking.ts";
 import { createAgentOffers, hereRowOf, outcomeOf, refusalOf, rowsOf, toastOf, type Ending } from "./offers.svelte.ts";
-import { createAgentVoices, type PlayerFactory } from "./voice.ts";
+import { createAgentVoices, type HeldPlace, type PlayerFactory } from "./voice.ts";
 import {
     HEARING_PATH,
     PARTICIPATION_SIGNAL,
@@ -20,6 +20,17 @@ import {
     type FIGURE_FRAMING,
     type TURN_OUTCOME,
 } from "./wire.ts";
+
+/** Tells the server where the player stood in the sentence a hold stopped, when a sound of the agent had started here. */
+function reportHold(core: FeatureCore, agentId: string, place: HeldPlace | null) {
+    if (place === null) return;
+    core.send({
+        type: PARTICIPATION_SIGNAL.AGENT_HOLD_PLAYED,
+        agent_id: agentId,
+        voice_id: place.voiceId,
+        played_seconds: place.playedSeconds,
+    });
+}
 
 interface ShownAgent {
     readonly joined: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_JOINED];
@@ -317,7 +328,7 @@ export async function installWith(
         if (shown.has(frame.agent_id)) voices.play(frame.agent_id, frame.voice_id, frame.mood);
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_HELD, (frame) => {
-        if (shown.has(frame.agent_id)) voices.pause(frame.agent_id);
+        if (shown.has(frame.agent_id)) reportHold(core, frame.agent_id, voices.pause(frame.agent_id));
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_CONTINUED, (frame) => {
         voices.resume(frame.agent_id);

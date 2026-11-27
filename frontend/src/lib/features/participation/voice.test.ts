@@ -461,3 +461,65 @@ describe("muting an agent's voice", () => {
         expect([whileMuted, agentVoices.isMuted("a1")]).toEqual([true, false]);
     });
 });
+
+describe("where an agent's player stood at the hold", () => {
+    async function startedSound() {
+        const scene = voices();
+        scene.agentVoices.play("a1", "first");
+        const [player] = scene.players.created;
+        await player?.sounds[0]?.start();
+        return { ...scene, player };
+    }
+
+    it("answers the route's id of the sound that started last and the seconds it had played at the pause", async () => {
+        const { agentVoices, player } = await startedSound();
+        if (player) player.playedSeconds = 0.75;
+
+        expect(agentVoices.pause("a1")).toEqual({ voiceId: "first", playedSeconds: 0.75 });
+    });
+
+    it("answers the sound that started last when a later one follows an earlier one", async () => {
+        const { agentVoices, players } = await startedSound();
+        agentVoices.play("a1", "second");
+        await players.created[0]?.sounds[1]?.start();
+
+        expect(agentVoices.pause("a1")?.voiceId).toBe("second");
+    });
+
+    it("answers nothing while no sound of the agent started here", () => {
+        const { agentVoices } = voices();
+        agentVoices.play("a1", "first");
+
+        expect(agentVoices.pause("a1")).toBeNull();
+    });
+
+    it("answers nothing for an agent that has not spoken", () => {
+        const { agentVoices } = voices();
+
+        expect(agentVoices.pause("a1")).toBeNull();
+    });
+
+    it("answers nothing for an agent this browser muted", async () => {
+        const { agentVoices } = await startedSound();
+        agentVoices.setMuted("a1", true);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(agentVoices.pause("a1")).toBeNull();
+    });
+
+    it("answers nothing for a voice that arrived while the agent was muted", () => {
+        const { agentVoices } = voices();
+        agentVoices.setMuted("a1", true);
+        agentVoices.play("a1", "first");
+
+        expect(agentVoices.pause("a1")).toBeNull();
+    });
+
+    it("answers nothing after a stop of the agent's sound", async () => {
+        const { agentVoices } = await startedSound();
+        agentVoices.stop("a1");
+
+        expect(agentVoices.pause("a1")).toBeNull();
+    });
+});

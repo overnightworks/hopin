@@ -24,12 +24,8 @@ installWith = 328
 [function_lines."frontend/src/lib/features/participation/page.fixture.ts"]
 installedParticipation = 154
 
-[function_lines."frontend/src/lib/features/participation/player.fixture.ts"]
-createPlayer = 69
-fakePlayers = 73
-
 [function_lines."frontend/src/lib/features/participation/voice.ts"]
-createAgentVoices = 84
+createAgentVoices = 74
 
 [function_lines."frontend/src/lib/features/stage/index.test.ts"]
 installedStage = 75

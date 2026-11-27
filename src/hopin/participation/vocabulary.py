@@ -74,6 +74,7 @@ class ParticipationSignal(StrEnum):
     AGENT_LOOKED = "agent_looked"
     AGENT_INVITATION_ENDED = "agent_invitation_ended"
     AGENT_FIGURE_ENDED = "agent_figure_ended"
+    AGENT_HOLD_PLAYED = "agent_hold_played"
 
 
 class AgentRefusal(StrEnum):
@@ -196,6 +197,16 @@ class HoldRefusal(StrEnum):
 
     HELD = "held"
     NOT_INTERRUPTED = "not_interrupted"
+
+
+class HoldEnd(StrEnum):
+    """How a hold ended: the agent continued (`continue_speaking`), stopped (`stop_speaking`) or answered with a speak
+    that names the hold, or the agent's own end, which is its removal, leave, pause, lease end or call end."""
+
+    CONTINUED = "continued"
+    STOPPED = "stopped"
+    ANSWERED = "answered"
+    ENDED = "ended"
 
 
 class SpeakStarted(StrEnum):
