@@ -1,4 +1,4 @@
-"""CALL-57, CALL-62 and CALL-63: how participation's real feature and handler take the frames of an agent's switches
+"""How participation's real feature and handler take the frames of an agent's switches
 and of a look's answer when they come from the wrong seat, name no agent, or are no frame of their form."""
 
 import pytest

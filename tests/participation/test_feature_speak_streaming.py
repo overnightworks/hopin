@@ -1,4 +1,4 @@
-"""CALL-60: an agent's sentence that plays through the browser's stream while the speech service still renders it."""
+"""An agent's sentence that plays through the browser's stream while the speech service still renders it."""
 
 import asyncio
 from dataclasses import dataclass
@@ -65,6 +65,7 @@ class TestASentenceThatPlaysWhileItRenders:
     async def test_call_60_the_speaker_is_answered_and_every_seat_is_told_the_voice_at_the_first_chunk(
         self, call, streaming, voices
     ):
+        """CALL-60."""
         host, guest, *_ = call
 
         assert (streaming.answer, [len(voice_ids(seat)) for seat in (host, guest)]) == (SpeakStarted.SPOKEN, [1, 1])
@@ -73,6 +74,7 @@ class TestASentenceThatPlaysWhileItRenders:
     async def test_call_60_a_sentence_ends_when_its_length_has_run_out_since_its_first_chunk_whenever_it_was_told(
         self, streaming, behind, scheduler
     ):
+        """CALL-60."""
         await scheduler.advance(1)
         await streaming.streamed.ends_after(1500)
         done = [await answers_so_far(scheduler, 0.499, behind), await answers_so_far(scheduler, 0.001, behind)]
@@ -82,6 +84,7 @@ class TestASentenceThatPlaysWhileItRenders:
     async def test_call_60_the_next_sentence_is_told_only_after_the_one_that_still_renders_has_ended(
         self, call, streaming, behind, scheduler
     ):
+        """CALL-60."""
         host, *_ = call
 
         await scheduler.advance(LONG_MS / 1000)
@@ -91,6 +94,7 @@ class TestASentenceThatPlaysWhileItRenders:
     async def test_call_61_a_stream_that_breaks_off_after_the_first_chunk_cuts_the_sentence_and_the_queue_goes_on(
         self, participation, call, streaming, behind
     ):
+        """CALL-61."""
         host, *_ = call
 
         await streaming.streamed.breaks_off()
@@ -104,6 +108,7 @@ class TestASentenceThatPlaysWhileItRenders:
     async def test_call_61_a_stream_that_crashes_cuts_the_sentence_logs_only_a_closed_code_and_the_queue_goes_on(
         self, participation, streaming, behind
     ):
+        """CALL-61."""
         with structlog.testing.capture_logs() as logs:
             await streaming.streamed.crashes()
             answer = await behind
@@ -131,6 +136,7 @@ class TestASentenceThatPlaysWhileItRenders:
     async def test_call_60_a_stop_in_the_turns_after_a_stream_ended_cuts_the_sentence_once_and_sets_no_timer(
         self, participation, streaming, scheduler, arrive, behind_the_due_callbacks
     ):
+        """CALL-60."""
         known = asyncio.all_tasks()
         timers_before = len(scheduler.pending_timers())
         loop = asyncio.get_running_loop()
@@ -153,6 +159,7 @@ class TestASentenceThatPlaysWhileItRenders:
     async def test_call_60_an_end_of_the_agent_in_the_turn_after_a_stream_ended_sets_no_timer(
         self, participation, streaming, scheduler, room_id
     ):
+        """CALL-60."""
         known = asyncio.all_tasks()
         timers_before = len(scheduler.pending_timers())
         leaves = []
@@ -169,6 +176,7 @@ class TestASentenceThatPlaysWhileItRenders:
     async def test_call_60_an_end_of_the_agent_answers_a_written_sentence_waiting_behind_its_sound_as_gone(
         self, participation, room_id
     ):
+        """CALL-60."""
         await speak(participation, room_id=room_id)
         written = await waiting_to_speak(participation, "Zwei", render=renders_failing, room_id=room_id)
 
@@ -179,6 +187,7 @@ class TestASentenceThatPlaysWhileItRenders:
     async def test_call_61_a_sentence_whose_stream_broke_off_while_it_waited_is_cut_at_its_turn(
         self, participation, room_id, scheduler
     ):
+        """CALL-61."""
         streamed = StreamedSentence()
         await speak(participation, "Eins", room_id=room_id)
         waiting = await waiting_to_speak(participation, "Zwei", room_id=room_id, render=streamed.render)
@@ -195,6 +204,7 @@ class TestASentenceThatPlaysWhileItRenders:
         )
 
     async def test_call_60_a_stop_ends_the_rendering_of_the_cut_sentence(self, participation, streaming):
+        """CALL-60."""
         await participation.stop_speaking(GUEST, streaming.room_id)
         await streaming.streamed.until_closed()
 
@@ -203,6 +213,7 @@ class TestASentenceThatPlaysWhileItRenders:
     async def test_call_60_an_end_of_the_agent_ends_the_rendering_of_its_sentences(
         self, participation, streaming, room_id
     ):
+        """CALL-60."""
         waiting = StreamedSentence()
         await waiting_to_speak(participation, room_id=room_id, render=waiting.render)
 

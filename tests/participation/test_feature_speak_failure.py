@@ -1,4 +1,4 @@
-"""CALL-61: a sentence of an agent whose voice fails, at participation's real feature and handler: the line it is
+"""A sentence of an agent whose voice fails, at participation's real feature and handler: the line it is
 written as, the window's voice and the log of an outage."""
 
 import asyncio
@@ -53,6 +53,7 @@ def voice_of(participation, person, room_id):
 
 class TestAVoiceThatFails:
     async def test_call_61_the_sentence_is_written_as_the_agents_line_and_answered_written(self, participation, call):
+        """CALL-61."""
         host, guest, mozart, _ = call
 
         answered = await speak(participation, "Guten Tag", render=renders_failing, room_id=room_of(host))
@@ -70,6 +71,7 @@ class TestAVoiceThatFails:
     async def test_call_61_the_line_enters_every_window_as_unspoken_and_the_agents_own_as_own(
         self, participation, call
     ):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
 
@@ -81,6 +83,7 @@ class TestAVoiceThatFails:
         ]
 
     async def test_call_61_it_waits_for_the_playing_sentence_and_enters_after_it(self, participation, call, scheduler):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, "Eins", room_id=room_id)
@@ -96,6 +99,7 @@ class TestAVoiceThatFails:
     async def test_call_61_a_sentence_after_a_written_one_still_starts_at_its_turn(
         self, participation, call, scheduler
     ):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, "Eins", room_id=room_id)
@@ -110,6 +114,7 @@ class TestAVoiceThatFails:
     async def test_call_61_a_line_that_cannot_be_written_fails_its_speaker_and_the_queue_goes_on(
         self, participation, call, scheduler, speaker_gave_up
     ):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
 
@@ -136,6 +141,7 @@ class TestAVoiceThatFails:
     async def test_call_61_a_stop_drops_a_written_sentence_waiting_and_the_playing_one_stays_a_cut_spoken_line(
         self, participation, call
     ):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, "Eins", room_id=room_id)
@@ -152,6 +158,7 @@ class TestAVoiceThatFails:
     async def test_call_61_an_agent_removed_while_the_sentence_renders_writes_nothing(
         self, participation, call, scheduler
     ):
+        """CALL-61."""
         host, guest, mozart, _ = call
 
         async def fail_while_removed(sentence, voice):
@@ -163,6 +170,7 @@ class TestAVoiceThatFails:
         assert (refused, host.frames(LINE)) == (AgentRefusal.GONE, [])
 
     async def test_call_61_a_stop_while_the_sentence_renders_writes_nothing(self, participation, call):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, "Eins", room_id=room_id)
@@ -180,6 +188,7 @@ class TestAVoiceThatFails:
 
     @pytest.mark.parametrize("unwritten", [renders_nothing, rendering()], ids=["no-consent", "a-sound"])
     async def test_call_61_a_voice_that_has_not_failed_states_nothing(self, participation, call, unwritten):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
 
@@ -192,6 +201,7 @@ class TestTheVoiceState:
     async def test_call_61_a_failure_turns_it_unavailable_and_the_next_sound_turns_it_available_again(
         self, participation, call, scheduler
     ):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
         states = []
@@ -208,6 +218,7 @@ class TestTheVoiceState:
     async def test_call_61_only_a_change_of_the_state_tells_the_agent_beyond_the_line_itself(
         self, participation, call, window_changes
     ):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, render=renders_failing, room_id=room_id)
@@ -221,6 +232,7 @@ class TestTheVoiceState:
     async def test_call_61_a_refusal_that_is_no_failure_of_the_voice_keeps_the_state_it_was_in(
         self, participation, call, unrelated
     ):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
         await speak(participation, render=renders_failing, room_id=room_id)
@@ -231,6 +243,7 @@ class TestTheVoiceState:
         assert voice_of(participation, GUEST, room_id) is WindowVoice.UNAVAILABLE
 
     async def test_call_61_the_other_agents_window_states_nothing(self, participation, call):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
 
@@ -241,6 +254,7 @@ class TestTheVoiceState:
     async def test_call_61_the_outage_is_logged_once_with_the_reason_and_the_call_and_logged_again_after_a_sound(
         self, participation, call, scheduler
     ):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
 
@@ -260,6 +274,7 @@ class TestTheVoiceState:
     async def test_the_return_is_logged_once_with_the_call_and_the_agent_when_a_sound_follows_the_outage(
         self, participation, call, scheduler
     ):
+        """CALL-61."""
         host, _, mozart, _ = call
         room_id = room_of(host)
 
@@ -293,6 +308,7 @@ class TestTheVoiceComesBackWithoutASentence:
     async def test_call_61_the_window_turns_available_once_the_voice_is_offered_again_and_tells_the_agent_once(
         self, participation, call, scheduler, window_changes
     ):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
         offered = self.offering(False, True)
@@ -310,6 +326,7 @@ class TestTheVoiceComesBackWithoutASentence:
         )
 
     async def test_the_return_is_logged_once_when_the_voice_is_offered_again(self, participation, call, scheduler):
+        """CALL-61."""
         host, _, mozart, _ = call
         room_id = room_of(host)
         offered = self.offering(False, True)
@@ -328,6 +345,7 @@ class TestTheVoiceComesBackWithoutASentence:
     async def test_call_61_the_voice_is_asked_for_nothing_while_no_window_states_it_unavailable(
         self, participation, call, scheduler
     ):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
         offered = self.offering()
@@ -338,6 +356,7 @@ class TestTheVoiceComesBackWithoutASentence:
         assert (offered.asked, recovery_timers(scheduler)) == ([], [])
 
     async def test_call_61_the_asking_stops_once_every_window_is_available_again(self, participation, call, scheduler):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
         offered = self.offering(True)
@@ -350,6 +369,7 @@ class TestTheVoiceComesBackWithoutASentence:
     async def test_call_61_a_second_failure_while_the_asking_is_waiting_keeps_the_first_offer(
         self, participation, call, scheduler
     ):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
         first, second = self.offering(True), self.offering(True)
@@ -363,6 +383,7 @@ class TestTheVoiceComesBackWithoutASentence:
     async def test_call_61_a_sound_turns_the_window_available_and_nothing_is_asked_any_more(
         self, participation, call, scheduler
     ):
+        """CALL-61."""
         host, *_ = call
         room_id = room_of(host)
         offered = self.offering()
@@ -374,6 +395,7 @@ class TestTheVoiceComesBackWithoutASentence:
         assert (voice_of(participation, GUEST, room_id), offered.asked) == (WindowVoice.AVAILABLE, [])
 
     async def test_call_61_an_agent_that_left_is_not_asked_about(self, participation, call, scheduler):
+        """CALL-61."""
         host, guest, mozart, _ = call
         room_id = room_of(host)
         offered = self.offering()

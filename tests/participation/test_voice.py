@@ -1,4 +1,4 @@
-"""CALL-60: the sound of a sentence grows as its chunks arrive and every reader gets it from its start."""
+"""The sound of a sentence grows as its chunks arrive and every reader gets it from its start."""
 
 import asyncio
 
@@ -30,6 +30,7 @@ def voice():
 
 class TestAGrowingVoice:
     async def test_call_60_two_readers_each_get_every_chunk_as_it_arrives(self, voice):
+        """CALL-60."""
         first, second = voice.read(), voice.read()
         voice.append(b"one")
         voice.append(b"two")
@@ -38,6 +39,7 @@ class TestAGrowingVoice:
         assert (await everything(first), await everything(second)) == ([b"one", b"two"], [b"one", b"two"])
 
     async def test_call_60_a_reader_waits_for_the_reading_next_and_gets_it_when_it_arrives(self, voice):
+        """CALL-60."""
         voice.append(b"one")
         reader = voice.read()
         assert await anext(reader) == b"one"
@@ -49,6 +51,7 @@ class TestAGrowingVoice:
         assert (before, await waiting) == (False, b"two")
 
     async def test_call_60_a_reader_that_comes_late_gets_the_sound_from_its_start(self, voice):
+        """CALL-60."""
         voice.append(b"one")
         voice.append(b"two")
 
@@ -57,6 +60,7 @@ class TestAGrowingVoice:
         assert await anext(late) == b"one"
 
     async def test_call_60_a_reader_ends_when_the_sound_is_finished(self, voice):
+        """CALL-60."""
         voice.append(b"one")
         reader = voice.read()
         assert await anext(reader) == b"one"
@@ -68,12 +72,14 @@ class TestAGrowingVoice:
             await waiting
 
     async def test_call_60_a_reader_of_a_finished_sound_gets_all_of_it_and_ends(self, voice):
+        """CALL-60."""
         voice.append(b"one")
         voice.finish()
 
         assert await everything(voice.read()) == [b"one"]
 
     async def test_call_61_a_reader_fails_where_the_sound_broke_off_after_the_chunks_it_got(self, voice):
+        """CALL-61."""
         voice.append(b"one")
         reader = voice.read()
         assert await anext(reader) == b"one"
@@ -85,6 +91,7 @@ class TestAGrowingVoice:
             await waiting
 
     async def test_call_61_a_reader_that_comes_after_the_break_gets_the_chunks_and_then_the_failure(self, voice):
+        """CALL-61."""
         voice.append(b"one")
         voice.break_off()
         late = voice.read()
@@ -94,6 +101,7 @@ class TestAGrowingVoice:
             await anext(late)
 
     async def test_call_60_a_chunk_after_the_end_is_not_kept(self, voice):
+        """CALL-60."""
         voice.append(b"one")
         voice.finish()
         voice.append(b"late")
@@ -101,6 +109,7 @@ class TestAGrowingVoice:
         assert await everything(voice.read()) == [b"one"]
 
     async def test_call_60_a_finished_sound_stays_whole_when_it_is_broken_off_after_it(self, voice):
+        """CALL-60."""
         voice.append(b"one")
         voice.finish()
         voice.break_off()
@@ -110,6 +119,7 @@ class TestAGrowingVoice:
 
 class TestTheStore:
     async def test_call_60_a_whole_sound_is_kept_under_its_id_and_its_room(self):
+        """CALL-60."""
         store = VoiceStore()
 
         voice = store.put(ROOM, SPEAKER, b"whole")
@@ -121,6 +131,7 @@ class TestTheStore:
         )
 
     async def test_call_60_a_released_sound_is_gone_and_its_reader_ends_where_the_sound_stood(self):
+        """CALL-60."""
         store = VoiceStore()
         voice = store.open(ROOM, SPEAKER)
         voice.append(b"one")
@@ -135,6 +146,7 @@ class TestTheStore:
         assert (store.get(voice.id), store.room_of(voice.id)) == (None, None)
 
     async def test_call_60_a_speaker_keeps_only_its_latest_sounds_and_the_others_keep_theirs(self):
+        """CALL-60."""
         store = VoiceStore()
         kept = [
             store.put(ROOM, SPEAKER, b"first"),
@@ -148,6 +160,7 @@ class TestTheStore:
         assert ([store.get(voice.id) for voice in kept], store.get(other.id)) == ([None, kept[1], kept[2]], other)
 
     async def test_call_60_a_speaker_that_goes_loses_every_sound_it_kept_in_the_room(self):
+        """CALL-60."""
         store = VoiceStore()
         kept = [store.open(ROOM, SPEAKER), store.put(ROOM, SPEAKER, b"whole")]
         other = store.open(ROOM, "someone else")

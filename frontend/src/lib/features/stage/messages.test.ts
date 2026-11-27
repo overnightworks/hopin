@@ -13,7 +13,7 @@ function received(overrides: { origin?: string; source?: unknown; frameWindow?: 
 }
 
 describe("a message from the frame", () => {
-    it("is answered with a hello for the attachment, aimed at the frame's exact origin", () => {
+    it("ST-11: is answered with a hello for the attachment, aimed at the frame's exact origin", () => {
         expect(greetingFor(received(), FRAME_ORIGIN, CURRENT)).toEqual({
             hello: { v: 1, type: "hello", attachment: 7, attempt: null },
             targetOrigin: FRAME_ORIGIN,
@@ -47,11 +47,11 @@ describe("a message from the frame", () => {
             },
         ],
         ["an oversized table", { data: { ...READY, table: TABLE.repeat(4096) } }],
-    ])("is ignored for %s", (_name, overrides) => {
+    ])("ST-11: is ignored for %s", (_name, overrides) => {
         expect(greetingFor(received(overrides), FRAME_ORIGIN, CURRENT)).toBeNull();
     });
 
-    it("is ignored when the attachment changed or none is shown", () => {
+    it("ST-11: is ignored when the attachment changed or none is shown", () => {
         const moved: CurrentTable = { attachment: 8, table: "f".repeat(32) };
         expect(greetingFor(received(), FRAME_ORIGIN, moved)).toBeNull();
         expect(greetingFor(received(), FRAME_ORIGIN, null)).toBeNull();

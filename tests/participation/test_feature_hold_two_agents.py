@@ -1,4 +1,4 @@
-"""CALL-69: a guest's seat heard by two agents holds both and tells every hold before its sound,
+"""A guest's seat heard by two agents holds both and tells every hold before its sound,
 at participation's real feature and the agents library's real record of who may hear whom."""
 
 import asyncio
@@ -78,6 +78,7 @@ class TestTwoAgentsHearingOneSeat:
     async def test_call_69_a_speak_with_the_hold_is_accepted_for_both_agents_and_every_hold_is_told_before_its_sound(
         self, participation, call, started_while_the_host_seat_blocks
     ):
+        """CALL-69."""
         _, guest, mozart, salieri = call
         room_id, held, starting = started_while_the_host_seat_blocks
         known = asyncio.all_tasks()  # sounds[1:] leaves out the voice of the sentence that played before the hold
@@ -97,6 +98,7 @@ class TestTwoAgentsHearingOneSeat:
     async def test_call_69_a_continue_with_the_hold_is_accepted_for_both_agents_and_told_after_the_hold(
         self, participation, call, started_while_the_host_seat_blocks
     ):
+        """CALL-69."""
         _, guest, mozart, salieri = call
         room_id, held, starting = started_while_the_host_seat_blocks
 
@@ -115,6 +117,7 @@ class TestTwoAgentsHearingOneSeat:
     async def test_call_69_an_agent_paused_while_another_hold_is_being_told_is_not_held_afterwards(
         self, participation, call, started_while_the_host_seat_blocks
     ):
+        """CALL-69."""
         _, guest, *_ = call
         room_id, held, starting = started_while_the_host_seat_blocks
 
