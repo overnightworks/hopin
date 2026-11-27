@@ -74,7 +74,8 @@ def _running_reads(apart_from):
     return [
         task
         for task in asyncio.all_tasks()
-        if task.get_name().startswith(GROUPS_READ_TASK_NAME) and not task.get_name().startswith(left_running or "\0")
+        if task.get_name().startswith(GROUPS_READ_TASK_NAME)
+        and (left_running is None or not task.get_name().startswith(left_running))
     ]
 
 

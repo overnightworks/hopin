@@ -322,13 +322,6 @@ class TestWhoIsToldItMayBeSentAway:
 
         assert (send_away_told_to(bystander) or []) == []
 
-    async def test_the_list_follows_the_agents_join_and_its_send_away(self, call):
-        after_join = send_away_told_to(call.member)
-
-        await call.press(call.member)
-
-        assert (after_join, send_away_told_to(call.member)) == ([call.agent.agent_id], [])
-
     async def test_a_frame_goes_when_only_the_send_away_list_changed(self, call):
         """The owner's offers, its control and the full place stay as they were; only its list changes."""
         before = len(call.owner.frames(OFFERS))

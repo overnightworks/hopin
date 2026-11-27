@@ -521,7 +521,7 @@ class Participation(TransitionFeature):
         self._forget_seats_of_ended_room(room_id)
         holders = {person for person, held_room, _ in self._places.entries() if held_room == room_id}
         self._hearing.room_ended(room_id)
-        ended = [agent for agent in self._places.joined() if agent.room_id == room_id]
+        ended = self._places.joined_in(room_id)
         self._places.drop_room(room_id)
         for agent in ended:
             self._end_looks_and_voice(agent)

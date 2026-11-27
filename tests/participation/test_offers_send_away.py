@@ -33,4 +33,3 @@ def test_call_84_a_failed_read_decides_on_the_facts_of_the_call_so_a_seat_that_i
     decided = offers.after_send_away_read(view_of(hosts={SENDER}), SENDER, agent, Membership.FAILED)
 
     assert decided is agent
-

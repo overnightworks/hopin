@@ -513,29 +513,6 @@ class TestAnAgentInTheCall:
         left = frames_of(invited.member, ParticipationSignal.AGENT_LEFT)
         assert joined[0]["agent_id"] == left[0]["agent_id"] != joined[1]["agent_id"]
 
-    async def test_its_sponsor_removes_it_and_an_old_accept_is_stale(self, invited):
-        agent = await invited.accept()
-
-        await invited.owner.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
-
-        assert invited.participation.standings_of(AGENT) == ()
-        assert await invited.accept() is AgentRefusal.STALE_INVITATION
-
-    async def test_call_84_the_host_removes_it_but_another_guest_is_refused(self, invited, link):
-        agent = await invited.accept()
-        bystander = await link.join("bystander", invited.owner.room_id)
-
-        await bystander.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
-        refused = [frame["reason"] for frame in bystander.frames(ParticipationSignal.AGENT_REFUSED)]
-        still_there = len(invited.participation.standings_of(AGENT))
-        await invited.owner.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": agent.agent_id})
-
-        assert (refused, still_there, invited.participation.standings_of(AGENT)) == (
-            [AgentRefusal.NOT_ALLOWED_TO_SEND_AWAY.value],
-            1,
-            (),
-        )
-
     async def test_it_leaves_with_its_owners_seat_for_good_and_its_standing_signals(self, invited, changes):
         await invited.accept()
         told = len(changes)

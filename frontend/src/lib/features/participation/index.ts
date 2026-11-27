@@ -356,7 +356,7 @@ export async function installWith(
         core.receiveChatLine(featureView(AgentLine, { name: frame.name, text: frame.text }));
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_REFUSED, (frame) => {
-        const toast = toastOf(frame.reason, kitWords);
+        const toast = toastOf(frame.reason, kitWords, core.toastKind);
         if (toast === undefined) offersView.refusal = refusalOf(frame.reason);
         else core.showToast(toast.text, toast.kind, null);
     });
