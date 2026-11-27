@@ -6,6 +6,10 @@ import secrets
 
 from agents.member import LEASE_SECONDS
 
+from hopin.participation.vocabulary import ParticipationSignal
+from tests.support.fake_speech import a_sentence
+from tests.support.hearing_socket import SOUND, closed_with, hop
+
 AUDIENCE_SCOPE = "speech-audience"
 
 
@@ -36,3 +40,19 @@ def lose_the_held_token(scene):
 def endings_of(lines):
     """How each hop ended, as the line of its ending says: the reason of a hop that served nobody, else the outcome."""
     return [line.get("reason", line["outcome"]) for line in lines if line["event"] == "hearing.ended"]
+
+
+def switch_off(scene):
+    scene.owner.send({"type": ParticipationSignal.AGENT_HEARING.value, "agent_id": scene.agent_id, "on": False})
+
+
+def hear_one_sentence(scene, fake_speech, text="Guten Tag", *, session_number=1, **sentence):
+    """A hop in which the service hears one sentence and ends in order; the code the browser's socket closed with.
+    The hop is the service's `session_number`-th session."""
+    with hop(scene) as socket:
+        socket.send_bytes(SOUND)
+        session = fake_speech.next_session(session_number)
+        for event in a_sentence(text, **sentence):
+            session.say(event)
+        session.hang_up()
+        return closed_with(socket)

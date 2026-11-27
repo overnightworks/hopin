@@ -109,7 +109,7 @@ const SHOWN = {
 const NONE = { revision: 3, attachment: null, app: null, table: null, src: null, opener_id: null };
 
 describe("the entries in More", () => {
-    it("offers one entry per registered app, named by its title", async () => {
+    it("ST-01: offers one entry per registered app, named by its title", async () => {
         const page = await installedStage();
 
         const labels = [...page.item.querySelectorAll("button.mi .grow")].map((label) => label.firstChild?.textContent);
@@ -120,7 +120,7 @@ describe("the entries in More", () => {
         ]);
     });
 
-    it("takes a title for text, never for markup", async () => {
+    it("ST-01: takes a title for text, never for markup", async () => {
         const page = await installedStage();
 
         page.emit(STAGE_SIGNAL.STAGE_APPS, { apps: [{ name: "odd", title: "<img src=x>" }] });
@@ -242,7 +242,7 @@ describe("the stage", () => {
         expect(offered).toBeNull();
     });
 
-    it("is cleared when the call ends", async () => {
+    it("ST-06: is cleared when the call ends", async () => {
         const page = await installedStage();
         page.emit(SIGNAL_TYPE.EXISTING_PARTICIPANTS, { participant_id: "me", is_host: true });
         page.emit(STAGE_SIGNAL.STAGE_TABLE, SHOWN);
@@ -304,7 +304,7 @@ describe("the start link", () => {
     const START_LINK = { app: "skat", context: "a".repeat(32) };
     const CREATED = { participant_id: "me", is_host: true };
 
-    it("attaches its table to the call the page starts, by app and key", async () => {
+    it("ST-14: attaches its table to the call the page starts, by app and key", async () => {
         const page = await installedStage(START_LINK);
 
         page.emit(SIGNAL_TYPE.ROOM_CREATED, CREATED);
@@ -312,7 +312,7 @@ describe("the start link", () => {
         expect(page.sent).toEqual([{ type: STAGE_SIGNAL.STAGE_ATTACH, ...START_LINK }]);
     });
 
-    it("attaches once, however often a room is created afterwards", async () => {
+    it("ST-14: attaches once, however often a room is created afterwards", async () => {
         const page = await installedStage(START_LINK);
 
         page.emit(SIGNAL_TYPE.ROOM_CREATED, CREATED);
@@ -321,7 +321,7 @@ describe("the start link", () => {
         expect(page.sent).toHaveLength(1);
     });
 
-    it("attaches nothing before a room is created", async () => {
+    it("ST-14: attaches nothing before a room is created", async () => {
         const page = await installedStage(START_LINK);
 
         page.emit(SIGNAL_TYPE.EXISTING_PARTICIPANTS, { participant_id: "me", is_host: false });
@@ -329,7 +329,7 @@ describe("the start link", () => {
         expect(page.sent).toEqual([]);
     });
 
-    it("attaches nothing at any other address", async () => {
+    it("ST-14: attaches nothing at any other address", async () => {
         const page = await installedStage();
 
         page.emit(SIGNAL_TYPE.ROOM_CREATED, CREATED);

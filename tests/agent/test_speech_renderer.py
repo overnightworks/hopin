@@ -1,4 +1,4 @@
-"""CALL-61: a crash of the speech client's stream after the sound began reaches the sentence's reader as that crash.
+"""A crash of the speech client's stream after the sound began reaches the sentence's reader as that crash.
 
 The worker that reads the stream runs in the trace of the turn that asked for the sentence."""
 
@@ -32,6 +32,7 @@ def renderer_of(speak_stream):
 
 
 async def test_the_worker_reading_the_stream_runs_in_the_trace_of_the_turn_that_asked_for_the_sentence():
+    """CALL-61."""
     seen = []
 
     def stream_noting_its_trace(*_arguments, **_named):
@@ -47,6 +48,8 @@ async def test_the_worker_reading_the_stream_runs_in_the_trace_of_the_turn_that_
 
 
 async def test_call_61_a_stream_that_crashes_after_the_first_chunk_ends_the_pieces_with_that_crash():
+    """CALL-61."""
+
     def crashing_stream(*_arguments, **_named):
         yield b"first"
         message = "the crash"

@@ -170,7 +170,7 @@ describe("picture in picture", () => {
         expect(tile.dataset.corner).toBeUndefined();
     });
 
-    it("releases a held tile at once when a feature shows a view on the stage", async () => {
+    it("ST-02: releases a held tile at once when a feature shows a view on the stage", async () => {
         const { stage, tile, release } = setUp();
         firePointer(tile, "pointerdown");
         firePointer(tile, "pointermove", { x: 30, y: 30 });
@@ -183,7 +183,7 @@ describe("picture in picture", () => {
         expect(release).toHaveBeenCalledWith(POINTER);
     });
 
-    it("starts no drag while a view is on the stage", () => {
+    it("ST-02: starts no drag while a view is on the stage", () => {
         const { stage, tile, capture } = setUp();
         stage.dataset.surface = "";
 

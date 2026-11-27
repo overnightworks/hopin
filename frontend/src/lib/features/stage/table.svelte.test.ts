@@ -92,7 +92,7 @@ describe("a table the server shows", () => {
         ["the same states in the reverse order", [stateOf(3, null), stateOf(2, 1, null), stateOf(1, 1)]],
         ["the opener's leaving before the attach", [stateOf(2, 1, null), stateOf(1, 1), stateOf(3, null)]],
         ["a detach before the earlier states", [stateOf(3, null), stateOf(1, 1), stateOf(2, 1, null)]],
-    ])("ends on the latest revision whatever the order of %s", (_name, states) => {
+    ])("ST-05: ends on the latest revision whatever the order of %s", (_name, states) => {
         const { table, frames } = seatedTable();
 
         for (const state of states) table.receive(state);
@@ -100,7 +100,7 @@ describe("a table the server shows", () => {
         expect(frames.at(-1) ?? "hidden").toBe("hidden");
     });
 
-    it("ends on the table of the latest revision when frames arrive out of order", () => {
+    it("ST-05: ends on the table of the latest revision when frames arrive out of order", () => {
         const { table, frames } = seatedTable();
 
         table.receive(stateOf(3, 3));
@@ -110,7 +110,7 @@ describe("a table the server shows", () => {
         expect(frames).toEqual(["https://skat.example/t/3?mode=call"]);
     });
 
-    it("clears a stale table when a fresh join says there is none", () => {
+    it("ST-05: clears a stale table when a fresh join says there is none", () => {
         const { table, frames } = seatedTable();
         table.receive(stateOf(4, 4));
 
@@ -119,7 +119,7 @@ describe("a table the server shows", () => {
         expect(frames.at(-1)).toBe("hidden");
     });
 
-    it("applies a state of the revision it already has, which a fresh join repeats", () => {
+    it("ST-05: applies a state of the revision it already has, which a fresh join repeats", () => {
         const { table, frames } = seatedTable();
         table.receive(stateOf(4, null));
 
@@ -148,7 +148,7 @@ describe("a table the server shows", () => {
 });
 
 describe("the table attached now", () => {
-    it("is the attachment and the id the server named, and none once the table is gone or the call ended", () => {
+    it("ST-11: is the attachment and the id the server named, and none once the table is gone or the call ended", () => {
         const { table } = seatedTable();
 
         table.receive(stateOf(1, 4));

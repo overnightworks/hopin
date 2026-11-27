@@ -91,6 +91,7 @@ def world(sign_in_settings):
 
 class TestTheStartLink:
     def test_a_signed_out_navigation_is_sent_through_the_sign_in_and_back_with_its_query(self, world):
+        """ST-14."""
         response = world.browser.get(start_link(), headers=BROWSER_ACCEPT)
 
         assert (response.status_code, response.headers["location"]) == (
@@ -99,17 +100,20 @@ class TestTheStartLink:
         )
 
     def test_with_no_call_showing_the_table_it_answers_the_page_that_starts_one(self, world):
+        """ST-14."""
         response = world.signed_in.get(start_link())
 
         assert (response.status_code, response.content) == (200, PAGE)
 
     def test_with_a_call_showing_the_table_it_sends_the_member_to_that_call(self, world):
+        """ST-14."""
         with world.call_showing() as room_id:
             response = world.signed_in.get(start_link())
 
         assert (response.status_code, response.headers["location"]) == (303, f"{CALL_PATH}/{room_id}")
 
     def test_a_call_showing_another_table_is_not_the_call_of_this_one(self, world):
+        """ST-14."""
         with world.call_showing():
             response = world.signed_in.get(start_link(context=OTHER_TABLE_ID))
 
@@ -131,6 +135,7 @@ class TestTheStartLink:
         ],
     )
     def test_a_link_naming_no_registered_table_is_a_404_that_echoes_nothing(self, world, query):
+        """ST-14."""
         response = world.signed_in.get(START_LINK_PATH + query)
 
         assert (response.status_code, response.json()) == (404, {"detail": "Not Found"})
@@ -142,21 +147,25 @@ class TestTheRouteOrder:
         return World(sign_in_settings, (StageFeature((SKAT,)), RoutedFeature()))
 
     def test_a_feature_with_a_fixed_path_is_answered_ahead_of_the_call_core(self, beside_a_routed_feature):
+        """ST-16."""
         assert beside_a_routed_feature.signed_in.get(FIXED_FEATURE_PATH).json() == "fixed"
         assert beside_a_routed_feature.signed_in.get(start_link()).content == PAGE
 
     def test_a_feature_path_with_a_parameter_comes_after_the_call_core_and_never_takes_its_addresses(
         self, beside_a_routed_feature
     ):
+        """ST-16."""
         assert beside_a_routed_feature.signed_in.get(f"{CALL_PATH}/abcd2345").content == PAGE
         assert beside_a_routed_feature.signed_in.get(TEMPLATED_FEATURE_PATH.format(name="x")).json() == "templated"
 
     def test_the_health_address_stays_the_cores_beside_a_routed_feature(self, beside_a_routed_feature):
+        """ST-16."""
         response = beside_a_routed_feature.signed_in.get(HEALTH_PATH)
 
         assert (response.status_code, response.json()) == (200, {"status": "ok"})
 
     def test_the_home_address_stays_the_cores_beside_a_routed_feature(self, beside_a_routed_feature):
+        """ST-16."""
         response = beside_a_routed_feature.signed_in.get(HOME_PATH)
 
         assert (response.status_code, response.content) == (200, PAGE)
