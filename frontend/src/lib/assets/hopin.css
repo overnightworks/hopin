@@ -833,6 +833,13 @@ textarea {
     .stage[data-count="2"]:not([data-surface]) .tile:not(.self) .name {
         max-width: calc(100% - 142px);
     }
+    /* The full-bleed pill keeps the stated pill's second line: these selectors outrank the fixed-height rules above. */
+    .stage[data-count="1"]:not([data-surface]) .tile.agent .name.stated,
+    .stage[data-count="2"]:not([data-surface]) .tile.agent:not(.self) .name.stated {
+        height: auto;
+        min-height: 32px;
+        padding: 5px 12px;
+    }
     .stage[data-count="2"]:not([data-surface]) .tile.self {
         position: absolute;
         width: 104px;
@@ -944,6 +951,12 @@ textarea {
         height: 32px;
         padding: 0 12px;
         font-size: 14.5px;
+    }
+    /* The full-bleed pill keeps the stated pill's second line: this selector outranks the fixed-height rule above. */
+    .stage[data-count="1"]:not([data-surface]) .tile.agent .name.stated {
+        height: auto;
+        min-height: 32px;
+        padding: 5px 12px;
     }
 }
 
