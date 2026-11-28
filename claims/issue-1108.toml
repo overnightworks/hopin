@@ -1,0 +1,8 @@
+claim_id = "0dd20212c3e94e04b1770133ada9bfc9"
+agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
+role = "builder"
+base = "1f9ccb06861c6f9efe8f2112940488b87f467601"
+branch = "claude/issue-1108-turn-state-on-tile-here-rows-may-send"
+scope = ["docs/call.md", "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/src/lib/assets/hopin.css", "frontend/src/lib/call/feature-port.ts", "frontend/src/lib/catalogs", "frontend/src/lib/features/participation", "frontend/src/lib/ui", "frontend/src/lib/words", "pyproject.toml", "quality/baseline.toml", "src/hopin/words.py", "tests/e2e/participation", "tests/e2e/stage/test_stage_agent_hearing.py", "tests/e2e/support", "uv.lock"]
+opened_commit = "3c2c2299d7555f23da890e634b77592491ce7d6a"
+whole_reason = "The here row becomes the one place of the act in the same change that removes the tile's button, and the tile takes the turn state in the same change that the here rows stop reaching every seat; either half alone leaves a seat with no send-away or with no turn state."
