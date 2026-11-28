@@ -99,7 +99,7 @@ class SpeechInWindows:
         self._deadlines = deadlines
         deadlines.register(DeadlineKind.WINDOW_RECOVERY, self._ask_whether_voices_are_back)
         self._recovery_offered: VoicesOffered | None = None
-        self._turn: TurnHeard
+        self._turn: TurnHeard = lambda *_: False  # no hold arises until an agent's speaking hears the turns
 
     def hear_turns_through(self, turn: TurnHeard) -> None:
         """Hand the turns of the people an agent hears to `turn`, the agent's speaking, which says whether a hold arose
