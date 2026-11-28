@@ -32,12 +32,7 @@ from tests.participation.support.speaking import (
     window_texts,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
-
-
-@pytest.fixture
-def hears():
-    return True
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio, pytest.mark.hears]
 
 
 class TestContinuingSpeaking:

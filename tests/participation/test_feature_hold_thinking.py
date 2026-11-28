@@ -7,15 +7,10 @@ from hopin.participation.vocabulary import THINKING_MAX_SECONDS, FigureGesture, 
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import SENTENCE_MS, hold_of_a_playing_sentence, speak
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio, pytest.mark.hears]
 
 GUEST = person_named("guest")
 THINKING = ParticipationSignal.AGENT_THINKING
-
-
-@pytest.fixture
-def hears():
-    return True
 
 
 def thoughts(browser):

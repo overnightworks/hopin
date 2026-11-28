@@ -18,12 +18,7 @@ from tests.support.hearing_socket import SOUND, closed_with, hop
 from tests.support.loopback_origin import Origin
 from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, offering, silent_wav, speaking
 
-pytestmark = pytest.mark.integration
-
-
-@pytest.fixture
-def hearing_service(fake_speech_hearing):
-    return fake_speech_hearing
+pytestmark = [pytest.mark.integration, pytest.mark.hears_through_fake_speech]
 
 
 POLL_SECONDS = 0.005

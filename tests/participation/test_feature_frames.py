@@ -10,7 +10,7 @@ from hopin.config.constants import ErrorReason, SignalType
 from hopin.participation.vocabulary import AgentRefusal, ParticipationSignal
 from tests.participation.support.people import person_named, room_of
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio, pytest.mark.hears]
 
 GUEST = person_named("guest")
 HEARING = ParticipationSignal.AGENT_HEARING
@@ -21,11 +21,6 @@ SENSES = [
     pytest.param(HEARING, Sense.HEARING, True, id="hearing"),
     pytest.param(SEEING, Sense.SEEING, False, id="seeing"),
 ]
-
-
-@pytest.fixture
-def hears():
-    return True
 
 
 def switch(signal, agent_id, *, on):

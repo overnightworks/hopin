@@ -32,12 +32,7 @@ from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
 from tests.support.fake_speech import Refusal, a_sentence, completed, failing, refused_with
 from tests.support.hearing_socket import SOUND, closed_with, hop
 
-pytestmark = pytest.mark.integration
-
-
-@pytest.fixture
-def hearing_service(fake_speech_hearing):
-    return fake_speech_hearing
+pytestmark = [pytest.mark.integration, pytest.mark.hears_through_fake_speech]
 
 
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
