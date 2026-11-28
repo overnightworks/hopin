@@ -128,7 +128,7 @@ class TestTheCommit:
             ("one", "idle"),
         ]
 
-    def test_a_supersede_that_names_another_key_than_the_agents_fails_loud(self):
+    async def test_a_supersede_that_names_another_key_than_the_agents_fails_loud(self):
         with pytest.raises(ValueError, match="agent_id"):
             Supersedes(frozenset({"agent_state"}), holding=("name", "one"))
 
