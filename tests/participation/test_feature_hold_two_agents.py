@@ -24,7 +24,7 @@ from tests.participation.support.speaking import (
 )
 from tests.signaling.support.browsers import HeldWrite
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio, pytest.mark.hears]
 
 GUEST = person_named("guest")
 
@@ -44,11 +44,6 @@ class RecordNamingTheHostFirst(MemberHearingRecord):
 def hearing_naming_the_host_first(member_hearing, *, enabled):
     """The hearing of a seat whose hearers are named with the host's agent first."""
     return Hearing(RecordNamingTheHostFirst(member_hearing), enabled=enabled)
-
-
-@pytest.fixture
-def hears():
-    return True
 
 
 class TestTwoAgentsHearingOneSeat:

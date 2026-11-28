@@ -94,17 +94,19 @@ def group_reads(groups_of_seat):
 
 
 @pytest.fixture
-def hears():
-    """Whether participation lets an agent hear; a module about hearing turns it on."""
-    return False
+def hears(request):
+    """Whether participation lets an agent hear; a module about hearing turns it on with the `hears` marker."""
+    return request.node.get_closest_marker("hears") is not None
 
 
 @pytest.fixture
-def hearing_service():
+def hearing_service(request):
     """The speech service agents hear through, which also names the scope of the token HopIn exchanges for an agent
-    that hears; none until a module names one, as a module that hears through the fake speech service does with
-    `fake_speech_hearing`."""
-    return
+    that hears; none until a module names one, as a module that hears through the fake speech service does with the
+    `hears_through_fake_speech` marker."""
+    if request.node.get_closest_marker("hears_through_fake_speech"):
+        return request.getfixturevalue("fake_speech_hearing")
+    return None
 
 
 @pytest.fixture

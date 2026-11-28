@@ -34,15 +34,10 @@ from tests.participation.support.own_accounts import (
 from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import host_and_guest
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio, pytest.mark.hears]
 
 GUEST = person_named("guest")
 HOST = person_named("host")
-
-
-@pytest.fixture
-def hears():
-    return True
 
 
 @pytest.fixture(autouse=True)

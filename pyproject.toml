@@ -150,6 +150,8 @@ faulthandler_timeout = 120
 markers = [
     "integration: integration tests",
     "e2e: browser end-to-end tests",
+    "hears: participation lets an agent hear in the marked tests (tests/participation/conftest.py)",
+    "hears_through_fake_speech: agents hear through the fake speech service in the marked tests (tests/participation/conftest.py)",
     "shared_stores: tests of hopin's shared stores and the database settings `hopin migrate` reads, which the Shared stores job runs: most need a live Redis and Postgres (HOPIN_TEST_REDIS_URL, HOPIN_TEST_POSTGRES_URL)",
 ]
 

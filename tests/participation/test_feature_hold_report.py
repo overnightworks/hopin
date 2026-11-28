@@ -20,16 +20,11 @@ from tests.participation.support.speaking import (
     voice_ids,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio, pytest.mark.hears]
 
 GUEST = person_named("guest")
 HOLD_ENDED_EVENT = "agent_hold.ended"
 PLAYED_BEFORE_THE_HOLD_SECONDS = 0.5
-
-
-@pytest.fixture
-def hears():
-    return True
 
 
 def report(agent, voice_id, played_seconds):

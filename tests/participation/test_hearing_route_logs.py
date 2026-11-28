@@ -21,12 +21,7 @@ from tests.support.fake_speech import WAIT_SECONDS, a_sentence, refused_with
 from tests.support.hearing_socket import SOUND, closed_with, hop
 from tests.support.log_lines import captured_lines
 
-pytestmark = pytest.mark.integration
-
-
-@pytest.fixture
-def hearing_service(fake_speech_hearing):
-    return fake_speech_hearing
+pytestmark = [pytest.mark.integration, pytest.mark.hears_through_fake_speech]
 
 
 def the_browser_leaves(_scene, _session, socket):
