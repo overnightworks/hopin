@@ -6,6 +6,7 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 import structlog
+from agents.member import ContinueSpeakingRefusal, StopSpeakingRefusal
 
 from hopin.participation.frames import (
     AgentContinuedFrame,
@@ -18,7 +19,7 @@ from hopin.participation.hold_reports import HoldReports
 from hopin.participation.speaking import Speaking, SpeakResult, StopResult, milliseconds
 from hopin.participation.telling import send_in_room, voices_of
 from hopin.participation.text import clean_line, one_line
-from hopin.participation.vocabulary import HoldRefusal, SpeakFailure, SpeakStop
+from hopin.participation.vocabulary import SpeakFailure
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Coroutine
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
     from hopin.participation.participants import DialedAgent
     from hopin.participation.places import Places
     from hopin.participation.shown_figures import ShownFigures
-    from hopin.participation.speaking import EndedHold, QueuedSentence, Renderer, VoicesOffered
+    from hopin.participation.speaking import EndedHold, QueuedSentence, Renderer, Turn, VoicesOffered
     from hopin.participation.speech_in_windows import SpeechInWindows
     from hopin.participation.vocabulary import FigureMood
     from hopin.participation.voice import VoiceStore
@@ -58,6 +59,7 @@ class AgentSpeech:
         write_line: Callable[[DialedAgent, str], Awaitable[None]],
         tell_room: Callable[[DialedAgent, ParticipationFrame, Supersedes | None], Awaitable[None]],
     ) -> None:
+        self._places = places
         self._speech = speech
         self._figures = figures
         self._tell_room = tell_room
@@ -73,6 +75,7 @@ class AgentSpeech:
             self._in_own_turn,
         )
         self._reports = HoldReports(places, self._speaking.held_sentence)
+        speech.hear_turns_through(self._turn)
 
     def attach(self, transitions: FeatureTransitions) -> None:
         self._transitions = transitions
@@ -92,8 +95,8 @@ class AgentSpeech:
         that could not be made is written as a line instead, and `offered` then says when the voice is back, which
         turns the window's voice available without a sentence. A held agent speaks only a sentence that names its hold
         as `interrupted`. Any other speak ends the agent's thinking and its stated outcome."""
-        if (hold_refusal := self._speaking.hold_refusal(agent, interrupted)) is not None:
-            return hold_refusal
+        if (refusal := self._speaking.speak_refusal(agent, interrupted)) is not None:
+            return refusal
         await self._figures.end_turn_state(agent)
         sentence = clean_line(one_line(text))
         if sentence is None or render is None:
@@ -107,14 +110,14 @@ class AgentSpeech:
         )
 
     async def stop(self, agent: DialedAgent, interrupted: str | None) -> StopResult:
-        """Cut the sentence the agent plays or holds in every seat and drop its others, which ends its hold; the cut
-        sentence's text, that only others were dropped, or why nothing was cut."""
+        """Cut the sentence the agent plays or holds in every seat and drop its others, which ends its hold and tells
+        every seat the sound ends; the cut sentence's text, that only others were dropped, or why nothing was cut."""
         outcome = self._speaking.stop(agent, interrupted)
-        if not isinstance(outcome, SpeakStop | HoldRefusal):
+        if not isinstance(outcome, StopSpeakingRefusal):
             await self._stop_sound(agent)
         return outcome
 
-    async def continue_speaking(self, agent: DialedAgent, interrupted: str) -> HoldRefusal | None:
+    async def continue_speaking(self, agent: DialedAgent, interrupted: str) -> ContinueSpeakingRefusal | None:
         """End the hold `interrupted` names: the agent's held sentence goes on in every seat where it paused, then its
         queue; the refusal, or nothing when it goes on."""
         refusal = self._speaking.continue_speaking(agent, interrupted)
@@ -125,12 +128,9 @@ class AgentSpeech:
     async def person_started(self, room_id: str, seat: PeerId) -> None:
         """A person starts speaking: the windows say so, each agent that hears the seat and speaks is held, and every
         seat is told all the holds in one transition, so no sound of an agent reaches a seat before its hold."""
-        arisen = await self._speech.person_started(room_id, seat, self._is_speaking_or_held, self._is_held)
-        if not arisen:
-            return
-        for agent, hold_id in arisen.items():
-            self._speaking.hold(agent, hold_id)
-        await self._transitions.apply(room_id, partial(self._tell_held_all, list(arisen)))
+        arisen = await self._speech.person_started(room_id, seat, self._is_speaking_or_held)
+        if arisen:
+            await self._transitions.apply(room_id, partial(self._tell_held_all, arisen))
 
     def hold_reported(self, peer_id: PeerId, frame: ForeignFrame, view: RoomView) -> None:
         """Keep what a seat reports of the sentence an agent's hold keeps (`HoldReports.reported`)."""
@@ -158,6 +158,16 @@ class AgentSpeech:
         """Tell a seat that joined that the agent is held, if it is."""
         if self._is_held(agent):
             send_in_room(view, transition, [peer_id], AgentHeldFrame(agent.agent_id))
+
+    def _turn(self, agent: DialedAgent, seat: PeerId, event: Turn, text: str) -> bool:
+        """A person's turn reaches the agent's floor; when a hold arises with it, the agent is held at once, under the
+        next id of its window."""
+        if not self._speaking.turn(agent, seat, event, text):
+            return False
+        window = self._places.window_of(agent.person, agent.room_id)
+        assert window is not None  # noqa: S101 - only a joined agent hears
+        self._speaking.hold(agent, window.new_hold_id())
+        return True
 
     async def _stop_sound(self, agent: DialedAgent) -> None:
         """Tell every seat that the agent's sound ends, which also ends a pause of its player."""

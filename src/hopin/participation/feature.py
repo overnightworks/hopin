@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Final, cast
 
 import structlog
 from agents.calling import AcceptRefused, Ended, OpenInvitation, after_send_away, check_accept, check_decline, expired
-from agents.member import DeclineInvitationRefusal
+from agents.member import ContinueSpeakingRefusal, DeclineInvitationRefusal
 
 from hopin.errors import InvalidMessageError
 from hopin.participation.agent_speech import AgentSpeech
@@ -47,7 +47,6 @@ from hopin.participation.vocabulary import (
     AgentRefusal,
     FigureMood,
     HearingRefusal,
-    HoldRefusal,
     LookRefusal,
     ParticipationSignal,
 )
@@ -244,7 +243,7 @@ class Participation(TransitionFeature):
 
     async def continue_speaking(
         self, person: Person, room_id: str, interrupted: str
-    ) -> AgentRefusal | HoldRefusal | None:
+    ) -> AgentRefusal | ContinueSpeakingRefusal | None:
         """End the hold of the person's agent that `interrupted` names (`AgentSpeech.continue_speaking`); or why not."""
         agent = await self._active_agent(person, room_id)
         if isinstance(agent, AgentRefusal):

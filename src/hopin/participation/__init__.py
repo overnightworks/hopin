@@ -16,7 +16,7 @@ More while that owner's one seat is in the call, and the call's host and each su
 with no agent listed. `offers.py` keeps the seats' memberships and decides the offers and an add's refusals; the add
 reads the adder's groups fresh and opens the invitation.
 
-What a joined agent says aloud is queued per agent (`speaking.py`) and kept as a sound (`voice.py`) until it has played;
-who may hear a seat is its sponsor's switch (`hearing.py`), told to a port that the connector fills. `figures.py`
-holds an agent's figure.
+What a joined agent says aloud is ordered per agent by the agents library's floor (`speaking.py`) and kept as a sound
+(`voice.py`) until it has played; who may hear a seat is its sponsor's switch (`hearing.py`), told to a port that the
+connector fills. `figures.py` holds an agent's figure.
 """
