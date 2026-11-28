@@ -21,10 +21,11 @@ from hopin.agent.mcp import ParticipationFeature
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import LEAVE_CALL, AcceptedVideoLooks
 from hopin.agent.video_settings import VideoService
+from hopin.participation.figures import FIGURE_FILES
 from hopin.participation.participants import Person
 from hopin.participation.places import Places
 from hopin.participation.video_looks import VideoLooks
-from hopin.participation.vocabulary import FIGURE_PATH, ParticipationSignal, VideoFailure
+from hopin.participation.vocabulary import ParticipationSignal, VideoFailure
 from hopin.rooms.reference import room_reference
 from tests.participation.support.figure_scene import FILE, JOINED, accept_with, figure_look, read_figure
 from tests.participation.support.figures import SOURCE_PREFIX, digest_of, figure_url, ok
@@ -737,7 +738,7 @@ class TestEachAudienceHasItsOwnToken:
         accepted(scene, [figure_look(figure_url())])
 
         assert (exchanges_for(scene.call, VIDEO_SCOPE), digest_of(FILE) in scene.joined["figure"]) == ([], True)
-        assert scene.joined["figure"].startswith(FIGURE_PATH)
+        assert scene.joined["figure"].startswith(FIGURE_FILES.path)
 
     def test_the_video_scope_enters_no_persons_sign_in(self, video_service, shared_stores):
         """CALL-81."""

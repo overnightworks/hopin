@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, ClassVar, get_args
 
 from agents.calling import CallOutcome  # noqa: TC002 - the wire generator reads the field's type at runtime
 
-from hopin.participation.figures import clip_path, figure_path, persona_room_path
+from hopin.participation.figures import CLIP_FILES, FIGURE_FILES, PERSONA_ROOM_FILES
 from hopin.participation.vocabulary import (
     AgentRefusal,
     FigureFraming,
@@ -207,8 +207,12 @@ def joined_frame(agent: DialedAgent, sponsor_name: str, framing: FigureFraming |
         agent_id=agent.agent_id,
         name=agent.name,
         sponsor=sponsor_name,
-        figure=None if figure is None else figure_path(figure.sha256),
-        gestures={clip.gesture: clip_path(clip.sha256) for clip in figure.clips} if figure and figure.clips else None,
-        room=None if figure is None or figure.persona_room is None else persona_room_path(figure.persona_room.sha256),
+        figure=None if figure is None else FIGURE_FILES.path_of(figure.sha256),
+        gestures={clip.gesture: CLIP_FILES.path_of(clip.sha256) for clip in figure.clips}
+        if figure and figure.clips
+        else None,
+        room=None
+        if figure is None or figure.persona_room is None
+        else PERSONA_ROOM_FILES.path_of(figure.persona_room.sha256),
         framing=framing,
     )
