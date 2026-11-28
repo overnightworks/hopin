@@ -428,6 +428,26 @@ class TestTransitions:
         await link.close_all()
         await link.handler.shut_down()
 
+    async def test_a_work_whose_frame_is_over_the_stored_cap_commits_nothing_and_fails_loud_with_no_socket_closed(
+        self, call_store, scheduler
+    ):
+        """A work has no acting socket to close, so the refused transition is the work's own failure."""
+        link = Link(handler_with(call_store, scheduler, WorkingFeature()))
+        host, guest = await host_and_guest(link)
+        heard_before = (len(host.socket.sent), len(guest.socket.sent))
+
+        with structlog.testing.capture_logs() as logs:
+            await host.say({"type": "work", "key": "oversized"})
+            await host.say({"type": "stop", "key": "oversized"})
+
+        assert [(entry["event"], entry["error_type"]) for entry in logs if entry["log_level"] == "error"] == [
+            ("feature_work.failed", "CommitRefusedError")
+        ]
+        assert (len(host.socket.sent), len(guest.socket.sent)) == heard_before
+        assert (host.socket.closed_with, guest.socket.closed_with) == (None, None)
+        await link.close_all()
+        await link.handler.shut_down()
+
     async def test_a_rooms_end_stops_only_the_work_dispatched_in_that_room(self, call_store, scheduler):
         feature = WorkingFeature()
         link = Link(handler_with(call_store, scheduler, feature))

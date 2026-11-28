@@ -455,6 +455,23 @@ class TestAgentsTakePlaces:
         latecomer = await link.join("latecomer", room_of(people[0]))
         assert latecomer.frames(SignalType.ERROR) == []
 
+    async def test_call_47_the_places_of_a_seat_that_left_and_of_its_agent_are_free_to_joins_racing_the_leave(
+        self, link, participation, call_store
+    ):
+        """CALL-47: A place freed by a leaving agent is open to the next join, also one racing the leave."""
+        people = [await link.join("first")]
+        people += [await link.join(name, room_of(people[0])) for name in ("second", "third", "fourth")]
+        for person in people[:2]:
+            await dial(participation, person)
+
+        leaving = asyncio.create_task(people[1].drop(1000))
+        latecomers = [link.join(name, room_of(people[0])) for name in ("fifth", "sixth")]
+        joined = await asyncio.gather(*latecomers)
+        await leaving
+
+        assert [latecomer.frames(SignalType.ERROR) for latecomer in joined] == [[], []]
+        assert len((await call_store.get_room(room_of(people[0]))).agent_ids) == 1
+
 
 @pytest.mark.asyncio
 class TestWhoMayCall:

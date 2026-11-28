@@ -13,6 +13,7 @@ from hopin.config.constants import (
     STORED_FRAME_MAX_BYTES,
     SignalType,
 )
+from hopin.errors import RoomFullError, RoomLockedError
 from hopin.rooms.models import Account, SeatRecord, hash_token
 from hopin.signaling.call_store import (
     Commit,
@@ -23,6 +24,7 @@ from hopin.signaling.call_store import (
     HostGraceStarted,
     NotServingError,
     Outbound,
+    ParticipantAdded,
     ParticipantRemoved,
     RoomCreated,
     RoomEnded,
@@ -39,6 +41,7 @@ from tests.support.call_state import (
     call_store_over,
     end_room,
     host_room,
+    lock_room,
     open_seat,
     redis_client,
     seat_in,
@@ -171,11 +174,33 @@ class TestTheCommit:
         assert token.encode() not in repr(written).encode()
 
     async def test_a_resume_of_another_account_does_not_take_the_seat(self, call_store):
+        """CALL-10."""
         host = await open_seat(call_store, "host")
 
         record = await call_store.record_of(host)
 
         assert not record.accepts("another-token")
+
+
+class TestAdmission:
+    async def test_call_02_a_locked_room_refuses_a_newcomer(self, call_store):
+        """CALL-02: A locked call admits nobody new."""
+        room = await host_room(call_store, "host")
+        await lock_room(call_store, room.room_id, seat_of("host"))
+
+        with pytest.raises(RoomLockedError):
+            await seat_in(call_store, room.room_id, "stranger")
+
+    async def test_call_07_an_away_hosts_place_stays_reserved_against_a_newcomer(self, call_store):
+        """CALL-07: An away host keeps a place, so a newcomer cannot take the last of the places."""
+        room = await host_room(call_store, "host")
+        for name in ("first", "second", "third"):
+            await seat_in(call_store, room.room_id, name)
+        await call_store.commit(Commit(edits=(ParticipantRemoved(room.room_id, seat_of("host")),)))
+        await seat_in(call_store, room.room_id, "fourth")
+
+        with pytest.raises(RoomFullError):
+            await seat_in(call_store, room.room_id, "fifth")
 
 
 class TestAFrameBeyondTheCap:
@@ -266,6 +291,7 @@ class TestAgentPlaces:
 
 class TestConcurrentDecisions:
     async def test_two_processes_opening_an_accounts_next_seat_leave_one_the_seat(self, call_store, other_process):
+        """CALL-42."""
         await open_seat(call_store, "account")
         async with call_store.action(None), other_process.action(None):
             await call_store.held_by("account")
@@ -279,9 +305,26 @@ class TestConcurrentDecisions:
 
         assert len(await call_store.held_by("account")) == 2
 
+    async def test_two_joins_of_the_last_place_leave_one_the_place(self, call_store, other_process):
+        """CALL-07: Two processes join the last place of a call; one gets it."""
+        room = await host_room(call_store, "host")
+        for name in ("first", "second", "third"):
+            await seat_in(call_store, room.room_id, name)
+        late_seats = [await open_seat(call_store, name) for name in ("fourth", "fifth")]
+        async with call_store.action(room.room_id), other_process.action(room.room_id):
+            await call_store.get_room(room.room_id)
+            await other_process.get_room(room.room_id)
+            await call_store.commit(Commit(edits=(ParticipantAdded(room.room_id, late_seats[0]),)))
+
+            with pytest.raises(VersionConflictError):
+                await other_process.commit(Commit(edits=(ParticipantAdded(room.room_id, late_seats[1]),)))
+
+        assert (await call_store.get_room(room.room_id)).participant_ids[-1] == late_seats[0]
+
     async def test_two_resumes_of_one_seat_take_it_once_and_the_account_version_moves_once(
         self, call_store, other_process
     ):
+        """CALL-10."""
         seat = await open_seat(call_store, "host")
         before = await call_store.account_version("host")
         async with call_store.action(None):
@@ -388,6 +431,7 @@ class TestADepartureTold:
         assert (await call_store.get_room(room.room_id)).departures == ()
 
     async def test_a_seat_that_left_is_no_seat_of_its_account_and_cannot_be_resumed(self, call_store):
+        """CALL-10."""
         room = await host_room(call_store, "host")
         guest = await seat_in(call_store, room.room_id, "guest")
 
@@ -398,6 +442,7 @@ class TestADepartureTold:
 
 class TestARoomInGrace:
     async def test_a_room_in_grace_is_listed_under_the_generation_that_times_it(self, call_store):
+        """CALL-01, CALL-11."""
         room = await host_room(call_store, "host")
         await call_store.commit(Commit(edits=(HostGraceStarted(room.room_id, seat_of("host"), 123.0),)))
 

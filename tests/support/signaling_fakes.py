@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 from fastapi import APIRouter
 from starlette.websockets import WebSocketState
 
-from hopin.config.constants import WEBSOCKET_DISCONNECT_EVENT
+from hopin.config.constants import STORED_FRAME_MAX_BYTES, WEBSOCKET_DISCONNECT_EVENT
 from hopin.errors import InvalidMessageError
 from hopin.rooms.models import Account
 from hopin.signaling.features import TransitionFeature
@@ -238,7 +238,8 @@ class StagingFeature(TransitionFeature):
 
 class WorkingFeature(TransitionFeature):
     """A call feature on transitions with work: `work` dispatches a work of its key on the sender's seat, which runs
-    until it is stopped, or raises at once when its key is `failing`; `stop` stops the work of its key; `step` starts a
+    until it is stopped, raises at once when its key is `failing`, or sends its seat a frame beyond the
+    store's cap when its key is `oversized`; `stop` stops the work of its key; `step` starts a
     step in a turn of its own that waits until it is cancelled. It records the keys it is asked to stop and the keys of
     the steps that were cancelled."""
 
@@ -281,6 +282,10 @@ class WorkingFeature(TransitionFeature):
     async def run_work(self, work, live_seats, room):
         if work.key == "failing":
             raise RuntimeError("the work broke")
+        if work.key == "oversized":
+            too_large = {"type": "work_result", "text": "x" * (STORED_FRAME_MAX_BYTES + 1)}
+            await room.apply(lambda _view, transition: transition.send(work.seat, too_large))
+            return
         await self._stops.setdefault(work.key, asyncio.Event()).wait()
 
     def stop_work(self, key):

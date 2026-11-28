@@ -72,6 +72,7 @@ class TestTheLapseOfAGeneration:
         assert await keys_of_generation(redis_server, generation) == []
 
     async def test_a_room_whose_last_seat_left_by_the_lapse_is_deleted(self, pods):
+        """CALL-14."""
         lost, surviving = pods
         host = await lost.link.join("host")
         generation = lost.generation
@@ -82,6 +83,7 @@ class TestTheLapseOfAGeneration:
         assert await surviving.process.store.find_room(host.room_id) is None
 
     async def test_every_seat_of_an_account_on_a_lost_process_is_freed_roomless_and_parked_included(self, pods):
+        """CALL-42."""
         lost, surviving = pods
         roomless = await open_seat(lost.process.store, "account")
         joined = await lost.link.join("account")
@@ -113,6 +115,7 @@ class TestTheLapseOfAGeneration:
         assert guest.room_id == host.room_id
 
     async def test_a_room_in_grace_timed_by_the_lost_process_ends_at_its_lapse(self, pods):
+        """CALL-01."""
         lost, surviving = pods
         host = await lost.link.join("host")
         guest = await surviving.link.join("guest", host.room_id)
@@ -128,6 +131,7 @@ class TestTheLapseOfAGeneration:
         assert SignalType.ROOM_CLOSED.value in types_heard(guest)
 
     async def test_a_host_back_on_another_process_keeps_the_room_when_the_old_grace_runs_out(self, pods):
+        """CALL-01."""
         first, second = pods
         host = await first.link.join("host")
         await first.process.store.commit(Commit(edits=(HostGraceStarted(host.room_id, seat_of("gone"), 1.0),)))
@@ -140,6 +144,7 @@ class TestTheLapseOfAGeneration:
 
 class TestADepartureThePassedProcessNeverTold:
     async def test_the_room_hears_the_departure_once_at_the_lapse_and_the_seat_counts_nowhere(self, pods):
+        """CALL-42."""
         lost, surviving = pods
         host = await surviving.link.join("host")
         guest = await lost.link.join("guest", host.room_id)
@@ -156,6 +161,7 @@ class TestADepartureThePassedProcessNeverTold:
 
 class TestTheSweepOfUnheldSeats:
     async def test_a_seat_no_socket_holds_is_freed_after_two_rounds_and_a_held_one_stays(self, pods):
+        """CALL-42."""
         pod, _ = pods
         unheld = await open_seat(pod.process.store, "lost-reply")
         held = await pod.link.join("held")
