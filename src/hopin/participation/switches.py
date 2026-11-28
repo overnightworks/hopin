@@ -34,9 +34,7 @@ class Switches:
         if not isinstance(agent_id, str) or not isinstance(on, bool):
             raise InvalidMessageError("A switch needs the agent's id and on or off")
         room_id = view.room_of(peer_id)
-        agent = next(
-            (agent for agent in self._places.joined() if agent.agent_id == agent_id and agent.room_id == room_id), None
-        )
+        agent = next((agent for agent in self._places.joined_in(room_id) if agent.agent_id == agent_id), None)
         if agent is None:
             transition.send(peer_id, AgentRefusedFrame(AgentRefusal.GONE).to_json())
         elif agent.sponsor != peer_id:
