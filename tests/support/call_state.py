@@ -5,6 +5,7 @@ import secrets
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
 from fakeredis import FakeAsyncRedis, FakeServer
 from redis.asyncio import Redis
@@ -24,6 +25,9 @@ from hopin.signaling.call_store import (
 )
 from hopin.signaling.frames import PeerId
 from tests.support.signaling_fakes import ROOM_LIMIT
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 # A test never waits for a lease to lapse; it ends one with `Leases.end`.
 LEASE_LASTS = timedelta(hours=1)
@@ -65,15 +69,46 @@ def process_over(server: FakeServer | str, *, place_limit: int = ROOM_LIMIT) -> 
     return Process(CallStore(redis_client(server), lease, place_limit=place_limit), lease)
 
 
+@dataclass(frozen=True)
+class PlayedProcess:
+    """A process that a test played over a real Redis: it is lost when its lease ends, as a kill's lapse ends it."""
+
+    redis_url: str
+    holder: str
+    generation: str
+
+    def lose(self) -> None:
+        async def end() -> None:
+            client = redis_client(self.redis_url)
+            try:
+                await call_leases(client, LEASE_LASTS).end(self.holder, self.generation)
+            finally:
+                await client.aclose()
+
+        asyncio.run(end())
+
+
+def played_process[Result](redis_url: str, act: Callable[[Process], Awaitable[Result]]) -> tuple[PlayedProcess, Result]:
+    """Run `act` as one more process of the deployment, which holds a lease of its own and commits to the call store,
+    and answer the process, whose commits stop with its loop, and what `act` answered."""
+
+    async def run() -> tuple[PlayedProcess, Result]:
+        process = process_over(redis_url)
+        result = await act(process)
+        return PlayedProcess(redis_url, process.lease.holder, process.lease.generation), result
+
+    return asyncio.run(run())
+
+
 def call_store_over(server: FakeServer | str, *, place_limit: int = ROOM_LIMIT) -> CallStore:
     """The call store of one more process over the server."""
     return process_over(server, place_limit=place_limit).store
 
 
-async def open_seat(store: CallStore, name: str) -> PeerId:
-    """A seat of the account of that name, which no socket holds."""
+async def open_seat(store: CallStore, name: str, account: Account | None = None) -> PeerId:
+    """A seat of the account of that name, or of `account`, which no socket holds."""
     peer_id = seat_of(name)
-    record = SeatRecord(Account(id=name, name=name), hash_token(f"{name}-token"), store.generation)
+    record = SeatRecord(account or Account(id=name, name=name), hash_token(f"{name}-token"), store.generation)
     await store.commit(Commit(edits=(SeatOpened(peer_id, record),)))
     return peer_id
 
@@ -91,9 +126,9 @@ def seat_of(name: str) -> PeerId:
     return PeerId(f"{name}-seat")
 
 
-async def seat_in(store: CallStore, room_id: str, name: str) -> PeerId:
-    """A seat of the account of that name, which no socket holds, in the room."""
-    peer_id = await open_seat(store, name)
+async def seat_in(store: CallStore, room_id: str, name: str, account: Account | None = None) -> PeerId:
+    """A seat of the account of that name, or of `account`, which no socket holds, in the room."""
+    peer_id = await open_seat(store, name, account)
     await store.commit(Commit(edits=(ParticipantAdded(room_id, peer_id),)))
     return peer_id
 

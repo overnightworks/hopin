@@ -1,11 +1,15 @@
+import itertools
+from contextlib import ExitStack
 from typing import TYPE_CHECKING
 
 import pytest
+from redis import Redis
 
 from hopin.auth.sign_in import build_sign_in_configs
 from hopin.config.constants import HEALTH_PATH
 from hopin.config.settings import ServerSettings
 from hopin.main import main
+from tests.stores.support.call_client import Browser
 from tests.stores.support.pod_pair import serving_pod_pair, starting_pod
 from tests.stores.support.service_gate import ServiceGate
 from tests.support.in_thread_stores import in_thread_stores
@@ -20,6 +24,7 @@ if TYPE_CHECKING:
     from tests.stores.support.pod_pair import Pod
     from tests.stores.support.scratch_database import ScratchDatabase
     from tests.support.sign_in_settings import SignInSettings
+    from tests.support.signed_in import SeededMember
 
 
 @pytest.fixture
@@ -65,17 +70,60 @@ def pods(
 
 
 @pytest.fixture
-def pod(
+def another_pod(
     sign_in_settings: Callable[..., SignInSettings],
     redis_gate: ServiceGate,
     migrated_database: ScratchDatabase,
     tmp_path: Path,
-) -> Iterator[Pod]:
-    """One `hopin serve` that answers `/health`, reaching Redis through the gate."""
+) -> Iterator[Callable[[], Pod]]:
+    """Starts one more `hopin serve` beside whatever runs, reaching Redis through the gate, and returns it once it
+    answers `/health`; every pod it started is stopped at the end."""
     environment = sign_in_settings(**migrated_database.settings).environment
-    with starting_pod(environment, redis_gate.url, tmp_path) as started:
-        started.wait_until_serving(HEALTH_PATH)
-        yield started
+    with ExitStack() as started:
+
+        def start() -> Pod:
+            pod = started.enter_context(
+                starting_pod(environment, redis_gate.url, tmp_path, name=f"later-{next(count)}")
+            )
+            pod.wait_until_serving(HEALTH_PATH)
+            return pod
+
+        count = itertools.count(1)
+        yield start
+
+
+@pytest.fixture
+def pod(another_pod: Callable[[], Pod]) -> Pod:
+    """One `hopin serve` that answers `/health`."""
+    return another_pod()
+
+
+@pytest.fixture
+def redis(redis_url: str) -> Iterator[Redis]:
+    """A client of the Redis the pods share, which reaches it directly and not through the gate."""
+    with Redis.from_url(redis_url) as client:
+        yield client
+
+
+@pytest.fixture
+def pages() -> Iterator[list[Browser]]:
+    opened: list[Browser] = []
+    yield opened
+    for page in opened:
+        for socket in page.sockets:
+            socket.close()
+
+
+@pytest.fixture
+def page_on(pages: list[Browser]) -> Callable[[Pod, SeededMember], Browser]:
+    """A member's page that reaches the pod; its sockets are closed at the end."""
+
+    def open_page(pod: Pod, member: SeededMember) -> Browser:
+        page = Browser(pod, member)
+        pages.append(page)
+        return page
+
+    return open_page
 
 
 @pytest.fixture

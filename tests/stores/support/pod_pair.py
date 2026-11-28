@@ -53,6 +53,10 @@ class Pod:
         finally:
             connection.close()
 
+    def log_lines(self, event: str) -> list[str]:
+        """The lines of the server's log that name the event."""
+        return [line for line in self.log.read_text().splitlines() if event in line]
+
     def signal_server(self, signal_name: str) -> None:
         """A signal to the server's process, not to the wrapper that caps it."""
         subprocess.run(["pkill", f"-{signal_name}", "-P", str(self.process.pid)], check=True)  # noqa: S603, S607 - fixed arguments
@@ -112,14 +116,18 @@ def _pod_environment(sign_in_environment: dict[str, str], redis_url: str) -> dic
 
 @contextlib.contextmanager
 def starting_pod(
-    sign_in_environment: dict[str, str], redis_url: str, directory: Path, subscription_wait_seconds: float | None = None
+    sign_in_environment: dict[str, str],
+    redis_url: str,
+    directory: Path,
+    subscription_wait_seconds: float | None = None,
+    name: str = "starting",
 ) -> Iterator[Pod]:
-    """A pod that has been started, whether or not it answers yet; it is stopped on exit.
+    """A pod that has been started, whether or not it answers yet; it is stopped on exit. Its log is `<name>.log`.
 
     `subscription_wait_seconds` replaces production's wait for the first subscription of agents' wakes.
     """
     options = () if subscription_wait_seconds is None else (str(subscription_wait_seconds),)
-    pod = _start_pod(_pod_environment(sign_in_environment, redis_url), directory, "starting", options)
+    pod = _start_pod(_pod_environment(sign_in_environment, redis_url), directory, name, options)
     try:
         yield pod
     finally:

@@ -2,11 +2,11 @@
 and what the process does when its Redis or its own lease goes."""
 
 import time
+from functools import partial
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 import pytest
-from redis import Redis
 
 from hopin.config.constants import (
     CALL_LEASE_LASTS_SECONDS,
@@ -17,19 +17,16 @@ from hopin.config.constants import (
     ErrorReason,
     SignalType,
 )
-from tests.stores.support.call_client import Browser
+from tests.stores.support.call_client import Browser, candidate_to, heard, lock_round_trip, received
+from tests.stores.support.call_redis import call_keys, everything_stored
 from tests.stores.support.waiting import wait_for
 from tests.support.signed_in import seed_member
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-
     from tests.support.signed_in import SeededMember
 
 pytestmark = [pytest.mark.shared_stores, pytest.mark.integration]
 
-CALL_KEY_PATTERN = "hopin:v1:call:*"
-NO_EXPIRY = -1
 STOP_SECONDS = 20
 # A commit that meets a Redis that does not answer is retried before it fails.
 REDIS_REFUSAL_SECONDS = 30
@@ -49,28 +46,8 @@ def other_member(pod, postgres_stores, web_auth_config) -> SeededMember:
 
 
 @pytest.fixture
-def redis(redis_url) -> Iterator[Redis]:
-    with Redis.from_url(redis_url) as client:
-        yield client
-
-
-@pytest.fixture
-def pages() -> Iterator[list[Browser]]:
-    opened: list[Browser] = []
-    yield opened
-    for page in opened:
-        for socket in page.sockets:
-            socket.close()
-
-
-@pytest.fixture
-def page_of(pod, pages):
-    def open_page(member: SeededMember) -> Browser:
-        page = Browser(pod, member)
-        pages.append(page)
-        return page
-
-    return open_page
+def page_of(pod, page_on):
+    return partial(page_on, pod)
 
 
 @pytest.fixture
@@ -80,43 +57,6 @@ def host_and_guest(page_of, member, other_member) -> tuple[Browser, Browser]:
     guest.join(host.room_id)
     host.socket.frame_of_type(SignalType.PARTICIPANT_JOINED.value)
     return host, guest
-
-
-def call_keys(redis: Redis) -> set[bytes]:
-    """The call's keys that no expiry ends: the seats, rooms and indices, which only a leave or a lapse removes."""
-    return {key for key in redis.scan_iter(CALL_KEY_PATTERN) if redis.ttl(key) == NO_EXPIRY}
-
-
-def everything_stored(redis: Redis) -> bytes:
-    """Every key's name and content, whatever its type."""
-    read = {
-        b"string": redis.get,
-        b"hash": redis.hgetall,
-        b"set": redis.smembers,
-        b"zset": lambda key: redis.zrange(key, 0, -1, withscores=True),
-        b"list": lambda key: redis.lrange(key, 0, -1),
-        b"stream": lambda key: redis.xrange(key),
-    }
-    return b"".join(key + repr(read[redis.type(key)](key)).encode() for key in redis.scan_iter())
-
-
-def candidate_to(target: Browser, text: str) -> dict:
-    return {"type": SignalType.ICE_CANDIDATE.value, "target": target.peer_id, "candidate": text}
-
-
-def lock_round_trip(page: Browser) -> None:
-    """The page's frames before this one are committed by the time the lock comes back to it."""
-    page.say({"type": SignalType.LOCK_ROOM.value})
-    page.socket.frame_of_type(SignalType.ROOM_LOCKED.value)
-
-
-def received(page: Browser, signal_type: SignalType, key: str) -> list[str]:
-    """The `key` of every frame of the type that the page was sent."""
-    return [frame[key] for each in page.sockets for frame in each.frames if frame["type"] == signal_type.value]
-
-
-def heard(page: Browser, signal_type: SignalType, count: int) -> list[dict]:
-    return [page.socket.frame_of_type(signal_type.value) for _ in range(count)]
 
 
 class TestAStoppedProcess:

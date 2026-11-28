@@ -59,6 +59,11 @@ class SeatSocket:
             return True
         return False
 
+    def until_quiet(self) -> None:
+        """Read until the server sends nothing in a moment: whatever it had for the seat has arrived."""
+        while not self.stays_quiet():
+            pass
+
     def close_code(self, timeout: float = FRAME_WAIT_SECONDS) -> int:
         """The code the server closed the socket with, the frames before it kept in `frames`."""
         try:
@@ -103,6 +108,10 @@ class Browser:
     def received_seq(self) -> int:
         return max((frame["seq"] for each in self.sockets for frame in each.frames if "seq" in frame), default=0)
 
+    @property
+    def frames(self) -> list[dict]:
+        return [frame for each in self.sockets for frame in each.frames]
+
     def open(self) -> SeatSocket:
         self.sockets.append(SeatSocket(self._pod, self._member))
         return self.socket
@@ -112,6 +121,10 @@ class Browser:
         self.peer_id, self.resume_token = reply["participant_id"], reply["resume_token"]
         self.room_id = reply.get("room_id", room_id)
         return reply
+
+    def move_to(self, pod: Pod) -> None:
+        """The page reaches another pod from now on, as a reconnect that a balancer sends elsewhere."""
+        self._pod = pod
 
     def say(self, frame: dict) -> None:
         self._sent_count += 1
@@ -137,3 +150,30 @@ class Browser:
         frame = self.socket.frame_of_type(SignalType.RESUMED.value)
         self.resume_token = frame["resume_token"]
         return frame
+
+    def reconnect(self) -> None:
+        """The socket breaks and the page resumes its seat, so the server replays what it logged for the seat meanwhile;
+        the replay has arrived when this returns."""
+        self.socket.drop()
+        self.resume()
+        self.resumed()
+        self.socket.until_quiet()
+
+
+def candidate_to(target: Browser, text: str) -> dict:
+    return {"type": SignalType.ICE_CANDIDATE.value, "target": target.peer_id, "candidate": text}
+
+
+def lock_round_trip(page: Browser) -> None:
+    """The page's frames before this one are committed by the time the lock comes back to it."""
+    page.say({"type": SignalType.LOCK_ROOM.value})
+    page.socket.frame_of_type(SignalType.ROOM_LOCKED.value)
+
+
+def received(page: Browser, signal_type: SignalType, key: str) -> list[str]:
+    """The `key` of every frame of the type that the page was sent."""
+    return [frame[key] for frame in page.frames if frame["type"] == signal_type.value]
+
+
+def heard(page: Browser, signal_type: SignalType, count: int) -> list[dict]:
+    return [page.socket.frame_of_type(signal_type.value) for _ in range(count)]
