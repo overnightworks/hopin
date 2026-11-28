@@ -391,7 +391,7 @@ class _MemberResources:
         if uri == STANDING_URI:
             if not self.participation().is_live_agent(person):
                 return None
-            return MemberStanding(standings=tuple(map(_standing_of, self.participation().standings_of(person))))
+            return MemberStanding(standings=tuple(map(_standing_of, await self.participation().standings_of(person))))
         place = place_ref_from_window_uri(uri)
         if place is None or place.kind != CALL_KIND:
             return None

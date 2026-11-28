@@ -13,9 +13,9 @@ from tests.support.hearing_socket import SOUND, closed_with, hop
 AUDIENCE_SCOPE = "speech-audience"
 
 
-def heard(participation, seat, text, began_at=0.0):
+async def heard(participation, seat, text, began_at=0.0):
     """The speech service's finished sentence of the seat, under an item id of its own."""
-    participation.heard(seat, text, began_at=began_at, item_id=f"item_{secrets.token_hex(4)}")
+    await participation.heard(seat, text, began_at=began_at, item_id=f"item_{secrets.token_hex(4)}")
 
 
 def entries_of(scene, token=None, room_id=None):

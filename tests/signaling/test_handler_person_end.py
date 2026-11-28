@@ -29,25 +29,25 @@ class TestWhatAPersonHolds:
     async def test_a_person_holds_what_the_call_gives_them(self, link, handler, subject, held):
         await host_and_guest(link)
 
-        assert handler.reach_of(subject) == held
+        assert await handler.reach_of(subject) == held
 
     async def test_a_hosted_call_with_a_joined_agent_counts_as_a_call(self, link, handler, room_manager):
         host = await link.join("host")
         room_manager.add_agent(host.room_id, "agent-seat")
 
-        assert handler.reach_of("host") == PersonReach(seats=1, calls=1)
+        assert await handler.reach_of("host") == PersonReach(seats=1, calls=1)
 
     async def test_a_host_alone_in_a_call_changes_nothing_for_others(self, link, handler):
         await link.join("host")
 
-        assert handler.reach_of("host") == PersonReach(seats=1, calls=0)
+        assert await handler.reach_of("host") == PersonReach(seats=1, calls=0)
 
 
 class TestEndingWhatAPersonHolds:
     async def test_a_call_whose_host_is_in_grace_ends_at_once_and_counts(self, link, handler, room_manager):
         host, guest = await host_and_guest(link)
         await host.drop(1000)
-        assert handler.reach_of("host") == PersonReach(seats=0, calls=1)
+        assert await handler.reach_of("host") == PersonReach(seats=0, calls=1)
 
         reach = await handler.end_all_of("host")
 

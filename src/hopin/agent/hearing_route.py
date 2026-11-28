@@ -161,7 +161,7 @@ class HearingRoute:
             await websocket.close(code=POLICY_VIOLATION_CLOSE_CODE)
             return
         await websocket.accept()
-        handle = self._participation().open_hearing(
+        handle = await self._participation().open_hearing(
             Person(self._issuer, account.id), PeerId(seat), lambda agent: self._tokens.held(agent) is not None
         )
         if isinstance(handle, HearingRefusal):
@@ -194,14 +194,15 @@ class HearingRoute:
     async def _hear(self, websocket: WebSocket, handle: HearingHandle) -> None:
         clock = _AudioClock(self._scheduler.now())
 
-        def on_utterance(utterance: Utterance) -> Awaitable[None]:
+        async def on_utterance(utterance: Utterance) -> None:
             # The turn runs in the trace the service names, else starts one here: the socket's task outlives the turn.
             with (
                 unit_trace(utterance.traceparent),
                 StepTimer("transcript_relay.ended", _STEPS, room_ref=room_reference(handle.room_id)),
             ):
-                self._participation().heard(handle.seat, utterance.text, clock.began_at(utterance), utterance.item_id)
-            return asyncio.sleep(0)  # the client awaits its callback; hearing is synchronous
+                await self._participation().heard(
+                    handle.seat, utterance.text, clock.began_at(utterance), utterance.item_id
+                )
 
         async def on_speech_started(_: SpeechStart) -> None:
             await self._participation().person_started(handle.room_id, handle.seat)

@@ -88,9 +88,9 @@ class SignalingHandler:
         for feature in self._features:
             feature.room_ended(room_id)
 
-    def _seat_changed(self, peer_id: PeerId) -> None:
+    async def _seat_changed(self, peer_id: PeerId) -> None:
         for feature in self._features:
-            feature.seat_changed(peer_id)
+            await feature.seat_changed(peer_id)
 
     async def _seat_left(self, departure: Departure, told_frames: Sequence[tuple[PeerId, JsonObject]]) -> None:
         """The room is told of the departure in one commit with each feature's answer to it, so a feature's frame
@@ -98,9 +98,11 @@ class SignalingHandler:
         told = Transition()
         for peer_id, frame in told_frames:
             told.send(peer_id, frame)
-        committed = [Committed(self._store.commit(RoomView(), told))]
+        committed = [Committed(await self._store.commit(RoomView(), told))]
         for feature in self._features:
-            committed += feature.commit_seat_left(departure.peer_id, room_id=departure.room_id, name=departure.name)
+            committed += await feature.commit_seat_left(
+                departure.peer_id, room_id=departure.room_id, name=departure.name
+            )
         await self._store.wake_committed(committed)
 
     async def shut_down(self) -> None:
@@ -110,12 +112,12 @@ class SignalingHandler:
             await feature.shut_down()
         self._store.end_all()
 
-    def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:
-        """The seats an account holds, parked ones included; synchronous so no coroutine changes a seat meanwhile."""
+    async def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:  # NOSONAR(S7503) a store read is awaited
+        """The seats an account holds, parked ones included, read in one instant."""
         return tuple(self._snapshot_of(record) for _, record in self._store.held_by(account_id))
 
-    def reach_of(self, account_id: str) -> PersonReach:
-        """Synchronous like `seats_of`, so the count is of one instant. A call the account hosts counts when another
+    async def reach_of(self, account_id: str) -> PersonReach:  # NOSONAR(S7503) a store read is awaited
+        """Counted in one instant like `seats_of`. A call the account hosts counts when another
         seat or an agent is in it; a host alone in its grace changes nothing for others."""
         hosted = self._room_manager.hosted_by(account_id)
         return PersonReach(seats=len(self._store.held_by(account_id)), calls=sum(room.has_guests for room in hosted))
@@ -123,7 +125,7 @@ class SignalingHandler:
     async def end_all_of(self, account_id: str) -> PersonReach:
         """Ends the calls the account hosts at once for everyone, unnamed, then closes every seat it still holds as a
         session end does, a parked one included, and answers what was there when it began."""
-        reach = self.reach_of(account_id)
+        reach = await self.reach_of(account_id)
         # Each pass reads again, because a call or a seat can end on its own while an earlier one is being closed.
         while hosted := self._room_manager.hosted_by(account_id):
             await self._routing.end_room_unnamed(hosted[0].room_id)
@@ -145,7 +147,7 @@ class SignalingHandler:
 
         await websocket.accept()
         try:
-            peer_id = self._routing.open_seat(account, websocket)
+            peer_id = await self._routing.open_seat(account, websocket)
         except TooManyCallsError as refusal:
             await self._refuse_beyond_cap(websocket, refusal)
             return
@@ -224,9 +226,9 @@ class SignalingHandler:
         await self._end_seat(connection.peer_id, connection.websocket, close_code)
 
     async def _end_seat(self, peer_id: PeerId, websocket: WebSocket, close_code: int) -> None:
-        # The seat leaves before anything awaits, so a drop or a resume read meanwhile finds no seat; the room
+        # The seat leaves before anything suspends, so a drop or a resume read meanwhile finds no seat; the room
         # hears of it only after the close, so another participant's slow socket cannot hold this one open.
-        departure = self._routing.leave(peer_id)
+        departure = await self._routing.leave(peer_id)
         await self._seats.close_socket(websocket, close_code)
         await self._routing.announce(departure)
         await logger.ainfo("session.expired", peer_id=peer_id)
@@ -273,7 +275,7 @@ class SignalingHandler:
         except HopInError as exc:
             await self._send_error(peer_id, exc)
         finally:
-            self._store.settle_received(peer_id)
+            await self._store.settle_received(peer_id)
 
     async def _dispatch(self, peer_id: PeerId, frame: DispatchedFrame) -> None:
         match frame:

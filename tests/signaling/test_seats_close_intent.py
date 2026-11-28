@@ -70,7 +70,7 @@ class TestServerClosesWhoseEchoIsLost:
         await link.tasks[old_socket]
         await host.say(offer_to(guest, "for the new socket"))
 
-        assert len(link.handler.seats_of(guest.name)) == 1
+        assert len(await link.handler.seats_of(guest.name)) == 1
         assert [frame["sdp"] for frame in guest.socket.sent if frame["type"] == SignalType.OFFER.value] == [
             "for the new socket"
         ]
@@ -81,7 +81,7 @@ class TestServerClosesWhoseEchoIsLost:
 
         await scheduler.advance(SESSION_RECHECK_SECONDS)
         await guest.drop(ABNORMAL_CLOSE_CODE)
-        seats_after_the_drop = link.handler.seats_of(guest.name)
+        seats_after_the_drop = await link.handler.seats_of(guest.name)
         await guest.resume()
 
         assert seats_after_the_drop == ()
@@ -92,7 +92,7 @@ class TestServerClosesWhoseEchoIsLost:
 
         await host.say({"type": SignalType.END_ROOM.value})
         await guest.drop(ABNORMAL_CLOSE_CODE)
-        seats_after_the_drop = link.handler.seats_of(guest.name)
+        seats_after_the_drop = await link.handler.seats_of(guest.name)
         await guest.resume()
 
         assert seats_after_the_drop == ()
@@ -112,7 +112,7 @@ class TestRoomEndRacingTheDrop:
             await write(text)
             if json.loads(text)["type"] == SignalType.ROOM_CLOSED.value:
                 await guest.drop(ABNORMAL_CLOSE_CODE)
-                during_the_room_end["seats"] = link.handler.seats_of(guest.name)
+                during_the_room_end["seats"] = await link.handler.seats_of(guest.name)
                 await guest.resume()
 
         guest.socket.send_text = drop_and_resume_after_the_room_closed_frame
