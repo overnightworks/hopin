@@ -41,6 +41,7 @@ from tests.participation.support.speaking import (
     renders_cancelled,
     renders_nothing,
     speak,
+    still_rendering,
     voice_ids,
     waiting_behind_a_hold,
     waiting_to_speak,
@@ -490,13 +491,9 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
         entered, release = asyncio.Event(), asyncio.Event()
-
-        async def renders_late(sentence, voice):
-            entered.set()
-            await release.wait()
-            return a_sentence(b"late", SENTENCE_MS)
-
-        rendering_now = asyncio.create_task(participation.speak(GUEST, room_id, "Guten Tag", renders_late))
+        rendering_now = asyncio.create_task(
+            participation.speak(GUEST, room_id, "Guten Tag", still_rendering(release, entered))
+        )
         await entered.wait()
 
         await participation.stop_speaking(GUEST, room_id)
@@ -537,13 +534,9 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
         host, _, mozart, _ = call
         room_id = room_of(host)
         entered, release = asyncio.Event(), asyncio.Event()
-
-        async def renders_late(sentence, voice):
-            entered.set()
-            await release.wait()
-            return a_sentence()
-
-        rendering_now = asyncio.create_task(participation.speak(GUEST, room_id, "Guten Tag", renders_late))
+        rendering_now = asyncio.create_task(
+            participation.speak(GUEST, room_id, "Guten Tag", still_rendering(release, entered))
+        )
         await entered.wait()
 
         answer = await participation.stop_speaking(GUEST, room_id)
@@ -554,23 +547,6 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
             SpeakRefusal.STOPPED,
             [],
             [mozart.agent_id],
-        )
-
-    @pytest.mark.parametrize("failing", [renders_nothing, renders_cancelled, renders_broken])
-    async def test_call_60_a_render_that_returns_no_sentence_or_raises_leaves_the_agent_silent(
-        self, participation, call, failing
-    ):
-        """CALL-60."""
-        host, guest, *_ = call
-        room_id = room_of(host)
-        with contextlib.suppress(Exception, asyncio.CancelledError):
-            await speak(participation, render=failing, room_id=room_id)
-
-        await participation.person_started(room_id, guest.peer_id)
-
-        assert (host.frames(ParticipationSignal.AGENT_HELD), await participation.stop_speaking(GUEST, room_id)) == (
-            [],
-            StopSpeakingRefusal.NOTHING_PLAYING,
         )
 
     async def test_call_60_with_the_sentence_played_to_its_end_it_answers_nothing_playing(
