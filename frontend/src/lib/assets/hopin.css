@@ -610,12 +610,14 @@ textarea {
 }
 /* A stated turn state may take a second line, so its word is never cut; the pill alone takes the stage's muted ink. */
 .tile.agent .name.stated {
-    --text-muted: color-mix(in srgb, var(--on-stage) 80%, transparent);
     height: auto;
     min-height: 28px;
     padding-block: 5px;
     flex-wrap: wrap;
     border-radius: 16px;
+}
+.tile.agent .name.stated .turn-state {
+    color: color-mix(in srgb, var(--on-stage) 80%, transparent);
 }
 /* The kit's chip takes the stage accent: the app's own accent is dark in the light theme and would sink into the glass
    over a dark video. Its narrowest look is the icon and the switch with the label shortened away, 81px: 15px of padding,
