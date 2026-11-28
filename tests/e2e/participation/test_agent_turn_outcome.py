@@ -4,7 +4,7 @@ import pytest
 from design.words import text as kit_text
 from playwright.sync_api import expect
 
-from tests.e2e.support.calls import open_more
+from tests.e2e.support.calls import close_the_page, open_more
 from tests.e2e.support.dialed_agent import (
     AGENT_LISTEN_SWITCH,
     AGENT_TILE,
@@ -84,8 +84,8 @@ def test_the_stated_word_stays_whole_in_the_pill_of_a_full_bleed_agent_tile_on_a
     takes a second line, so the stated word is whole inside the pill and the tile."""
     scene = scene_of(PHONE)
     scene.member_adds_and_the_agent_accepts()
-    scene.host.close()
-    scene.member.close()
+    close_the_page(scene.host)
+    close_the_page(scene.member)
     scene.agent.state_turn(stopped="budget_spent")
 
     expect(scene.owner.locator("#stage")).to_have_attribute("data-count", "2")

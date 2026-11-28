@@ -5,7 +5,14 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from playwright.sync_api import Page, ViewportSize, expect
 
-from tests.e2e.support.calls import call_link_of, join, press_start_call, start_call, wait_until_in_the_call
+from tests.e2e.support.calls import (
+    call_link_of,
+    close_the_page,
+    join,
+    press_start_call,
+    start_call,
+    wait_until_in_the_call,
+)
 from tests.e2e.support.media import (
     OTHER_TILE,
     REFUSE_THE_CAMERA,
@@ -334,7 +341,7 @@ def test_stage_keeps_the_dragged_corner_while_people_join_and_leave(
     third = join(open_person, invite_link)
     expect(host.locator("#stage")).to_have_attribute("data-count", "3")
     wait_until_in_the_call(third)
-    third.close()
+    close_the_page(third)
 
     expect(host.locator("#stage")).to_have_attribute("data-count", "2")
     _assert_own_tile_sits_in(host, "tl")

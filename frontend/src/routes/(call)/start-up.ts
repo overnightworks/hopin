@@ -17,7 +17,7 @@ import {
 import { END_KIND, endKindOfClosedRoom, endKindOfRefusal, showEnd } from "#lib/ui/end.svelte.ts";
 import { closeOpenMenu } from "#lib/ui/menus.ts";
 import { hideWaitingCard, setCallLink, showWaitingCard } from "#lib/ui/invite.svelte.ts";
-import { installLeaveConfirmed, showLeaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
+import { installLeaveConfirmed, leaveOnPagehide, showLeaveDialog } from "#lib/ui/leave-dialog.svelte.ts";
 import { stopLocalMedia } from "#lib/call/media.ts";
 import { registerMediaStateHandlers } from "#lib/call/media-state.ts";
 import { microphoneChanged, onMicrophone } from "#lib/call/microphone.ts";
@@ -262,6 +262,9 @@ export function startUp() {
     });
     installLeaveConfirmed(leaveCall);
     installLeaveRequested(requestLeave);
+    window.addEventListener("pagehide", (event) => {
+        leaveOnPagehide(event, leaveCall);
+    });
     installStartRequested(() => {
         openPrejoin(PREJOIN_KIND.HOST);
     });

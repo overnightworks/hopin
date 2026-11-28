@@ -5,7 +5,7 @@ import pytest
 from playwright.sync_api import Expect, Page
 
 from hopin.config.constants import SignalType
-from tests.e2e.support.calls import join_by_link, start_call
+from tests.e2e.support.calls import close_the_page, join_by_link, start_call
 from tests.e2e.support.media import (
     AFTER_PENDING_REJECTIONS_ARE_REPORTED,
     EVERY_VIDEO_CAP_IS,
@@ -201,7 +201,7 @@ def test_six_person_call_caps_every_video_upload_by_call_size(open_person: Calla
     for person in people:
         _wait_for_video_targets_at_most(person, *FIVE_CAPS_PER_CONNECTION)
 
-    people[-1].close()
+    close_the_page(people[-1])
     _wait_for_video_caps(people[:-1], *FOUR_CAPS_PER_CONNECTION)
 
 

@@ -111,4 +111,12 @@ describe("reporting how a peer connection went", () => {
         await settle();
         expect(outcomes).toEqual([]);
     });
+
+    it("CALL-76: a connection closed before its stats arrive reports nothing", async () => {
+        const { connection, outcomes } = watched();
+        connection.changeTo("connected");
+        connection.changeTo("closed");
+        await settle();
+        expect(outcomes).toEqual([]);
+    });
 });
