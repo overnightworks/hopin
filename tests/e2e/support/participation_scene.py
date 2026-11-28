@@ -4,6 +4,7 @@ from playwright.sync_api import expect
 
 from tests.e2e.support.calls import (
     call_link_of,
+    join,
     join_by_link,
     open_more,
     press_start_call,
@@ -51,9 +52,13 @@ class Scene:
         if owner_adds:
             grant_adders(member_of(self.owner).account.id)
         join_by_link(self.owner, self.link)
-        self.member = record_page_errors(open_person(**form_factor), page_errors)
-        grant_adders(member_of(self.member).account.id)
-        join_by_link(self.member, self.link)
+        self.member = join(
+            open_person,
+            self.link,
+            form_factor,
+            page_errors=page_errors,
+            before_join=lambda page: grant_adders(member_of(page).account.id),
+        )
         wait_until_in_the_call(self.owner)
         wait_until_in_the_call(self.member)
         self.adder = self.owner if owner_adds else self.member
@@ -61,9 +66,7 @@ class Scene:
 
     def person_joins_late(self) -> Page:
         """A signed-in person who joins the call by its link after the agent has its place."""
-        late = record_page_errors(self._open_person(**self._form_factor), self._page_errors)
-        join_by_link(late, self.link)
-        return late
+        return join(self._open_person, self.link, self._form_factor, page_errors=self._page_errors)
 
     def offers_on(self, page: Page) -> Locator:
         return page.locator(OFFER)

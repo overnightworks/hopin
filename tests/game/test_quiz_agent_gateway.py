@@ -129,6 +129,22 @@ def test_the_fingerprint_is_wire_mds_vector_so_the_issuer_goes_out_exactly_as_th
     assert body["user"] == SCENARIO.fingerprint
 
 
+def test_two_accounts_of_one_issuer_post_different_user_values(quiz_on_gateway):
+    """GM-21: Two accounts of one issuer post different user values, so their budgets stay apart."""
+    call, gateway = quiz_on_gateway(completion(SCENARIO.question), completion(SCENARIO.question))
+    first, _ = call.seat(call.member(subject="subject-1", groups=(API_GROUP,)))
+    second, _ = call.seat(call.member(subject="subject-2", groups=(API_GROUP,)))
+
+    first.start()
+    first.frames(3)
+    second.start()
+    second.frames(3)
+
+    users = [json.loads(post.content)["user"] for post in gateway.requests]
+    assert len(users) == 2
+    assert users[0] != users[1]
+
+
 @pytest.mark.parametrize(
     "reply",
     [
@@ -150,6 +166,7 @@ def test_the_key_files_line_is_the_bearer_and_stays_out_of_every_log_frame_and_r
         frames = host.frames(3)
 
     post, _ = first_post_of(gateway)
+    assert post.url.path.endswith("/chat/completions")
     assert post.headers["authorization"] == f"Bearer {canary}"
     assert canary not in json.dumps(frames) + repr(logs) + caplog.text
 
@@ -194,10 +211,22 @@ def test_a_gateway_at_its_limit_is_busy_for_as_long_as_it_says(quiz_on_gateway, 
     assert host.frames(3) == refused_frames(GameRefusal.BUSY, host, retry_after_seconds=expected_wait)
 
 
+def test_a_gateway_whose_422_names_a_spent_budget_refuses_as_budget_spent(quiz_on_gateway):
+    """GM-13: A 422 whose error type is budget_exceeded tells the starter the AI budget is spent."""
+    spent = json.dumps({"error": {"type": "budget_exceeded", "code": "422"}}).encode()
+    call, gateway = quiz_on_gateway(Reply(status=422, body=spent))
+    host, _ = call.seat(call.member(groups=(API_GROUP,)))
+
+    host.start()
+
+    assert host.frames(3) == refused_frames(GameRefusal.BUDGET_SPENT, host)
+    assert len(gateway.requests) == 1
+
+
 @pytest.mark.parametrize(
     ("reply", "detail"),
     [
-        pytest.param(Reply(status=422), GatewayDetail.GATEWAY_REFUSED, id="budget-refusal"),
+        pytest.param(Reply(status=422), GatewayDetail.GATEWAY_REFUSED, id="bare-422"),
         pytest.param(Reply(status=404), GatewayDetail.GATEWAY_REFUSED, id="another-4xx"),
         pytest.param(Reply(status=302, headers={"Location": "/elsewhere"}), GatewayDetail.GATEWAY_FAILED, id="3xx"),
         pytest.param(Reply(status=503), GatewayDetail.GATEWAY_FAILED, id="5xx"),

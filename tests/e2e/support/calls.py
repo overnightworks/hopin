@@ -98,11 +98,14 @@ def join(
     form_factor: dict[str, Any] = DESKTOP,
     init_scripts: Sequence[str] = (),
     page_errors: list[str] | None = None,
+    before_join: Callable[[Page], None] | None = None,
 ) -> Page:
     guest = open_person(**form_factor)
     if page_errors is not None:
         record_page_errors(guest, page_errors)
     add_init_scripts(guest, init_scripts)
+    if before_join is not None:
+        before_join(guest)
     join_by_link(guest, invite_link)
     return guest
 

@@ -33,7 +33,7 @@
 - `docs/VISION.md`: read to know what hopin is and deliberately is not.
 - `docs/ARCHITECTURE.md`: read before changing parts, a call's flow or the trust model.
 - `docs/call.md`: read before changing a call's behaviour; it maps each rule to its test.
-- `docs/game-master.md`: read before changing the game master; it maps each rule to its test.
+- `docs/game-master.md`: read before changing the game master; each rule's id (GM-nn) is cited in the docstring of the test that proves it.
 - `docs/stage.md`: read before changing the stage on which a call shows a registered app's table.
 - `docs/agent-endpoint.md`: read before changing the MCP endpoint, its admission or its tools.
 - `docs/runbooks/release.md`: read before dispatching a release.

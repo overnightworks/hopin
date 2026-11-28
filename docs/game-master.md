@@ -1,6 +1,6 @@
 # Game master
 
-What exactly does the game master promise a call, and which test proves each rule?
+What exactly does the game master promise a call?
 
 Ruled by the operator:
 
