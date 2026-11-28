@@ -166,9 +166,20 @@ def test_the_key_files_line_is_the_bearer_and_stays_out_of_every_log_frame_and_r
         frames = host.frames(3)
 
     post, _ = first_post_of(gateway)
-    assert post.url.path.endswith("/chat/completions")
     assert post.headers["authorization"] == f"Bearer {canary}"
     assert canary not in json.dumps(frames) + repr(logs) + caplog.text
+
+
+def test_the_question_is_posted_to_the_chat_completions_path(quiz_on_gateway):
+    """GM-42: The question goes to the gateway's chat completions path."""
+    call, gateway = quiz_on_gateway(completion(SCENARIO.question))
+    host, _ = call.seat(call.member(groups=(API_GROUP,)))
+
+    host.start()
+    host.frames(3)
+
+    post, _ = first_post_of(gateway)
+    assert post.url.path.endswith("/chat/completions")
 
 
 @pytest.mark.parametrize(
