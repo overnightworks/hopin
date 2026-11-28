@@ -6,7 +6,7 @@ from hopin.auth.sign_in import build_sign_in_configs
 from hopin.config.constants import HEALTH_PATH
 from hopin.config.settings import ServerSettings
 from hopin.main import main
-from tests.stores.support.pod_pair import serving_pod_pair
+from tests.stores.support.pod_pair import serving_pod_pair, starting_pod
 from tests.stores.support.service_gate import ServiceGate
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.sign_in_settings import TEST_REALM
@@ -62,6 +62,20 @@ def pods(
     environment = sign_in_settings(**migrated_database.settings).environment
     with serving_pod_pair(environment, redis_gate.url, tmp_path, HEALTH_PATH) as pair:
         yield pair
+
+
+@pytest.fixture
+def pod(
+    sign_in_settings: Callable[..., SignInSettings],
+    redis_gate: ServiceGate,
+    migrated_database: ScratchDatabase,
+    tmp_path: Path,
+) -> Iterator[Pod]:
+    """One `hopin serve` that answers `/health`, reaching Redis through the gate."""
+    environment = sign_in_settings(**migrated_database.settings).environment
+    with starting_pod(environment, redis_gate.url, tmp_path) as started:
+        started.wait_until_serving(HEALTH_PATH)
+        yield started
 
 
 @pytest.fixture

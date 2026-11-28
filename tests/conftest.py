@@ -20,6 +20,7 @@ from tests.stores.support.postgres_identity import empty_database, postgres_stor
 from tests.stores.support.real_redis import FAKEREDIS, redis_url  # noqa: E402, F401
 from tests.stores.support.served_pods import (  # noqa: E402, F401
     migrated_database,
+    pod,
     pods,
     redis_gate,
     served_environment,

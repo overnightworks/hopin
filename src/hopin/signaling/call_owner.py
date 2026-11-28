@@ -146,7 +146,7 @@ class CallOwner:
         for room_id, agent_id in await store.places_of_generation(generation):
             await self._release_place(room_id, agent_id)
         for peer_id, _ in await store.seats_of_generation(generation):
-            await routing.announce(await routing.leave(peer_id, lapsed=True))
+            await self._leave_by_lapse(peer_id)
         for room_id in await store.departures_of_generation(generation):
             room = await store.find_room(room_id)
             for departure in () if room is None else room.departures:
@@ -154,6 +154,15 @@ class CallOwner:
                     await routing.announce(departure)
         for room_id in await store.graces_of_generation(generation):
             await routing.end_graced_room(room_id, generation)
+
+    async def _leave_by_lapse(self, peer_id: PeerId) -> None:
+        """Free a seat of a lapsed generation; the socket this process still holds for it, which a stalled process has,
+        closes so its page reconnects."""
+        routing = self._handler.routing
+        socket = self._handler.calls.seats.find(peer_id)
+        await routing.announce(await routing.leave(peer_id, lapsed=True))
+        if socket is not None:
+            await self._handler.calls.seats.close_socket(socket.websocket, SERVER_ERROR_CLOSE_CODE)
 
     async def _release_place(self, room_id: str, agent_id: str) -> None:
         calls = self._handler.calls
