@@ -6,6 +6,7 @@ from playwright.sync_api import expect
 
 from tests.e2e.support.calls import open_more
 from tests.e2e.support.dialed_agent import (
+    AGENT_LISTEN_SWITCH,
     AGENT_TILE,
     TURN_STATE_ON_A_TILE,
     assert_the_pill_is_whole_and_clear_of_the_chips,
@@ -53,7 +54,7 @@ def test_the_stated_outcome_shows_beside_the_agents_name_for_every_seat_until_a_
     for tile in tiles:
         expect(tile).to_have_text(kit_text("de", "turnState.budgetSpent"))
     for person in (*scene.everyone, outsider):
-        assert_the_pill_is_whole_and_clear_of_the_chips(person)
+        assert_the_pill_is_whole_and_clear_of_the_chips(person, (AGENT_LISTEN_SWITCH,), word_shown=True)
 
     scene.agent.state_turn(thinking=True)
 
@@ -89,4 +90,4 @@ def test_the_stated_word_stays_whole_in_the_pill_of_a_full_bleed_agent_tile_on_a
 
     expect(scene.owner.locator("#stage")).to_have_attribute("data-count", "2")
     expect(scene.owner.locator(TURN_STATE_ON_A_TILE)).to_have_text(kit_text("de", "turnState.budgetSpent"))
-    assert_the_pill_is_whole_and_clear_of_the_chips(scene.owner)
+    assert_the_pill_is_whole_and_clear_of_the_chips(scene.owner, (AGENT_LISTEN_SWITCH,), word_shown=True)
