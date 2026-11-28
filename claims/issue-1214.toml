@@ -3,6 +3,6 @@ agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
 role = "builder"
 base = "682a631680955bc34f7bafb1dbda0c3e1a40a6ae"
 branch = "claude/issue-1214-review-day-follow-ups-without-behaviour"
-scope = ["AGENTS.md", "docs/agent-endpoint.md", "docs/game-master.md", "tests/e2e/participation/test_dialed_agent.py", "tests/e2e/support/calls.py", "tests/e2e/support/participation_scene.py", "tests/game/test_quiz_agent_gateway.py"]
+scope = ["AGENTS.md", "README.md", "docs/agent-endpoint.md", "docs/game-master.md", "tests/e2e/participation/test_dialed_agent.py", "tests/e2e/support/calls.py", "tests/e2e/support/participation_scene.py", "tests/game/test_quiz_agent_gateway.py"]
 opened_commit = "4c54be116431539ae7b1cf048591ea30c2960904"
 whole_reason = "Small follow-ups of one review day that change no behaviour, bundled so they are reviewed and land as one."
