@@ -3,6 +3,7 @@
 import asyncio
 import secrets
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import timedelta
 
 from fakeredis import FakeAsyncRedis, FakeServer
@@ -45,10 +46,22 @@ def started_lease(server: FakeServer) -> ProcessLease:
     return lease
 
 
+@dataclass(frozen=True)
+class Process:
+    """One process over a Redis: its store and the lease it commits under."""
+
+    store: CallStore
+    lease: ProcessLease
+
+
+def process_over(server: FakeServer, *, place_limit: int = ROOM_LIMIT) -> Process:
+    lease = started_lease(server)
+    return Process(CallStore(FakeAsyncRedis(server=server), lease, place_limit=place_limit), lease)
+
+
 def call_store_over(server: FakeServer, *, place_limit: int = ROOM_LIMIT) -> CallStore:
     """The call store of one more process over the server."""
-    lease = started_lease(server)
-    return CallStore(FakeAsyncRedis(server=server), lease, place_limit=place_limit)
+    return process_over(server, place_limit=place_limit).store
 
 
 async def open_seat(store: CallStore, name: str) -> PeerId:
