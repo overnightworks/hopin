@@ -100,12 +100,12 @@ def hears(request):
 
 
 @pytest.fixture
-def hearing_service(request, fake_speech_hearing):
+def hearing_service(request):
     """The speech service agents hear through, which also names the scope of the token HopIn exchanges for an agent
     that hears; none until a module names one, as a module that hears through the fake speech service does with the
     `hears_through_fake_speech` marker."""
     if request.node.get_closest_marker("hears_through_fake_speech"):
-        return fake_speech_hearing
+        return request.getfixturevalue("fake_speech_hearing")
     return None
 
 
