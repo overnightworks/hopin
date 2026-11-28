@@ -6,7 +6,7 @@ import contextlib
 
 import pytest
 import pytest_asyncio
-from agents.member import LEASE_SECONDS
+from agents.member import LEASE_SECONDS, DroppedSpeaking, SpeakRefusal, StopSpeakingRefusal
 from logline import Outcome
 
 from hopin.participation.chat_window import LineKind, WindowLine
@@ -15,7 +15,6 @@ from hopin.participation.vocabulary import (
     AgentRefusal,
     ParticipationSignal,
     SpeakStarted,
-    SpeakStop,
 )
 from hopin.rooms.reference import room_reference
 from tests.participation.support.ends import (
@@ -42,6 +41,7 @@ from tests.participation.support.speaking import (
     renders_cancelled,
     renders_nothing,
     speak,
+    still_rendering,
     voice_ids,
     waiting_behind_a_hold,
     waiting_to_speak,
@@ -411,7 +411,7 @@ class TestEveryEndDropsTheQueue:
         async with asyncio.timeout(SETTLE_TIMEOUT_SECONDS):
             answer = await open_one.answer
 
-        assert answer == SpeakStop.STOPPED
+        assert answer == SpeakRefusal.STOPPED
 
 
 def stop_frames(browser):
@@ -478,7 +478,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
         await participation.stop_speaking(GUEST, room_id)
 
         assert ([await answer for answer in waiting], voices.get(playing), voice_ids(host)) == (
-            [SpeakStop.STOPPED] * 2,
+            [SpeakRefusal.STOPPED] * 2,
             None,
             [playing],
         )
@@ -491,19 +491,15 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
         entered, release = asyncio.Event(), asyncio.Event()
-
-        async def renders_late(sentence, voice):
-            entered.set()
-            await release.wait()
-            return a_sentence(b"late", SENTENCE_MS)
-
-        rendering_now = asyncio.create_task(participation.speak(GUEST, room_id, "Guten Tag", renders_late))
+        rendering_now = asyncio.create_task(
+            participation.speak(GUEST, room_id, "Guten Tag", still_rendering(release, entered))
+        )
         await entered.wait()
 
         await participation.stop_speaking(GUEST, room_id)
         release.set()
 
-        assert (await rendering_now, len(voice_ids(host))) == (SpeakStop.STOPPED, 1)
+        assert (await rendering_now, len(voice_ids(host))) == (SpeakRefusal.STOPPED, 1)
 
     async def test_call_60_the_agent_speaks_again_at_its_next_sentence_and_the_cut_one_adds_no_second_line(
         self, participation, call, scheduler
@@ -529,7 +525,29 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
 
         answer = await participation.stop_speaking(GUEST, room_id)
 
-        assert (answer, stop_frames(host)) == (SpeakStop.NOTHING_PLAYING, [])
+        assert (answer, stop_frames(host)) == (StopSpeakingRefusal.NOTHING_PLAYING, [])
+
+    async def test_call_60_a_stop_with_only_sentences_still_rendering_answers_dropped_and_drops_them(
+        self, participation, call
+    ):
+        """CALL-60."""
+        host, _, mozart, _ = call
+        room_id = room_of(host)
+        entered, release = asyncio.Event(), asyncio.Event()
+        rendering_now = asyncio.create_task(
+            participation.speak(GUEST, room_id, "Guten Tag", still_rendering(release, entered))
+        )
+        await entered.wait()
+
+        answer = await participation.stop_speaking(GUEST, room_id)
+        release.set()
+
+        assert (answer, await rendering_now, voice_ids(host), stop_frames(host)) == (
+            DroppedSpeaking(dropped=True),
+            SpeakRefusal.STOPPED,
+            [],
+            [mozart.agent_id],
+        )
 
     async def test_call_60_with_the_sentence_played_to_its_end_it_answers_nothing_playing(
         self, participation, call, scheduler
@@ -540,7 +558,7 @@ class TestAStopCutsTheSentenceAndDropsTheQueue:
         await speak(participation, room_id=room_id)
         await scheduler.advance(SENTENCE_MS / 1000)
 
-        assert await participation.stop_speaking(GUEST, room_id) == SpeakStop.NOTHING_PLAYING
+        assert await participation.stop_speaking(GUEST, room_id) == StopSpeakingRefusal.NOTHING_PLAYING
 
     async def test_call_60_an_agent_without_a_joined_place_or_with_its_sponsor_away_is_not_active(
         self, participation, call

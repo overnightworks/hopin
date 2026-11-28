@@ -3,9 +3,9 @@ people talking over a sentence of the agent stand in its window as a record unti
 
 The record is the agents library's talked-over record. HopIn opens it for each agent that hears a person who starts
 speaking while a sentence of that agent plays or waits, or while it is held, updates it with the words heard, and
-removes it with the last person's turn. A person who joins a record while the agent speaks and is not held holds it;
-the agent's speaking owns the hold and whether a sentence plays, and a read of the window takes both from it. Every
-change tells the agent whose window changed once.
+removes it with the last person's turn. The agent's speaking owns the hold and whether a sentence plays, and a read of
+the window takes both from it; the turns of the people the agent hears reach its speaking through one callback, which
+says whether a hold arose. Every change tells the agent whose window changed once.
 
 A line enters each agent's window as `line.entered` (room reference, agent id, the window's `seq`, and `kind`: `heard`
 for the sound of a sentence, `written` for a chat line or an agent's written line), and the agent is handed the change
@@ -29,7 +29,7 @@ from logline import current_traceparent
 
 from hopin.participation.chat_window import LineKind
 from hopin.participation.participants import DialedAgent
-from hopin.participation.speaking import RenderedSentence, SentenceEnd, speak_timer
+from hopin.participation.speaking import RenderedSentence, SentenceEnd, Turn, speak_timer
 from hopin.participation.vocabulary import (
     NO_VOICE_REASON,
     VOICE_RECOVERY_SECONDS,
@@ -57,6 +57,10 @@ if TYPE_CHECKING:
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 WINDOW_RECOVERY_KEY: Final = "voices"
+
+
+type TurnHeard = Callable[[DialedAgent, PeerId, Turn, str], bool]
+"""Tells an agent's speaking what a person's turn did, its words or finished line as the text; whether a hold arose."""
 
 
 class EntryKind(StrEnum):
@@ -95,6 +99,12 @@ class SpeechInWindows:
         self._deadlines = deadlines
         deadlines.register(DeadlineKind.WINDOW_RECOVERY, self._ask_whether_voices_are_back)
         self._recovery_offered: VoicesOffered | None = None
+        self._turn: TurnHeard
+
+    def hear_turns_through(self, turn: TurnHeard) -> None:
+        """Hand the turns of the people an agent hears to `turn`, the agent's speaking, which says whether a hold arose
+        with a turn's beginning."""
+        self._turn = turn
 
     def line_said(self, room_id: str, kind: LineKind, name: str, text: str, *, sayer: Person | None) -> None:
         """Add a written line to each joined agent's window in the room and tell the agent; `sayer` is the person whose
@@ -231,7 +241,10 @@ class SpeechInWindows:
         if heard is None:
             return
         for person, window in self._places.windows_in(room_id).items():
-            appended = person in heard.hearers and window.append(
+            hears = person in heard.hearers
+            if hears:
+                self._turn(self._agent_of(person, room_id), seat, Turn.LINE, heard.text)
+            appended = hears and window.append(
                 heard.kind, heard.name, heard.text, own=False, spoken=True, traceparent=current_traceparent()
             )
             turn_ended = window.turn_ended(seat)
@@ -262,22 +275,22 @@ class SpeechInWindows:
         return agent.agent_id if isinstance(agent, DialedAgent) else None
 
     async def person_started(
-        self, room_id: str, seat: PeerId, opens: Callable[[DialedAgent], bool], is_held: Callable[[DialedAgent], bool]
-    ) -> dict[DialedAgent, str]:
-        """A person starts speaking: each agent that hears the seat is talked over, a new record opening only when
-        `opens` says a sentence of the agent plays or waits or it is held. The person holds the agent when the agent
-        `opens` and is not `is_held`. The ids of the holds that arose, by the agent to hold."""
-        arisen: dict[DialedAgent, str] = {}
+        self, room_id: str, seat: PeerId, opens: Callable[[DialedAgent], bool]
+    ) -> list[DialedAgent]:
+        """A person starts speaking: each agent that hears the seat is told the turn began and is talked over, a new
+        record opening only when `opens` says a sentence of the agent plays or waits or it is held. A turn the record
+        already holds begins no second one. The agents a hold arose over."""
+        arisen: list[DialedAgent] = []
         for person in self._hearing.hearers(room_id, seat):
             window = self._places.window_of(person, room_id)
-            agent = self._places.get(person, room_id)
             assert window is not None  # noqa: S101 - only a joined agent hears
-            assert isinstance(agent, DialedAgent)  # noqa: S101 - only a joined agent hears
-            opening = opens(agent)
-            if window.talk_over(seat, await self._name_of(seat), opens=opening):
+            agent = self._agent_of(person, room_id)
+            name = await self._name_of(seat)
+            added = window.talk_over(seat, name, opens=opens(agent))
+            if added:
                 self._on_window_changed(person, room_id)
-                if opening and not is_held(agent):
-                    arisen[agent] = window.new_hold_id()
+            if (added or not window.has_record) and self._turn(agent, seat, Turn.BEGAN, ""):
+                arisen.append(agent)
         return arisen
 
     def hold_ended(self, agent: DialedAgent) -> None:
@@ -288,18 +301,31 @@ class SpeechInWindows:
 
     def words_heard(self, room_id: str, seat: PeerId, text: str) -> None:
         """The words the seat has said so far in its turn."""
+        hearers = self._hearing.hearers(room_id, seat)
         for person, window in self._places.windows_in(room_id).items():
+            if person in hearers:
+                self._turn(self._agent_of(person, room_id), seat, Turn.WORDS, text)
             if window.hear_partial(seat, text):
                 self._on_window_changed(person, room_id)
 
     def hearing_switched(self, agent: DialedAgent, *, on: bool) -> None:
-        """The sponsor switched the agent's hearing: when off, the sponsor's words leave the agent's window at once."""
+        """The sponsor switched the agent's hearing: when off, the sponsor's turn ends for the agent and its words leave
+        its window at once."""
+        if on:
+            return
+        self._turn(agent, agent.sponsor, Turn.ENDED, "")
         window = self._places.window_of(agent.person, agent.room_id)
-        if not on and window is not None and window.turn_ended(agent.sponsor):
+        if window is not None and window.turn_ended(agent.sponsor):
             self._on_window_changed(agent.person, agent.room_id)
 
     def turn_ended(self, room_id: str, seat: PeerId) -> None:
         """The seat's turn ended, or it can be heard no more: its words leave every window in the room."""
         for person, window in self._places.windows_in(room_id).items():
+            self._turn(self._agent_of(person, room_id), seat, Turn.ENDED, "")
             if window.turn_ended(seat):
                 self._on_window_changed(person, room_id)
+
+    def _agent_of(self, person: Person, room_id: str) -> DialedAgent:
+        agent = self._places.get(person, room_id)
+        assert isinstance(agent, DialedAgent)  # noqa: S101 - only a joined agent holds a window
+        return agent

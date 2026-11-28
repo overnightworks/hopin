@@ -306,10 +306,12 @@ async def rendering_while_held(participation, host, guest):
     return rendering_one
 
 
-def still_rendering(rendered):
-    """A renderer that makes its sentence once the test says so."""
+def still_rendering(rendered, entered=None):
+    """A renderer that makes its sentence once the test says so, and says when it began to render."""
 
     async def render(text, voice):
+        if entered is not None:
+            entered.set()
         await rendered.wait()
         return a_sentence()
 

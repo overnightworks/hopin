@@ -74,10 +74,8 @@ from hopin.participation.vocabulary import (
     FigureFraming,
     FigureGesture,
     FigureMood,
-    HoldRefusal,
     LookRefusal,
     SpeakFallback,
-    SpeakStop,
     TurnOutcome,
 )
 from hopin.rooms.reference import room_reference
@@ -134,22 +132,16 @@ _SPEAK_REFUSAL_OF: Final = {
     AgentRefusal.GONE: SpeakRefusal.NOT_ACTIVE,
     AgentRefusal.SPONSOR_AWAY: SpeakRefusal.NOT_ACTIVE,
     AgentRefusal.UNAVAILABLE: SpeakRefusal.UNAVAILABLE,
-    SpeakStop.STOPPED: SpeakRefusal.STOPPED,
-    HoldRefusal.HELD: SpeakRefusal.HELD,
-    HoldRefusal.NOT_INTERRUPTED: SpeakRefusal.NOT_INTERRUPTED,
 }
 
 _STOP_REFUSAL_OF: Final = {
     AgentRefusal.GONE: StopSpeakingRefusal.NOT_ACTIVE,
     AgentRefusal.SPONSOR_AWAY: StopSpeakingRefusal.NOT_ACTIVE,
-    SpeakStop.NOTHING_PLAYING: StopSpeakingRefusal.NOTHING_PLAYING,
-    HoldRefusal.NOT_INTERRUPTED: StopSpeakingRefusal.NOT_INTERRUPTED,
 }
 
 _CONTINUE_REFUSAL_OF: Final = {
     AgentRefusal.GONE: ContinueSpeakingRefusal.NOT_ACTIVE,
     AgentRefusal.SPONSOR_AWAY: ContinueSpeakingRefusal.NOT_ACTIVE,
-    HoldRefusal.NOT_INTERRUPTED: ContinueSpeakingRefusal.NOT_INTERRUPTED,
 }
 
 
@@ -265,8 +257,9 @@ _STOP_SPEAKING_DECLARATION: Final = ToolDeclaration(
     description=(
         "Cut the sentence you are saying aloud in the call you joined, in every seat, and drop every sentence of yours "
         "that waits behind it; each of those speak calls answers stopped. You may speak again at once. It answers the "
-        "text of the line the cut sentence left, dropped: true when no sentence had started that it cut, as when "
-        "you were held before yours started, nothing_playing when no sentence of yours plays and not_active when "
+        "text of the line the cut sentence left, dropped: true when no sentence had started that it cut but it dropped "
+        "sentences that wait or are still being rendered, as when you were held before yours started, nothing_playing "
+        "when no sentence of yours plays, waits or is being rendered and not_active when "
         "you are not joined there or your person's seat is away. It ends a hold, whose id you may name as "
         "interrupted; an id that is not the hold is refused as not_interrupted."
     ),
@@ -465,8 +458,10 @@ async def _spoken(
         return _speak_refused(SpeakRefusal.LANGUAGE_UNAVAILABLE)
     except StyleUnavailableError:
         return _speak_refused(SpeakRefusal.STYLE_UNAVAILABLE)
-    if isinstance(outcome, AgentRefusal | SpeakStop | HoldRefusal):
+    if isinstance(outcome, AgentRefusal):
         return _speak_refused(_SPEAK_REFUSAL_OF[outcome])
+    if isinstance(outcome, SpeakRefusal):
+        return _speak_refused(outcome)
     if outcome is SpeakFallback.WRITTEN:
         return ToolOutcome(Written(written=True).model_dump_json(), is_error=False)
     return ToolOutcome(Spoken(spoken=True).model_dump_json(), is_error=False)
@@ -477,11 +472,12 @@ async def _stopped(participation: Participation, caller: Caller, arguments: Json
     if stopping.place.kind != CALL_KIND:
         return _stop_refused(StopSpeakingRefusal.NOT_ACTIVE)
     outcome = await participation.stop_speaking(caller.person, stopping.place.id, stopping.interrupted)
-    if outcome is SpeakStop.DROPPED:
-        return ToolOutcome(DroppedSpeaking(dropped=True).model_dump_json(), is_error=False)
-    if isinstance(outcome, AgentRefusal | SpeakStop | HoldRefusal):
+    if isinstance(outcome, AgentRefusal):
         return _stop_refused(_STOP_REFUSAL_OF[outcome])
-    return ToolOutcome(StoppedSpeaking(cut=outcome).model_dump_json(), is_error=False)
+    if isinstance(outcome, StopSpeakingRefusal):
+        return _stop_refused(outcome)
+    answer = outcome if isinstance(outcome, DroppedSpeaking) else StoppedSpeaking(cut=outcome)
+    return ToolOutcome(answer.model_dump_json(), is_error=False)
 
 
 async def _continued(participation: Participation, caller: Caller, arguments: JsonObject) -> ToolOutcome:
@@ -489,8 +485,10 @@ async def _continued(participation: Participation, caller: Caller, arguments: Js
     if continuing.place.kind != CALL_KIND:
         return _continue_refused(ContinueSpeakingRefusal.NOT_ACTIVE)
     refusal = await participation.continue_speaking(caller.person, continuing.place.id, continuing.interrupted)
-    if refusal is not None:
+    if isinstance(refusal, AgentRefusal):
         return _continue_refused(_CONTINUE_REFUSAL_OF[refusal])
+    if refusal is not None:
+        return _continue_refused(refusal)
     return ToolOutcome(ContinuedSpeaking(continued=True).model_dump_json(), is_error=False)
 
 

@@ -6,7 +6,7 @@ requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.16",
     "fastapi>=0.123.7",
-    "overnightworks-agents[backend,mcp-client,mcp-server,redis] @ git+https://github.com/overnightworks/agents@v0.78.0",
+    "overnightworks-agents[backend,mcp-client,mcp-server,redis] @ git+https://github.com/overnightworks/agents@v0.83.0",
     "overnightworks-logline @ git+https://github.com/overnightworks/logline@v1.12.0",
     "overnightworks-speech-client @ git+https://github.com/overnightworks/speech@v0.27.0#subdirectory=packages/client",
     "overnightworks-tandem @ git+https://github.com/overnightworks/tandem@v0.17.0",
@@ -264,8 +264,12 @@ type = "forbidden"
 source_modules = ["hopin.participation"]
 # agent_runtime_client stays forbidden beside agents, because quality's gate counts a struck forbidden module as a loosening.
 forbidden_modules = ["agents", "agent_runtime_client", "speech_client", "speech_runtime_client", "video_client", "httpx2"]
-# Participation reaches only the calling standard and the member records of the agents library.
-ignore_imports = ["hopin.participation.** -> agents.calling", "hopin.participation.** -> agents.member"]
+# Participation reaches only the calling standard, the member records and the floor of the agents library.
+ignore_imports = [
+    "hopin.participation.** -> agents.calling",
+    "hopin.participation.** -> agents.member",
+    "hopin.participation.** -> agents.floor",
+]
 
 [[tool.importlinter.contracts]]
 id = "agent-service-only-through-the-game"

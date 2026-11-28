@@ -24,6 +24,12 @@ date = 2026-11-22
 reason = "participation reads the member records the calling standard's tools carry"
 
 [[gate.loosened]]
+what = 'import contract "Participation names no agent runtime" ignores hopin.participation.** -> agents.floor'
+item = "overnightworks/hopin#1211"
+date = 2026-11-28
+reason = "participation hands the order of an agent's sentences and holds to the agents library's floor, which decides it once for every app"
+
+[[gate.loosened]]
 what = 'size baseline adds file_lines frontend/src/lib/assets/hopin.css 2049'
 item = "overnightworks/quality#884"
 date = 2026-11-23

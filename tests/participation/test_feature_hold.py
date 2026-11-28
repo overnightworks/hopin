@@ -4,16 +4,20 @@ at participation's real feature and the agents library's real record of who may 
 import asyncio
 
 import pytest
-from agents.member import CONTINUE_SPEAKING_TOOL, STOP_SPEAKING_TOOL
+from agents.member import (
+    CONTINUE_SPEAKING_TOOL,
+    STOP_SPEAKING_TOOL,
+    DroppedSpeaking,
+    SpeakRefusal,
+    StopSpeakingRefusal,
+)
 
 from hopin.agent.tools import CALL_KIND, participation_tools
 from hopin.participation.participants import Caller
 from hopin.participation.vocabulary import (
     SENTENCES_WAITING_PER_AGENT,
     AgentRefusal,
-    HoldRefusal,
     SpeakStarted,
-    SpeakStop,
     VoiceFailure,
 )
 from hopin.signaling.transition import InMemoryCallStore
@@ -210,10 +214,10 @@ class TestASpeakWhileHeld:
     @pytest.mark.parametrize(
         ("interrupted", "refusal"),
         [
-            pytest.param(None, HoldRefusal.HELD, id="no id"),
-            pytest.param("0", HoldRefusal.NOT_INTERRUPTED, id="an id before the hold"),
-            pytest.param("2", HoldRefusal.NOT_INTERRUPTED, id="an id after the hold"),
-            pytest.param("x", HoldRefusal.NOT_INTERRUPTED, id="an id that is no number"),
+            pytest.param(None, SpeakRefusal.HELD, id="no id"),
+            pytest.param("0", SpeakRefusal.NOT_INTERRUPTED, id="an id before the hold"),
+            pytest.param("2", SpeakRefusal.NOT_INTERRUPTED, id="an id after the hold"),
+            pytest.param("x", SpeakRefusal.NOT_INTERRUPTED, id="an id that is no number"),
         ],
     )
     async def test_call_69_a_speak_that_names_no_hold_or_another_is_refused_and_changes_nothing(
@@ -239,7 +243,7 @@ class TestASpeakWhileHeld:
 
         refused = await speak(participation, room_id=room_of(host), interrupted="1")
 
-        assert refused == HoldRefusal.NOT_INTERRUPTED
+        assert refused == SpeakRefusal.NOT_INTERRUPTED
 
     async def test_call_69_a_speak_with_the_hold_enters_the_cut_line_first_then_plays_at_once(
         self, participation, call
@@ -279,7 +283,7 @@ class TestASpeakWhileHeld:
 
         await speak(participation, "Drei", room_id=room_id, interrupted="1")
 
-        assert await waiting == SpeakStop.STOPPED
+        assert await waiting == SpeakRefusal.STOPPED
 
     async def test_call_69_a_speak_the_agents_contract_refuses_leaves_the_hold_and_its_rest(self, participation, call):
         """CALL-69."""
@@ -322,7 +326,7 @@ class TestAStopWhileHeld:
             participation.read_window(GUEST, room_id).interrupted,
             window_texts(participation, GUEST, room_id),
             await rendering_sentence,
-        ) == (SpeakStop.DROPPED, None, [], SpeakStop.STOPPED)
+        ) == (DroppedSpeaking(dropped=True), None, [], SpeakRefusal.STOPPED)
 
     async def test_call_69_a_stop_with_a_stale_id_is_refused_not_interrupted_and_changes_nothing(
         self, participation, call
@@ -332,7 +336,10 @@ class TestAStopWhileHeld:
 
         refused = await participation.stop_speaking(GUEST, room_id, "7")
 
-        assert (refused, participation.read_window(GUEST, room_id).interrupted) == (HoldRefusal.NOT_INTERRUPTED, "1")
+        assert (refused, participation.read_window(GUEST, room_id).interrupted) == (
+            StopSpeakingRefusal.NOT_INTERRUPTED,
+            "1",
+        )
 
     @pytest.mark.parametrize("sentence_plays", [True, False], ids=["a sentence plays", "the agent never spoke"])
     async def test_call_69_a_stop_with_an_id_while_no_hold_stands_is_refused_not_interrupted(
@@ -346,7 +353,7 @@ class TestAStopWhileHeld:
 
         refused = await participation.stop_speaking(GUEST, room_id, "1")
 
-        assert refused == HoldRefusal.NOT_INTERRUPTED
+        assert refused == StopSpeakingRefusal.NOT_INTERRUPTED
 
     async def test_call_69_a_stop_drops_the_queue_behind_the_hold(self, participation, call):
         """CALL-69."""
@@ -354,7 +361,27 @@ class TestAStopWhileHeld:
 
         await participation.stop_speaking(GUEST, room_id, "1")
 
-        assert await waiting == SpeakStop.STOPPED
+        assert await waiting == SpeakRefusal.STOPPED
+
+
+class TestAStopThatOnlyDropsDuringAHold:
+    async def test_call_69_a_stop_that_drops_without_a_cut_ends_the_sound_in_every_seat(self, participation, call):
+        """CALL-69."""
+        host, guest, mozart, _ = call
+        room_id = room_of(host)
+        rendered = asyncio.Event()
+        rendering_sentence = asyncio.create_task(participation.speak(GUEST, room_id, "Eins", still_rendering(rendered)))
+        await asyncio.sleep(0)
+        await participation.person_started(room_id, guest.peer_id)
+
+        answered = await participation.stop_speaking(GUEST, room_id, "1")
+        rendered.set()
+        await rendering_sentence
+
+        assert (answered, [stops(seat) for seat in (host, guest)]) == (
+            DroppedSpeaking(dropped=True),
+            [[mozart.agent_id]] * 2,
+        )
 
 
 class TestTheStopToolOverAHoldWithNoStartedSentence:

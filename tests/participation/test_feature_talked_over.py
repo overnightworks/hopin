@@ -3,6 +3,7 @@ agents library's real record of who may hear whom."""
 
 import pytest
 
+from hopin.participation.speaking import Turn
 from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.support.hearing_scene import heard
 from tests.participation.support.people import person_named, room_of
@@ -127,6 +128,26 @@ class TestAPersonTalksOverASentence:
         participation.speech.words_heard(room_id, guest.peer_id, "Hallo")
 
         assert record_of(participation, GUEST, room_id) is None
+
+    async def test_call_54_a_turn_that_begins_while_the_agent_is_silent_is_still_told_to_its_floor(
+        self, participation, call, scheduler
+    ):
+        """CALL-54."""
+        host, guest, *_ = call
+        room_id = room_of(host)
+        await speak(participation, room_id=room_id)
+        await scheduler.advance(SENTENCE_MS / 1000)
+        told = []
+
+        def hear(agent, seat, turn, text):
+            told.append((seat, turn))
+            return False
+
+        participation.speech.hear_turns_through(hear)
+
+        await participation.person_started(room_id, guest.peer_id)
+
+        assert (record_of(participation, GUEST, room_id), (guest.peer_id, Turn.BEGAN) in told) == (None, True)
 
     async def test_call_54_the_sponsor_switching_the_agents_hearing_off_takes_the_partial_away(
         self, participation, call

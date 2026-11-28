@@ -166,23 +166,6 @@ class LookRefusal(StrEnum):
     UNAVAILABLE = "unavailable"
 
 
-class SpeakStop(StrEnum):
-    """What a stop leaves of a sentence or of the agent's speaking: a sentence dropped before it started, a stop that
-    found nothing playing, and a stop that dropped a held sentence that had not started or only the queue."""
-
-    STOPPED = "stopped"
-    NOTHING_PLAYING = "nothing_playing"
-    DROPPED = "dropped"
-
-
-class HoldRefusal(StrEnum):
-    """Why a `speak` or a stop is refused for the agent's hold: the agent is held and the sentence names no hold, or
-    the id it names is not the standing hold's."""
-
-    HELD = "held"
-    NOT_INTERRUPTED = "not_interrupted"
-
-
 class HoldEnd(StrEnum):
     """How a hold ended: the agent continued (`continue_speaking`), stopped (`stop_speaking`) or answered with a speak
     that names the hold, or the agent's own end, which is its removal, leave, pause, lease end or call end."""
