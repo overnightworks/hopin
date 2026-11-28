@@ -277,19 +277,20 @@ class SpeechInWindows:
     async def person_started(
         self, room_id: str, seat: PeerId, opens: Callable[[DialedAgent], bool]
     ) -> list[DialedAgent]:
-        """A person starts speaking: each agent that hears the seat is talked over, a new record opening only when
-        `opens` says a sentence of the agent plays or waits or it is held. A turn the record already holds begins no
-        second one. The agents a hold arose over."""
+        """A person starts speaking: each agent that hears the seat is told the turn began, and talked over, a new record
+        opening only when `opens` says a sentence of the agent plays or waits or it is held. A turn the record already
+        holds begins no second one. The agents a hold arose over."""
         arisen: list[DialedAgent] = []
         for person in self._hearing.hearers(room_id, seat):
             window = self._places.window_of(person, room_id)
             assert window is not None  # noqa: S101 - only a joined agent hears
             agent = self._agent_of(person, room_id)
             name = await self._name_of(seat)
-            if window.talk_over(seat, name, opens=opens(agent)):
+            added = window.talk_over(seat, name, opens=opens(agent))
+            if added:
                 self._on_window_changed(person, room_id)
-                if self._turn(agent, seat, Turn.BEGAN, ""):
-                    arisen.append(agent)
+            if (added or not window.has_record) and self._turn(agent, seat, Turn.BEGAN, ""):
+                arisen.append(agent)
         return arisen
 
     def hold_ended(self, agent: DialedAgent) -> None:
