@@ -6,7 +6,11 @@ from design.words import text as kit_text
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e.support.calls import join, open_call
-from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_TILE
+from tests.e2e.support.dialed_agent import (
+    AGENT_HEARING_SWITCH,
+    AGENT_TILE,
+    assert_the_pill_is_whole_and_clear_of_the_chips,
+)
 from tests.e2e.support.media import RECORD_PEER_CONNECTIONS, wait_for_peer_count
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
@@ -110,6 +114,7 @@ def test_the_sponsor_of_a_dialed_in_agent_sees_the_switch_on_where_the_picture_p
         switch_box["x"] + switch_box["width"]
         <= tile_box["x"] + tile_box["width"] - CHIP_INSET_PIXELS + TOLERANCE_PIXELS
     )
+    assert_the_pill_is_whole_and_clear_of_the_chips(sponsor)
     for other in (host, guest):
         expect(other.locator(AGENT_TILE)).to_have_count(1)
         expect(other.locator(SWITCH)).to_have_count(0)

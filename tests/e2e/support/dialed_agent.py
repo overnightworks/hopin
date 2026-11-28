@@ -65,6 +65,7 @@ AGENT_HEARING_SWITCH = f"{AGENT_TILE} >> {HEARING_SWITCH_ON_A_TILE}"
 AGENT_LISTEN_SWITCH = f"{AGENT_TILE} >> {LISTEN_SWITCH_ON_A_TILE}"
 AGENT_SEE_SWITCH = f"{AGENT_TILE} >> {SEE_SWITCH_ON_A_TILE}"
 TURN_STATE_ON_A_TILE = f"{AGENT_TILE} .turn-state"
+NAME_PILL_ON_A_TILE = f"{AGENT_TILE} .name"
 # A row of the agent control in More: the agents a seat may send away as here, then those it may call.
 OFFER = "#agentOffers li"
 COUNT = "#participantCount .num"
@@ -417,3 +418,23 @@ def share_area(first: dict[str, float], second: dict[str, float]) -> float:
     width = min(first["x"] + first["width"], second["x"] + second["width"]) - max(first["x"], second["x"])
     height = min(first["y"] + first["height"], second["y"] + second["height"]) - max(first["y"], second["y"])
     return max(width, 0) * max(height, 0)
+
+
+def assert_the_pill_is_whole_and_clear_of_the_chips(person: Page) -> None:
+    """The agent's name pill lies inside its tile, a stated turn state's word lies inside the pill, and none of the
+    chips the seat sees overlaps the pill."""
+    tile_box = person.locator(AGENT_TILE).bounding_box()
+    pill_box = person.locator(NAME_PILL_ON_A_TILE).bounding_box()
+    assert tile_box is not None
+    assert pill_box is not None
+    assert lies_inside(pill_box, tile_box)
+    word = person.locator(TURN_STATE_ON_A_TILE)
+    if word.count():
+        word_box = word.bounding_box()
+        assert word_box is not None
+        assert lies_inside(word_box, pill_box)
+    for chip in (AGENT_HEARING_SWITCH, AGENT_LISTEN_SWITCH, AGENT_SEE_SWITCH):
+        if person.locator(chip).count():
+            chip_box = person.locator(chip).bounding_box()
+            assert chip_box is not None
+            assert share_area(chip_box, pill_box) == 0
