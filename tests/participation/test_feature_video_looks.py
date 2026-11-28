@@ -10,7 +10,6 @@ from http import HTTPStatus
 from types import SimpleNamespace
 
 import pytest
-from agents.member import LEASE_SECONDS
 from speech_client.wire import VoiceId
 from video_client.session_wire import SessionCreated, SessionInfo, SessionUpdate, SessionUpdated, error_event
 from video_client.wire import AUTHORIZATION_HEADER, WORKLOAD_TOKEN_HEADER, RefusalCode, caller_headers
@@ -19,7 +18,7 @@ from websockets.frames import CloseCode
 from hopin.agent import video_session
 from hopin.agent.mcp import ParticipationFeature
 from hopin.agent.speech_settings import SpeechService
-from hopin.agent.tools import LEAVE_CALL, AcceptedVideoLooks
+from hopin.agent.tools import AcceptedVideoLooks
 from hopin.agent.video_settings import VideoService
 from hopin.participation.figures import FIGURE_FILES
 from hopin.participation.participants import Person
@@ -29,6 +28,7 @@ from hopin.participation.vocabulary import ParticipationSignal, VideoFailure
 from hopin.rooms.reference import room_reference
 from tests.participation.support.figure_scene import FILE, JOINED, accept_with, figure_look, read_figure
 from tests.participation.support.figures import SOURCE_PREFIX, digest_of, figure_url, ok
+from tests.participation.support.scene_ends import lease_ends, leaves, shuts_down
 from tests.support.agent_speak import SENTENCE_SECONDS, speak
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
 from tests.support.fake_turn import (
@@ -495,24 +495,12 @@ class TestASessionThatDoesNotOpen:
         )
 
 
-def leaves(scene):
-    scene.call.call(scene.token, LEAVE_CALL, {"room": scene.owner.room_id})
-
-
 def is_removed(scene):
     scene.owner.send({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": scene.joined["agent_id"]})
 
 
-def lease_ends(scene):
-    scene.call.pass_time(LEASE_SECONDS)
-
-
 def call_ends(scene):
     scene.call.end_room_after(scene.owner.room_id, lambda: None)
-
-
-def shuts_down(scene):
-    scene.call.shut_down()
 
 
 class TestThePlaceEnds:

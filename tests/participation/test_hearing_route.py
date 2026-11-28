@@ -6,7 +6,6 @@ import logging
 from http import HTTPStatus
 
 import pytest
-from agents.member import LEASE_SECONDS
 from logline.testing import configured
 from speech_client.hearing import OPENING_SECONDS
 from speech_client.realtime_wire import SessionInput, SessionUpdate
@@ -15,7 +14,7 @@ from speech_client.wire import AUTHORIZATION_HEADER, WORKLOAD_TOKEN_HEADER, Lang
 from starlette.websockets import WebSocketDisconnect
 
 from hopin.agent import hearing_route
-from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
+from hopin.agent.tools import JOIN_CALL
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SESSION_RECHECK_SECONDS, SignalType
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import HearingClose, HearingRefusal, ParticipationSignal
@@ -26,6 +25,7 @@ from tests.participation.support.hearing_scene import (
     lose_the_held_token,
     switch_off,
 )
+from tests.participation.support.scene_ends import lease_ends, leaves, shuts_down
 from tests.participation.support.speaking_scene import CLIENT_CREDENTIALS_GRANT, grants
 from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
@@ -452,14 +452,6 @@ def _remove(scene):
     scene.owner.send({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": scene.agent_id})
 
 
-def _agent_leaves(scene):
-    scene.call.call(scene.token, LEAVE_CALL, {"room": scene.owner.room_id})
-
-
-def _lease_ends(scene):
-    scene.call.pass_time(LEASE_SECONDS)
-
-
 def _seat_parks(scene):
     scene.owner.drop()
 
@@ -472,13 +464,9 @@ def _call_ends(scene):
     scene.owner.send({"type": SignalType.END_ROOM.value})
 
 
-def _shut_down(scene):
-    scene.call.shut_down()
-
-
 EVERY_END = pytest.mark.parametrize(
     "end",
-    [switch_off, _remove, _agent_leaves, _lease_ends, _seat_parks, _seat_leaves, _call_ends, _shut_down],
+    [switch_off, _remove, leaves, lease_ends, _seat_parks, _seat_leaves, _call_ends, shuts_down],
     ids=["switch_off", "removal", "leave", "lease_end", "park", "seat_leaves", "call_end", "shutdown"],
 )
 
