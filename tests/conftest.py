@@ -17,6 +17,7 @@ from hopin.main import build_application, main, run_uvicorn, uvicorn_options  # 
 from hopin.signaling.handler import SignalingHandler  # noqa: E402
 from hopin.signaling.scheduler import InMemoryDeadlines  # noqa: E402
 from tests.stores.support.postgres_identity import empty_database, postgres_stores, postgres_stores_with  # noqa: E402, F401
+from tests.stores.support.real_redis import FAKEREDIS, redis_url  # noqa: E402, F401
 from tests.support.call_state import call_store_over  # noqa: E402
 from tests.support.dialed_call import serving_dialed_call  # noqa: E402
 from tests.support.fake_issuer import FakeIssuer  # noqa: E402
@@ -99,9 +100,9 @@ def start_on_taken_port(sign_in_settings, monkeypatch: pytest.MonkeyPatch) -> Ca
 
 
 @pytest.fixture
-def redis_server():
-    """The Redis a test's processes share."""
-    return FakeServer()
+def redis_server(request):
+    """The Redis a test's processes share: a fakeredis server, or the url of the job's real Redis."""
+    return FakeServer() if getattr(request, "param", FAKEREDIS) == FAKEREDIS else request.getfixturevalue("redis_url")
 
 
 @pytest.fixture

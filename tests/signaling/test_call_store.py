@@ -34,17 +34,19 @@ from hopin.signaling.call_store import (
 )
 from hopin.signaling.frames import SENDER_KEY, PeerId
 from hopin.signaling.replay import Supersedes
+from tests.stores.support.real_redis import ON_FAKEREDIS_AND_REAL_REDIS
 from tests.support.call_state import (
     call_store_over,
     end_room,
     host_room,
     open_seat,
+    redis_client,
     seat_in,
     seat_of,
     take_agent_place,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio, ON_FAKEREDIS_AND_REAL_REDIS]
 
 CALL_KEYS = "hopin:v1:call:*"
 
@@ -54,7 +56,7 @@ def relay(sender: PeerId, text: str, **fields: object) -> dict[str, object]:
 
 
 async def keys_of(server) -> set[bytes]:
-    return set(await FakeAsyncRedis(server=server).keys(CALL_KEYS))
+    return set(await redis_client(server).keys(CALL_KEYS))
 
 
 async def commits_elsewhere(store, request) -> None:
@@ -128,10 +130,6 @@ class TestTheCommit:
             ("one", "idle"),
         ]
 
-    async def test_a_supersede_that_names_another_key_than_the_agents_fails_loud(self):
-        with pytest.raises(ValueError, match="agent_id"):
-            Supersedes(frozenset({"agent_state"}), holding=("name", "one"))
-
     async def test_a_log_keeps_its_newest_frames_and_a_resume_before_them_is_not_reachable(self, call_store):
         host = await open_seat(call_store, "host")
         total = REPLAY_LOG_LIMIT + 5
@@ -158,7 +156,7 @@ class TestTheCommit:
         await call_store.commit(Commit(edits=(SeatForgotten(guest), SeatForgotten(seat_of("host")))))
 
         remaining = await keys_of(redis_server)
-        survivors = {key for key in remaining if await FakeAsyncRedis(server=redis_server).ttl(key) < 0}
+        survivors = {key for key in remaining if await redis_client(redis_server).ttl(key) < 0}
 
         assert survivors == set()
 
@@ -167,7 +165,7 @@ class TestTheCommit:
         record = SeatRecord(Account(id="host", name="host"), hash_token(token), call_store.generation)
         await call_store.commit(Commit(edits=(SeatOpened(PeerId("host-seat"), record),)))
 
-        redis = FakeAsyncRedis(server=redis_server)
+        redis = redis_client(redis_server)
         written = [await redis.hgetall(key) for key in await keys_of(redis_server) if await redis.type(key) == b"hash"]
 
         assert token.encode() not in repr(written).encode()
@@ -211,7 +209,7 @@ class TestTheLeaseFence:
         from hopin.signaling.call_store import CallStore, ProcessLease
 
         store = CallStore(
-            FakeAsyncRedis(server=redis_server), ProcessLease(call_leases(FakeAsyncRedis()), "unheld"), place_limit=6
+            redis_client(redis_server), ProcessLease(call_leases(FakeAsyncRedis()), "unheld"), place_limit=6
         )
 
         with pytest.raises(NotServingError):

@@ -4,7 +4,6 @@ import asyncio
 
 import pytest
 import pytest_asyncio
-from fakeredis import FakeAsyncRedis
 from tandem import Hold
 
 from hopin.config.constants import SERVER_ERROR_CLOSE_CODE, SignalType
@@ -13,10 +12,11 @@ from hopin.signaling.call_store import Commit, HostGraceCleared, HostGraceStarte
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import InMemoryDeadlines
 from tests.signaling.support.browsers import Link, clear_sent
-from tests.support.call_state import open_seat, process_over, seat_of, take_agent_place
+from tests.stores.support.real_redis import ON_FAKEREDIS_AND_REAL_REDIS
+from tests.support.call_state import open_seat, process_over, redis_client, seat_of, take_agent_place
 from tests.support.signaling_fakes import SocketAccountResolver
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio, ON_FAKEREDIS_AND_REAL_REDIS]
 
 
 class Pod:
@@ -53,7 +53,7 @@ def types_heard(browser):
 
 
 async def keys_of_generation(server, generation):
-    return [key for key in await FakeAsyncRedis(server=server).keys("hopin:v1:call:*") if generation.encode() in key]
+    return [key for key in await redis_client(server).keys("hopin:v1:call:*") if generation.encode() in key]
 
 
 class TestTheLapseOfAGeneration:
