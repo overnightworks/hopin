@@ -13,10 +13,12 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Protocol
 
 import structlog
+from tandem import StoreError
 
 from hopin.config.constants import (
     CALL_LAPSE_SWEEP_SECONDS,
     CALL_LEASE_RENEWAL_SECONDS,
+    CALL_LEASE_START_RETRY_SECONDS,
     SERVER_ERROR_CLOSE_CODE,
     SESSION_RECHECK_SECONDS,
 )
@@ -65,9 +67,23 @@ class CallOwner:
     @contextlib.asynccontextmanager
     async def serving(self) -> AsyncIterator[None]:
         """Hold the lease, serve the lapses and watch the process while the block runs. A graceful stop frees its own
-        generation's calls before the lease ends, so a stop and a lapse free by one path."""
-        leases = self._lease.leases
-        async with leases.kept(self._lease.holder, every=timedelta(seconds=CALL_LEASE_RENEWAL_SECONDS)) as hold:
+        generation's calls before the lease ends, so a stop and a lapse free by one path. The block starts after the
+        first try at the lease; a Redis that does not answer then keeps the process running, and it is not ready until
+        the lease is held."""
+        first_try = asyncio.Event()
+        holding = asyncio.create_task(self._hold(first_try))
+        try:
+            await first_try.wait()
+            if holding.done():
+                holding.result()  # a failure other than an unanswering Redis ends the start
+            yield
+        finally:
+            holding.cancel()
+            await asyncio.gather(holding, return_exceptions=True)
+
+    async def _hold(self, first_try: asyncio.Event) -> None:
+        async with contextlib.AsyncExitStack() as kept:
+            hold = await self._acquire(kept, first_try)
             self._lease.held_as(hold)
             background = [
                 asyncio.create_task(self._serve_lapses()),
@@ -75,12 +91,26 @@ class CallOwner:
                 asyncio.create_task(self._every(SESSION_RECHECK_SECONDS, self.sweep)),
             ]
             try:
-                yield
+                await asyncio.Event().wait()
             finally:
                 for task in background:
                     task.cancel()
                 await asyncio.gather(*background, return_exceptions=True)
                 await self.free(hold.generation)
+
+    async def _acquire(self, kept: contextlib.AsyncExitStack, first_try: asyncio.Event) -> Hold:
+        """Enter the lease's hold, retried until Redis answers."""
+        every = timedelta(seconds=CALL_LEASE_RENEWAL_SECONDS)
+        try:
+            while True:
+                try:
+                    return await kept.enter_async_context(self._lease.leases.kept(self._lease.holder, every=every))
+                except StoreError:
+                    logger.warning("call_owner.lease_not_held")
+                    first_try.set()
+                    await asyncio.sleep(CALL_LEASE_START_RETRY_SECONDS)
+        finally:
+            first_try.set()
 
     def _watch(self, hold: Hold) -> Callable[[], Awaitable[None]]:
         known = hold.generation
