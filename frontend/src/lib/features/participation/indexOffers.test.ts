@@ -1,9 +1,6 @@
 // @vitest-environment jsdom
-import { loadKitWords } from "overnightworks-design";
 import { flushSync } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TOAST_KIND } from "#lib/ui/toast.svelte.ts";
-import { language, words } from "#lib/words.ts";
 import { installedParticipation, joined } from "./page.fixture.ts";
 import { refusalOf } from "./offers.svelte.ts";
 import { AGENT_REFUSAL, INVITATION_OUTCOME, PARTICIPATION_SIGNAL, TURN_OUTCOME } from "./wire.ts";
@@ -46,50 +43,56 @@ describe("calling an agent that has an account of its own", () => {
     });
 
     it.each([
-        [TURN_OUTCOME.NOT_ENABLED, "Nicht freigeschaltet"],
-        [TURN_OUTCOME.BUSY, "Gerade ausgelastet"],
-        [TURN_OUTCOME.BUDGET_SPENT, "Budget aufgebraucht"],
-        [TURN_OUTCOME.UNAVAILABLE, "Gerade gestört"],
-    ])("CALL-73: shows the outcome %s an agent in the call stated beside its name", async (outcome, words) => {
+        [TURN_OUTCOME.NOT_ENABLED, "not_enabled", "Nicht freigeschaltet"],
+        [TURN_OUTCOME.BUSY, "busy", "Gerade ausgelastet"],
+        [TURN_OUTCOME.BUDGET_SPENT, "budget_spent", "Budget aufgebraucht"],
+        [TURN_OUTCOME.UNAVAILABLE, "unavailable", "Gerade gestört"],
+    ])(
+        "CALL-73: gives the tile and the here row of a seat that may send the agent away the outcome %s it stated",
+        async (outcome, turnState, words) => {
+            const page = await installedParticipation();
+            page.seat(false);
+            page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [], send_away: ["a1"] });
+            page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
+
+            page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome });
+
+            expect([names(page), page.offers()[0]?.textContent, page.tiles.get("agent-a1")?.turnState]).toEqual([
+                ["Claude"],
+                expect.stringContaining(words),
+                turnState,
+            ]);
+        },
+    );
+
+    it("CALL-73: gives the tile of a seat with no right to send the agent away the outcome and lists no here row", async () => {
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
-
-        page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome });
-
-        expect([names(page), page.offers()[0]?.textContent]).toEqual([["Claude"], expect.stringContaining(words)]);
-    });
-
-    it("CALL-73: shows the outcome an agent in the call stated to a seat that may not add agents", async () => {
-        const page = await installedParticipation();
-        page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: [] });
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: TURN_OUTCOME.BUSY });
 
-        expect([names(page), page.offers()[0]?.textContent, page.buttons()]).toEqual([
-            ["Claude"],
-            expect.stringContaining("Gerade ausgelastet"),
-            [],
-        ]);
+        expect([page.tiles.get("agent-a1")?.turnState, names(page), page.shown()]).toEqual(["busy", [], false]);
     });
 
-    it("CALL-73: shows no outcome beside an agent whose outcome was cleared, and drops it with the agent", async () => {
+    it("CALL-73: shows no outcome on the tile or beside the name of an agent whose outcome was cleared, and drops it with the agent", async () => {
         const page = await installedParticipation();
         page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, offers: [], send_away: ["a1"] });
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
         page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: TURN_OUTCOME.BUSY });
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: null });
-        const cleared = page.offers()[0]?.textContent.includes("Gerade ausgelastet");
+        const cleared = [
+            page.tiles.get("agent-a1")?.turnState,
+            page.offers()[0]?.textContent.includes("Gerade ausgelastet"),
+        ];
         page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: TURN_OUTCOME.BUSY });
         page.emit(PARTICIPATION_SIGNAL.AGENT_LEFT, { agent_id: "a1" });
         page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: TURN_OUTCOME.BUSY });
 
-        expect([cleared, names(page)]).toEqual([false, []]);
+        expect([cleared, names(page), page.tiles.size]).toEqual([[undefined, false], [], 0]);
     });
 
     it("follows each frame exactly: the rows of the last frame are all there is", async () => {
@@ -295,9 +298,9 @@ describe("calling an agent that has an account of its own", () => {
         page.seat(false);
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined());
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, full: true, offers: [] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, full: true, offers: [], send_away: ["a1"] });
         const notShown = [page.offers().length, (page.sentence() ?? "").includes("kein Platz")];
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, full: true, offers: [] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: true, full: true, offers: [], send_away: ["a1"] });
 
         expect([notShown, [page.offers().length, (page.sentence() ?? "").includes("kein Platz")]]).toEqual([
             [1, false],
@@ -393,20 +396,24 @@ describe("calling an agent that has an account of its own", () => {
 });
 
 describe("sending an agent away", () => {
-    const buttonOf = (page: Awaited<ReturnType<typeof installedParticipation>>, agentId: string) =>
-        page.tiles.get(`agent-${agentId}`)?.onRemove;
-
-    it("CALL-84: shows the remove button on the tiles the last offers frame names and on no other, and a press asks the server to send that agent away", async () => {
+    const withTwoAgents = async (sendAway: string[]) => {
         const page = await installedParticipation();
         page.seat(false);
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a2"));
+        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: sendAway });
+        return page;
+    };
+    const askToLeave = (page: Awaited<ReturnType<typeof installedParticipation>>) =>
+        page.buttons().filter((button) => button.getAttribute("aria-label")?.includes("Claude"));
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: ["a2"] });
-        buttonOf(page, "a2")?.();
+    it("CALL-84: lists as here only the agents the last offers frame names for sending away, and a press asks the server to send that agent away", async () => {
+        const page = await withTwoAgents(["a2"]);
 
-        expect([buttonOf(page, "a1"), page.sent]).toEqual([
-            undefined,
+        page.buttons()[0]?.click();
+
+        expect([page.offers().length, page.sent]).toEqual([
+            1,
             [{ type: PARTICIPATION_SIGNAL.AGENT_REMOVE, agent_id: "a2" }],
         ]);
     });
@@ -414,49 +421,64 @@ describe("sending an agent away", () => {
     it.each([
         { order: "the offers frame after the join", frameFirst: false },
         { order: "the offers frame before the join", frameFirst: true },
-    ])("CALL-84: shows the button for $order and takes it away with a later frame", async ({ frameFirst }) => {
+    ])("CALL-84: lists the agent for $order and takes it away with a later frame", async ({ frameFirst }) => {
         const page = await installedParticipation();
         page.seat(false);
-        const frame = () => {
-            page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: ["a1"] });
+        const frame = (sendAway: string[]) => {
+            page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: sendAway });
         };
-        if (frameFirst) frame();
+        if (frameFirst) frame(["a1"]);
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
-        if (!frameFirst) frame();
-        const shownWith = typeof buttonOf(page, "a1");
+        if (!frameFirst) frame(["a1"]);
+        const listed = page.offers().length;
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: [] });
+        frame([]);
 
-        expect([shownWith, buttonOf(page, "a1")]).toEqual(["function", undefined]);
+        expect([listed, page.offers().length, page.tiles.has("agent-a1")]).toEqual([1, 0, true]);
     });
 
     it("CALL-84: reads an offers frame without a send-away list as an empty one", async () => {
-        const page = await installedParticipation();
-        page.seat(false);
-        page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: ["a1"] });
+        const page = await withTwoAgents(["a1"]);
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [] });
 
-        expect(buttonOf(page, "a1")).toBeUndefined();
+        expect(page.offers()).toEqual([]);
+    });
+
+    it("CALL-84: moves the focus that sat on the button of a row that leaves to the control", async () => {
+        const page = await withTwoAgents(["a1", "a2"]);
+        askToLeave(page)[0]?.focus();
+
+        askToLeave(page)[0]?.click();
+        page.emit(PARTICIPATION_SIGNAL.AGENT_LEFT, { agent_id: "a1" });
+
+        expect([page.offers().length, page.focused()?.id]).toEqual([1, "agentOffers"]);
     });
 
     it.each([
-        {
-            refusal: AGENT_REFUSAL.NOT_ALLOWED_TO_SEND_AWAY,
-            kind: TOAST_KIND.LOCKED,
-            text: () => Promise.resolve(words["agent.notRemovedToast"]),
-        },
-        {
-            refusal: AGENT_REFUSAL.SEND_AWAY_UNAVAILABLE,
-            kind: TOAST_KIND.FAILED,
-            text: async () => (await loadKitWords(language))["agent.tryAgain"],
-        },
-    ])("CALL-84: shows $refusal as a $kind toast and leaves the control's refusal unset", async (refused) => {
-        const page = await installedParticipation();
+        { reason: AGENT_REFUSAL.NOT_ALLOWED_TO_SEND_AWAY, kitReason: "not-allowed" },
+        { reason: AGENT_REFUSAL.SEND_AWAY_UNAVAILABLE, kitReason: "try-again" },
+    ])("CALL-84: maps the refused send-away $reason to the kit's $kitReason reason", ({ reason, kitReason }) => {
+        expect(refusalOf(reason)).toBe(kitReason);
+    });
 
-        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: refused.refusal });
+    it.each([AGENT_REFUSAL.NOT_ALLOWED_TO_SEND_AWAY, AGENT_REFUSAL.SEND_AWAY_UNAVAILABLE])(
+        "CALL-84: answers the refused send-away %s above the rows and shows no toast",
+        async (reason) => {
+            const page = await withTwoAgents(["a1"]);
 
-        expect([page.toasts, page.alert()]).toEqual([[{ text: await refused.text(), kind: refused.kind }], undefined]);
+            page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason });
+
+            expect([page.alert(), page.toasts, page.offers().length]).toEqual([expect.any(String), [], 1]);
+        },
+    );
+
+    it("CALL-84: takes a standing refusal away when the person presses a send-away", async () => {
+        const page = await withTwoAgents(["a1"]);
+        page.emit(PARTICIPATION_SIGNAL.AGENT_REFUSED, { reason: AGENT_REFUSAL.NOT_ALLOWED_TO_SEND_AWAY });
+
+        askToLeave(page)[0]?.click();
+
+        expect(page.alert()).toBeUndefined();
     });
 });

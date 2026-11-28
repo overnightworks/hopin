@@ -1,40 +1,40 @@
 # Measured by `quality check --fix`. Entries only ever go down.
 
 [file_lines]
-"frontend/src/lib/assets/hopin.css" = 2049
+"frontend/src/lib/assets/hopin.css" = 2019
 
 [function_lines."frontend/src/lib/call/files.ts"]
-createFiles = 313
+"createFiles" = 313
 
 [function_lines."frontend/src/lib/call/lines.ts"]
-createLines = 219
+"createLines" = 219
 
 [function_lines."frontend/src/lib/call/mesh.ts"]
-createPeerConnection = 80
+"createPeerConnection" = 80
 
 [function_lines."frontend/src/lib/features/figure/index.ts"]
-drawFigure = 135
+"drawFigure" = 135
 
 [function_lines."frontend/src/lib/features/game/index.test.ts"]
-installedGame = 71
+"installedGame" = 71
 
 [function_lines."frontend/src/lib/features/participation/index.ts"]
-installWith = 326
+"installWith" = 323
 
 [function_lines."frontend/src/lib/features/participation/page.fixture.ts"]
-installedParticipation = 154
+"installedParticipation" = 154
 
 [function_lines."frontend/src/lib/features/participation/voice.ts"]
-createAgentVoices = 74
+"createAgentVoices" = 74
 
 [function_lines."frontend/src/lib/features/stage/index.test.ts"]
-installedStage = 75
+"installedStage" = 75
 
 [function_lines."frontend/src/lib/features/stage/index.ts"]
-install = 75
+"install" = 75
 
 [function_lines."frontend/src/lib/ui/pip.ts"]
-pictureInPicture = 68
+"pictureInPicture" = 68
 
 [clones."tests/auth/test_sign_in_backchannel_erasure.py"]
 host_a_call = [["tests/signaling/test_handler_flow.py", "open_room"]]

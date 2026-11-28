@@ -331,7 +331,7 @@ dev = [
     "fakeredis[lua]>=2.35,<3",
     "httpx2>=2.13.1",
     "mypy>=1.19.1",
-    "overnightworks-design[catalogs] @ git+https://github.com/overnightworks/design@v0.43.0",
+    "overnightworks-design[catalogs] @ git+https://github.com/overnightworks/design@v0.43.1",
     "pyjwt>=2.15.1",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",

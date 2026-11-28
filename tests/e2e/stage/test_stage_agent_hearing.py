@@ -10,7 +10,6 @@ from tests.e2e.support.dialed_agent import (
     AGENT_LISTEN_SWITCH,
     AGENT_SEE_SWITCH,
     AGENT_TILE,
-    REMOVE,
     TOLERANCE_PIXELS,
     lies_inside,
     share_area,
@@ -31,7 +30,7 @@ TRACK = SWITCH + ' >> span[aria-hidden="true"]'
 SEE_TRACK = AGENT_SEE_SWITCH + ' >> span[aria-hidden="true"]'
 SEE_ICON = AGENT_SEE_SWITCH + " >> .icon svg"
 CHIP_INSET_PIXELS = 8
-WHOLE_CHIP_FITS_FROM_PIXELS = 131
+WHOLE_CHIP_FITS_FROM_PIXELS = 97
 MIN_TARGET_PIXELS = 24
 
 
@@ -79,26 +78,22 @@ def host_with_a_table_and_an_agent(
 def test_the_switch_stays_on_a_strip_tile_while_a_table_shows_and_still_answers_a_press(
     host_with_a_table_and_an_agent: Page,
 ) -> None:
-    """CALL-57: The switch is never hidden on a strip tile: its track lies wholly inside the tile and clear of the
-    remove button, the whole chip does too where the tile has the room, and a press is answered."""
+    """CALL-57: The switch is never hidden on a strip tile: its track lies wholly inside the tile, the whole chip does
+    too where the tile has the room, and a press is answered."""
     host = host_with_a_table_and_an_agent
     switch = host.locator(SWITCH)
     expect(switch).to_be_visible()
     tile_box = box_of(AGENT_TILE, host)
     track_box = box_of(TRACK, host)
-    remove_box = box_of(AGENT_TILE + " " + REMOVE, host)
     assert lies_inside(track_box, tile_box)
-    assert share_area(track_box, remove_box) == 0
     narrow = tile_box["width"] < WHOLE_CHIP_FITS_FROM_PIXELS
     expect(host.locator(AGENT_LISTEN_SWITCH)).to_have_count(1)
     listen_box = box_of(AGENT_LISTEN_SWITCH, host)
     assert lies_inside(listen_box, tile_box)
-    assert share_area(listen_box, remove_box) == 0
     assert share_area(listen_box, box_of(AGENT_SEE_SWITCH, host)) == 0
     assert share_area(listen_box, track_box) == 0
     hearing_box = box_of(SWITCH, host)
     assert lies_inside(hearing_box, tile_box)
-    assert share_area(hearing_box, remove_box) == 0
     assert share_area(hearing_box, box_of(AGENT_SEE_SWITCH, host)) == 0
     assert share_area(hearing_box, listen_box) == 0
     if not narrow:
@@ -106,7 +101,6 @@ def test_the_switch_stays_on_a_strip_tile_while_a_table_shows_and_still_answers_
         assert chip_box["x"] - tile_box["x"] == pytest.approx(CHIP_INSET_PIXELS, abs=TOLERANCE_PIXELS)
         assert chip_box["y"] - tile_box["y"] == pytest.approx(CHIP_INSET_PIXELS, abs=TOLERANCE_PIXELS)
         assert lies_inside(chip_box, tile_box)
-        assert share_area(chip_box, remove_box) == 0
     switch.click()
     expect(switch).to_have_attribute("aria-checked", "false")
     switch.click()
@@ -118,7 +112,7 @@ def test_the_see_switch_stays_on_a_strip_tile_while_a_table_shows_and_the_sponso
     host_with_a_table_and_an_agent: Page,
 ) -> None:
     """CALL-62: The sponsor can always withdraw the consent: on a strip tile the see switch's track lies wholly inside
-    the tile, clear of the remove button and of the hearing switch, and a press turns it on and off again. Its eye
+    the tile, clear of the hearing switch, and a press turns it on and off again. Its eye
     icon shows on the switch, so a sighted sponsor tells it from the hearing switch."""
     host = host_with_a_table_and_an_agent
     see_switch = host.locator(AGENT_SEE_SWITCH)
@@ -126,12 +120,10 @@ def test_the_see_switch_stays_on_a_strip_tile_while_a_table_shows_and_the_sponso
     tile_box = box_of(AGENT_TILE, host)
     see_box = box_of(SEE_TRACK, host)
     assert lies_inside(see_box, tile_box)
-    assert share_area(see_box, box_of(AGENT_TILE + " " + REMOVE, host)) == 0
     assert share_area(see_box, box_of(TRACK, host)) == 0
     expect(host.locator(SEE_ICON)).to_be_visible()
     icon_box = box_of(SEE_ICON, host)
     assert lies_inside(icon_box, tile_box)
-    assert share_area(icon_box, box_of(AGENT_TILE + " " + REMOVE, host)) == 0
     assert lies_inside(icon_box, box_of(AGENT_SEE_SWITCH, host))
     see_switch.click()
     expect(see_switch).to_have_attribute("aria-checked", "true")
@@ -159,29 +151,17 @@ PRESSABLE_SQUARE_SCRIPT = """(switchElement, tileSelector) => {
     return largest;
 }"""
 
-TOPMOST_AT_SCRIPT = """([selector, x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(selector))"""
-
 
 @pytest.mark.parametrize("form_factor", [pytest.param(PHONE, id="phone")])
-def test_each_switch_on_a_strip_tile_is_a_touch_target_clear_of_the_remove_button_and_toggles_on_a_tap(
+def test_each_switch_on_a_strip_tile_is_a_touch_target_and_toggles_on_a_tap(
     host_with_a_table_and_an_agent: Page,
 ) -> None:
     """CALL-57, CALL-62: Under a coarse pointer a press lands on each switch of a strip tile over a square of at least
-    24 by 24 px inside the tile that belongs to neither the other switch nor the remove button, which stays pressable,
-    and a tap turns it on or off."""
+    24 by 24 px inside the tile that belongs to no other switch, and a tap turns it on or off."""
     host = host_with_a_table_and_an_agent
-    remove_box = box_of(AGENT_TILE + " " + REMOVE, host)
-    remove_points = [
-        (remove_box["x"] + remove_box["width"] * fx, remove_box["y"] + remove_box["height"] * fy)
-        for fx in (0.2, 0.5, 0.8)
-        for fy in (0.2, 0.5, 0.8)
-    ]
-    for x, y in remove_points:
-        assert host.evaluate(TOPMOST_AT_SCRIPT, [AGENT_TILE + " " + REMOVE, x, y])
     for selector in (AGENT_HEARING_SWITCH, AGENT_SEE_SWITCH, AGENT_LISTEN_SWITCH):
         switch = host.locator(selector)
         assert switch.evaluate(PRESSABLE_SQUARE_SCRIPT, AGENT_TILE) >= MIN_TARGET_PIXELS
-        assert share_area(box_of(selector, host), remove_box) == 0
         before = switch.get_attribute("aria-checked") or ""
         switch.tap()
         expect(switch).not_to_have_attribute("aria-checked", before)

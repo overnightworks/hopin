@@ -123,7 +123,6 @@ export type Words = {
     readonly "account.unnamedMenuName": string;
     readonly "account.unnamedRowName": string;
     readonly "signIn.logOutButton": string;
-    readonly "tile.removeButton": string;
     readonly "tile.aiBadge": string;
     readonly "tile.lookMarkLabel": (gaps: { readonly name: string }) => string;
     readonly "tile.agentThinkingLabel": (gaps: { readonly name: string }) => string;
@@ -173,7 +172,6 @@ export type Words = {
     readonly "stage.notRemovedToast": string;
     readonly "stage.frameTitle": (gaps: { readonly title: string }) => string;
     readonly "stage.removeButton": string;
-    readonly "agent.notRemovedToast": string;
     readonly "agent.badge": string;
     readonly "chat.closeGlyph": string;
 };
@@ -304,7 +302,6 @@ export const words: Words = {
     "account.unnamedMenuName": "Konto",
     "account.unnamedRowName": "Du",
     "signIn.logOutButton": "Abmelden",
-    "tile.removeButton": "Entfernen",
     "tile.aiBadge": "KI",
     "tile.lookMarkLabel": (gaps: { readonly name: string }) => gaps.name + " schaut hin",
     "tile.agentThinkingLabel": (gaps: { readonly name: string }) => gaps.name + ", KI, denkt nach",
@@ -361,7 +358,6 @@ export const words: Words = {
     "stage.notRemovedToast": "Nur wer den Tisch mitgebracht hat oder der Host kann ihn entfernen.",
     "stage.frameTitle": (gaps: { readonly title: string }) => gaps.title,
     "stage.removeButton": "Tisch entfernen",
-    "agent.notRemovedToast": "Du darfst diese KI nicht entfernen.",
     "agent.badge": "AI",
     "chat.closeGlyph": "x",
 };

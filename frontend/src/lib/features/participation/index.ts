@@ -1,6 +1,6 @@
 import { loadKitWords } from "overnightworks-design";
 import { createPlayer as createSpeechPlayer, startCapture } from "overnightworks-speech-browser";
-import { flushSync, mount } from "svelte";
+import { mount } from "svelte";
 import { AGENT_ACTIVITY, type FeatureCore } from "#lib/call/feature-port.ts";
 import { featureView } from "#lib/ui/chat.svelte.ts";
 import { language } from "#lib/words.ts";
@@ -16,9 +16,10 @@ import {
     hereRowOf,
     keepStandingEndings,
     outcomeOf,
+    redrawKeepingFocus,
     refusalOf,
     rowsOf,
-    toastOf,
+    turnStateOf,
     type Ending,
 } from "./offers.svelte.ts";
 import { createAgentVoices, type HeldPlace, type PlayerFactory } from "./voice.ts";
@@ -74,7 +75,7 @@ export async function installWith(
     const kitWords = await loadKitWords(language);
     let seatId = "";
     const shown = new Map<string, ShownAgent>();
-    // The ids of the agents the last offers frame says this seat may send away: the tile's remove button follows them.
+    // The ids of the agents the last offers frame says this seat may send away: the control lists only them as here.
     let sendAway = new Set<string>();
     const capture = createHearingCapture(
         () => `${location.protocol.replace("http", "ws")}//${location.host}${HEARING_PATH}/${seatId}`,
@@ -112,7 +113,7 @@ export async function installWith(
         return thinking.has(agentId) ? AGENT_ACTIVITY.THINKING : AGENT_ACTIVITY.PRESENT;
     }
 
-    function draw({ joined: frame, hearing, seeing, looking, framing }: ShownAgent) {
+    function draw({ joined: frame, hearing, seeing, looking, framing, turnOutcome }: ShownAgent) {
         core.showAgentTile(
             {
                 name: frame.name,
@@ -152,11 +153,7 @@ export async function installWith(
                               },
                           },
                 looking,
-                onRemove: sendAway.has(frame.agent_id)
-                    ? () => {
-                          core.send({ type: PARTICIPATION_SIGNAL.AGENT_REMOVE, agent_id: frame.agent_id });
-                      }
-                    : undefined,
+                turnState: turnStateOf(turnOutcome),
             },
             tileKey(frame.agent_id),
         );
@@ -244,6 +241,10 @@ export async function installWith(
                 clearRefusal();
                 core.send({ type: PARTICIPATION_SIGNAL.AGENT_ADD, agent_key: agentKey });
             },
+            onSendAway: (agentId: string) => {
+                clearRefusal();
+                core.send({ type: PARTICIPATION_SIGNAL.AGENT_REMOVE, agent_id: agentId });
+            },
         },
     });
     core.addMoreItems(offers);
@@ -272,25 +273,22 @@ export async function installWith(
 
     function drawOffers() {
         offersView.rows = rowsOf(
-            [...shown.values()].map(({ joined, turnOutcome }) => hereRowOf(joined.agent_id, joined.name, turnOutcome)),
+            [...shown.values()]
+                .filter(({ joined }) => sendAway.has(joined.agent_id))
+                .map(({ joined, turnOutcome }) => hereRowOf(joined.agent_id, joined.name, turnOutcome)),
             offered,
             endings,
         );
     }
 
-    // The kit replaces the button that had focus when its row turns inviting, and focus would fall to the page.
     function showOffers(frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_OFFERS]) {
-        const hadFocus = offers.contains(document.activeElement);
         clearRefusal();
         offered = frame.offers;
         keepStandingEndings(endings, offered);
         offersView.shown = frame.shown;
         offersView.full = frame.full;
         sendAway = new Set(frame.send_away);
-        for (const agent of shown.values()) draw(agent);
-        drawOffers();
-        flushSync();
-        if (hadFocus && !offers.contains(document.activeElement)) offers.focus();
+        redrawKeepingFocus(offers, drawOffers);
     }
 
     function showEnding(frame: ParticipationFrameByType[PARTICIPATION_SIGNAL.AGENT_INVITATION_ENDED]) {
@@ -307,7 +305,7 @@ export async function installWith(
         markTimers.delete(agentId);
         voices.close(agentId);
         core.showAgentTile(null, tileKey(agentId));
-        drawOffers();
+        redrawKeepingFocus(offers, drawOffers);
         capture.setHearers(hearingAgents());
         readLines();
     }
@@ -366,7 +364,9 @@ export async function installWith(
     core.on(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, (frame) => {
         const agent = shown.get(frame.agent_id);
         if (agent === undefined) return;
-        shown.set(frame.agent_id, { ...agent, turnOutcome: frame.outcome ?? undefined });
+        const stated = { ...agent, turnOutcome: frame.outcome ?? undefined };
+        shown.set(frame.agent_id, stated);
+        draw(stated);
         drawOffers();
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_OFFERS, showOffers);
@@ -375,9 +375,7 @@ export async function installWith(
         core.receiveChatLine(featureView(AgentLine, { name: frame.name, text: frame.text }));
     });
     core.on(PARTICIPATION_SIGNAL.AGENT_REFUSED, (frame) => {
-        const toast = toastOf(frame.reason, kitWords, core.toastKind);
-        if (toast === undefined) offersView.refusal = refusalOf(frame.reason);
-        else core.showToast(toast.text, toast.kind, null);
+        offersView.refusal = refusalOf(frame.reason);
     });
     core.onAgentFigureEnded((key, code) => {
         const agentId = [...shown.keys()].find((id) => tileKey(id) === key);

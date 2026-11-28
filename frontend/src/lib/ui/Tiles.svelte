@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { HearingSwitch, loadKitWords, type KitWords } from "overnightworks-design";
+    import { HearingSwitch, loadKitWords, TurnState, type KitWords } from "overnightworks-design";
     import { onMount } from "svelte";
     import { qualityPill, remoteMedia } from "#lib/ui/stage-media.ts";
     import { language, words } from "#lib/words.ts";
@@ -13,13 +13,13 @@
         [AGENT_ACTIVITY.PRESENT]: words["tile.agentPresentLabel"],
     };
 
-    // Under this width the narrowest hearing chip no longer fits beside the remove button; hopin.css moves the chips
-    // into the tile's corners and the see chip shrinks to its track.
+    // Under this width the narrowest hearing chip (hopin.css's --hear-narrowest) no longer fits between the tile's 8px
+    // insets; hopin.css moves the chips into the tile's corners and the see chip shrinks to its track.
     // A tile not yet measured has no width, and Number(undefined) is NaN, which is never narrow.
-    const NARROW_TILE_WIDTH = 131;
-    // From this width the listen chip's whole label fits beside the remove button (the chip may take the tile's width
-    // less 64px); a tile not yet measured is not spacious, so its chip starts compact.
-    const SPACIOUS_TILE_WIDTH = 340;
+    const NARROW_TILE_WIDTH = 97;
+    // From this width the listen chip's whole label fits (the chip may take the tile's width less its two 8px insets);
+    // a tile not yet measured is not spacious, so its chip starts compact.
+    const SPACIOUS_TILE_WIDTH = 292;
 
     let kitWords = $state<KitWords>();
     let agentTileWidths = $state<Record<string, number>>({});
@@ -166,29 +166,14 @@
                 </svg>
             </span>
         {/if}
-        {#if agent.onRemove !== undefined}
-            <button class="agent-remove" type="button" aria-label={words["tile.removeButton"]} onclick={agent.onRemove}>
-                <svg
-                    class="icon"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.4"
-                    stroke-linecap="round"
-                    aria-hidden="true"
-                >
-                    <path d="M6 6l12 12M18 6L6 18" />
-                </svg>
-            </button>
-        {/if}
-        <span class="name">
+        <span class="name" class:stated={agent.turnState !== undefined}>
             <span class="wave" class:hidden={agent.activity !== AGENT_ACTIVITY.SPEAKING} aria-hidden="true">
                 <i></i><i></i><i></i>
             </span><span class="name-text">{agent.name}</span><span class="ai-badge">
                 {words["tile.aiBadge"]}
-            </span>{#if agent.sponsor !== undefined}<span class="sponsor">{agent.sponsor}</span>{/if}
+            </span>{#if agent.sponsor !== undefined}<span class="sponsor">
+                    {agent.sponsor}
+                </span>{/if}{#if kitWords !== undefined}<TurnState outcome={agent.turnState} words={kitWords} />{/if}
         </span>
     </div>
 {/each}

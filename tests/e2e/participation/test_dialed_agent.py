@@ -9,16 +9,18 @@ from tests.e2e.support.calls import (
     join_by_link,
     open_call,
     open_host,
+    open_more,
     record_page_errors,
 )
 from tests.e2e.support.dialed_agent import (
     AGENT_HEARING_SWITCH,
     AGENT_TILE,
     COUNT,
-    REMOVE,
+    OFFER,
     TILES_ABOVE_THE_CONTROLS,
     TOLERANCE_PIXELS,
     assert_tiles_clear_of_the_controls,
+    send_away_button,
 )
 from tests.e2e.support.media import RECORD_PEER_CONNECTIONS, wait_for_peer_count
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
@@ -34,7 +36,7 @@ pytestmark = pytest.mark.e2e
 COUNTS_OF_PEOPLE = (1, 2, 5)
 
 
-def test_a_dialed_in_agent_shows_as_a_tile_every_page_sees_and_its_sponsor_or_the_host_removes_it(
+def test_a_dialed_in_agent_shows_as_a_tile_every_page_sees_and_its_sponsor_or_the_host_sends_it_away(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     page_errors: list[str],
@@ -42,8 +44,8 @@ def test_a_dialed_in_agent_shows_as_a_tile_every_page_sees_and_its_sponsor_or_th
     member_of: Callable[[Page], Any],
     grant_adders: Callable[[str], None],
 ) -> None:
-    """CALL-48, CALL-49, CALL-50: A dialed-in agent shows with its sponsor; its sponsor or the host removes it, and a
-    member of the adders group who is not its sponsor sees no remove button."""
+    """CALL-48, CALL-49, CALL-50: A dialed-in agent shows with its sponsor; its sponsor or the host sends it away from
+    its here row in More, and a member of the adders group who is not its sponsor sees the tile and no here row."""
     host, invite_link = open_host(open_person, e2e_server.base_url, page_errors, DESKTOP)
     guest = record_page_errors(open_person(**DESKTOP), page_errors)
     add_init_scripts(guest, (RECORD_PEER_CONNECTIONS,))
@@ -63,13 +65,15 @@ def test_a_dialed_in_agent_shows_as_a_tile_every_page_sees_and_its_sponsor_or_th
         expect(tile.locator(".ai-badge")).to_be_visible()
         expect(tile.locator(".sponsor")).to_be_visible()
     expect(host.locator(COUNT)).to_have_text("3")
-    expect(host.locator(AGENT_TILE + " " + REMOVE)).to_have_count(1)
-    expect(bystander.locator(AGENT_TILE + " " + REMOVE)).to_have_count(1)
-    expect(guest.locator(AGENT_TILE + " " + REMOVE)).to_have_count(0)
+    for person in (host, bystander):
+        open_more(person)
+        expect(send_away_button(person, "Claude")).to_have_count(1)
+    open_more(guest)
+    expect(guest.locator(OFFER)).to_have_count(0)
     for person in (host, guest, bystander):
         expect(person.locator(AGENT_HEARING_SWITCH)).to_have_count(0)
 
-    bystander.locator(AGENT_TILE + " " + REMOVE).click()
+    send_away_button(bystander, "Claude").click()
 
     for person in (host, guest, bystander):
         expect(person.locator(AGENT_TILE)).to_have_count(0)

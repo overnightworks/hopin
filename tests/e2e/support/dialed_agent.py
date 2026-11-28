@@ -28,7 +28,7 @@ from design.words import text as kit_text
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared.subscriptions import ResourceUpdated
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
 from pydantic import SecretStr
 
 from hopin.agent.tools import CALL_KIND, JOIN_CALL, LOOK, SAY
@@ -64,7 +64,10 @@ LISTEN_SWITCH_ON_A_TILE = f'role=switch[name="{kit_text("de", "hearing.iWantToHe
 AGENT_HEARING_SWITCH = f"{AGENT_TILE} >> {HEARING_SWITCH_ON_A_TILE}"
 AGENT_LISTEN_SWITCH = f"{AGENT_TILE} >> {LISTEN_SWITCH_ON_A_TILE}"
 AGENT_SEE_SWITCH = f"{AGENT_TILE} >> {SEE_SWITCH_ON_A_TILE}"
-REMOVE = ".agent-remove"
+TURN_STATE_ON_A_TILE = f"{AGENT_TILE} .turn-state"
+NAME_PILL_ON_A_TILE = f"{AGENT_TILE} .name"
+# A row of the agent control in More: the agents a seat may send away as here, then those it may call.
+OFFER = "#agentOffers li"
 COUNT = "#participantCount .num"
 REQUEST_SECONDS = 30
 TOLERANCE_PIXELS = 1
@@ -89,6 +92,15 @@ LABELS_ABOVE_THE_CONTROLS = """
 }
 """
 FULL_BLEED_TILES = 2
+
+
+def send_away_button(person: Page, agent_name: str) -> Locator:
+    """The button that sends the agent away on its here row in More, which is open on `person`'s page."""
+    return (
+        person.locator(OFFER)
+        .filter(has_text=agent_name)
+        .get_by_role("button", name=kit_text("de", "agent.askToLeaveLabel", name=agent_name))
+    )
 
 
 def room_of_link(link: str) -> str:
@@ -406,3 +418,21 @@ def share_area(first: dict[str, float], second: dict[str, float]) -> float:
     width = min(first["x"] + first["width"], second["x"] + second["width"]) - max(first["x"], second["x"])
     height = min(first["y"] + first["height"], second["y"] + second["height"]) - max(first["y"], second["y"])
     return max(width, 0) * max(height, 0)
+
+
+def assert_the_pill_is_whole_and_clear_of_the_chips(person: Page, chips: tuple[str, ...], *, word_shown: bool) -> None:
+    """The agent's name pill lies inside its tile, a stated turn state's word, when the seat shows one, lies inside the
+    pill, and none of the chips the seat must show overlaps the pill."""
+    tile_box = person.locator(AGENT_TILE).bounding_box()
+    pill_box = person.locator(NAME_PILL_ON_A_TILE).bounding_box()
+    assert tile_box is not None
+    assert pill_box is not None
+    assert lies_inside(pill_box, tile_box)
+    if word_shown:
+        word_box = person.locator(TURN_STATE_ON_A_TILE).bounding_box()
+        assert word_box is not None
+        assert lies_inside(word_box, pill_box)
+    for chip in chips:
+        chip_box = person.locator(chip).bounding_box()
+        assert chip_box is not None
+        assert share_area(chip_box, pill_box) == 0

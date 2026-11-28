@@ -6,7 +6,11 @@ from design.words import text as kit_text
 from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e.support.calls import join, open_call
-from tests.e2e.support.dialed_agent import AGENT_HEARING_SWITCH, AGENT_TILE, REMOVE
+from tests.e2e.support.dialed_agent import (
+    AGENT_HEARING_SWITCH,
+    AGENT_TILE,
+    assert_the_pill_is_whole_and_clear_of_the_chips,
+)
 from tests.e2e.support.media import RECORD_PEER_CONNECTIONS, wait_for_peer_count
 from tests.e2e.support.people import DESKTOP, FORM_FACTORS
 
@@ -22,7 +26,6 @@ pytestmark = pytest.mark.e2e
 SWITCH = AGENT_HEARING_SWITCH
 SWITCH_NAME = kit_text("de", "hearing.agentMayHearMe")
 CHIP_INSET_PIXELS = 8
-REMOVE_CLEARANCE_PIXELS = 64
 TOLERANCE_PIXELS = 1
 MINIMUM_NON_TEXT_CONTRAST = 3
 CHANNELS = re.compile(r"[\d.]+")
@@ -107,9 +110,11 @@ def test_the_sponsor_of_a_dialed_in_agent_sees_the_switch_on_where_the_picture_p
     switch_box = box_of(switch)
     assert switch_box["x"] - tile_box["x"] == pytest.approx(CHIP_INSET_PIXELS, abs=TOLERANCE_PIXELS)
     assert switch_box["y"] - tile_box["y"] == pytest.approx(CHIP_INSET_PIXELS, abs=TOLERANCE_PIXELS)
-    assert switch_box["width"] <= tile_box["width"] - REMOVE_CLEARANCE_PIXELS + TOLERANCE_PIXELS
-    remove_box = box_of(sponsor.locator(AGENT_TILE + " " + REMOVE))
-    assert switch_box["x"] + switch_box["width"] <= remove_box["x"]
+    assert (
+        switch_box["x"] + switch_box["width"]
+        <= tile_box["x"] + tile_box["width"] - CHIP_INSET_PIXELS + TOLERANCE_PIXELS
+    )
+    assert_the_pill_is_whole_and_clear_of_the_chips(sponsor, (SWITCH,), word_shown=False)
     for other in (host, guest):
         expect(other.locator(AGENT_TILE)).to_have_count(1)
         expect(other.locator(SWITCH)).to_have_count(0)
