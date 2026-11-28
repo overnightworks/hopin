@@ -608,8 +608,7 @@ textarea {
 .tile.agent .sponsor::before {
     content: "\00b7\00a0";
 }
-/* A stated turn state (the kit's part, drawn after the sponsor) may take a second line, so its word is never cut; the
-   kit's muted ink is the stage's in the pill alone, as the chips take the stage accent. */
+/* A stated turn state may take a second line, so its word is never cut; the pill alone takes the stage's muted ink. */
 .tile.agent .name.stated {
     --text-muted: color-mix(in srgb, var(--on-stage) 80%, transparent);
     height: auto;
@@ -825,20 +824,13 @@ textarea {
     .stage[data-count="2"]:not([data-surface]) .tile:not(.self) .name {
         left: 16px;
         bottom: calc(var(--stage-bottom) + 12px);
-        height: 32px;
-        padding: 0 12px;
+        min-height: 32px;
+        padding-inline: 12px;
         font-size: 14.5px;
     }
     /* The own tile rests 14px in from the right edge, 104px wide, and the pill starts 16px in: the pill ends 8px before it. */
     .stage[data-count="2"]:not([data-surface]) .tile:not(.self) .name {
         max-width: calc(100% - 142px);
-    }
-    /* The full-bleed pill keeps the stated pill's second line: these selectors outrank the fixed-height rules above. */
-    .stage[data-count="1"]:not([data-surface]) .tile.agent .name.stated,
-    .stage[data-count="2"]:not([data-surface]) .tile.agent:not(.self) .name.stated {
-        height: auto;
-        min-height: 32px;
-        padding: 5px 12px;
     }
     .stage[data-count="2"]:not([data-surface]) .tile.self {
         position: absolute;
@@ -948,15 +940,9 @@ textarea {
     .stage[data-count="1"]:not([data-surface]) .tile .name {
         left: 16px;
         bottom: calc(var(--stage-bottom) + 32px);
-        height: 32px;
-        padding: 0 12px;
-        font-size: 14.5px;
-    }
-    /* The full-bleed pill keeps the stated pill's second line: this selector outranks the fixed-height rule above. */
-    .stage[data-count="1"]:not([data-surface]) .tile.agent .name.stated {
-        height: auto;
         min-height: 32px;
-        padding: 5px 12px;
+        padding-inline: 12px;
+        font-size: 14.5px;
     }
 }
 
