@@ -6,12 +6,9 @@ import pytest
 from webauth.admission import AppRole
 from webauth.ports import AccountKind
 
-from hopin.auth.sign_in import build_sign_in_configs
 from hopin.config.constants import ACCOUNT_PATH, HEALTH_PATH, LOGOUT_PATH
-from hopin.config.settings import ServerSettings
 from tests.stores.support.pod_pair import starting_pod
-from tests.support.in_thread_stores import in_thread_stores
-from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN, TEST_REALM
+from tests.support.sign_in_settings import TEST_PUBLIC_ORIGIN
 from tests.support.signed_in import cookie_header, seed_member
 
 if TYPE_CHECKING:
@@ -26,11 +23,6 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.shared_stores
 
 SAME_ORIGIN_POST = {"sec-fetch-site": "same-origin", "origin": TEST_PUBLIC_ORIGIN}
-
-
-@pytest.fixture
-def web_auth_config() -> WebAuthConfig:
-    return build_sign_in_configs(ServerSettings(), TEST_REALM, (), in_thread_stores().rate_limits).web_auth
 
 
 @pytest.fixture

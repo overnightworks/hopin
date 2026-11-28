@@ -53,6 +53,11 @@ class Pod:
         finally:
             connection.close()
 
+    def kill(self) -> None:
+        """End the server with no chance to say goodbye: SIGKILL to its process, not to the wrapper that caps it."""
+        subprocess.run(["pkill", "-KILL", "-P", str(self.process.pid)], check=True)  # noqa: S603, S607 - fixed arguments
+        self.process.wait()
+
     def status(self, path: str, *, method: str = "GET", headers: Mapping[str, str] | None = None) -> int:
         return self.answer(path, method=method, headers=headers)[0]
 

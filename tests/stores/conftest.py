@@ -5,14 +5,20 @@ from urllib.parse import urlsplit
 import pytest
 from redis import Redis
 
+from hopin.auth.sign_in import build_sign_in_configs
 from hopin.config.constants import HEALTH_PATH
+from hopin.config.settings import ServerSettings
 from hopin.main import main
 from tests.stores.support.pod_pair import serving_pod_pair
 from tests.stores.support.service_gate import ServiceGate
+from tests.support.in_thread_stores import in_thread_stores
+from tests.support.sign_in_settings import TEST_REALM
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
     from pathlib import Path
+
+    from webauth.config import WebAuthConfig
 
     from tests.stores.support.pod_pair import Pod
     from tests.stores.support.scratch_database import ScratchDatabase
@@ -79,3 +85,8 @@ def pods(
     environment = sign_in_settings(**migrated_database.settings).environment
     with serving_pod_pair(environment, redis_gate.url, tmp_path, HEALTH_PATH) as pair:
         yield pair
+
+
+@pytest.fixture
+def web_auth_config() -> WebAuthConfig:
+    return build_sign_in_configs(ServerSettings(), TEST_REALM, (), in_thread_stores().rate_limits).web_auth
