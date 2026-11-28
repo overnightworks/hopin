@@ -1,0 +1,8 @@
+claim_id = "d2051d367f8f4c1cb8ff02df819ab36c"
+agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
+role = "builder"
+base = "01efd9e062120fcd96776b2c58a3853bf7db0e02"
+branch = "claude/issue-1212-a-call-s-rooms-seats-and-frames-live-in"
+scope = ["docs/ARCHITECTURE.md", "docs/call.md", "docs/person-data.md", "pyproject.toml", "src/hopin/agent/mcp.py", "src/hopin/app.py", "src/hopin/config/constants.py", "src/hopin/rooms/__init__.py", "src/hopin/rooms/manager.py", "src/hopin/rooms/models.py", "src/hopin/signaling/call_owner.py", "src/hopin/signaling/call_store.py", "src/hopin/signaling/features.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/replay.py", "src/hopin/signaling/routing.py", "src/hopin/signaling/seats.py", "src/hopin/signaling/transition.py", "src/hopin/stores/__init__.py", "tests", "uv.lock"]
+opened_commit = "3d9758de7a70ca413ba92b8aba66e512e02fe60c"
+whole_reason = "The commit, its records, its fences and the lapse that frees a lost generation are one invariant; any cut between store and lapse leaves seats in Redis that nothing frees."
