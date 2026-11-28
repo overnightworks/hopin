@@ -107,3 +107,17 @@ class TestAProcessThatIsKilled:
 
         assert guest.frame_of_type(SignalType.PARTICIPANT_LEFT.value, LAPSE_WAIT_SECONDS)["type"] == "participant_left"
         assert second.status(HEALTH_PATH) == HTTPStatus.OK
+
+
+class TestAJoinAcrossProcesses:
+    def test_call_14_a_member_joining_on_the_second_process_a_call_of_the_first_fails_no_work(
+        self, pods, member, other_member, sockets
+    ):
+        """CALL-14: a seat the other process holds is no work of this one."""
+        first, second = pods
+        guest = a_guest_of_a_host_on(first, second, other_member, sockets)
+
+        while not guest.stays_quiet():  # the frames of the join; the work has run when the socket falls quiet
+            pass
+        for pod in pods:
+            assert "feature_work.failed" not in pod.log.read_text()

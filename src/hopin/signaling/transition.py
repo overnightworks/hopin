@@ -83,6 +83,8 @@ class RoomView:
     names: Mapping[PeerId, str] = field(default_factory=lambda: MappingProxyType({}))
     accounts: Mapping[PeerId, str] = field(default_factory=lambda: MappingProxyType({}))
     parked: frozenset[PeerId] = frozenset()
+    elsewhere: frozenset[PeerId] = frozenset()
+    """The seats another process generation holds, whose work that process runs."""
     has_free_place: bool = False
     """Whether the room has a place left for another joined agent."""
     sections: Mapping[str, object] = field(default_factory=lambda: MappingProxyType({}))
@@ -291,6 +293,9 @@ class Calls:
             names=MappingProxyType({peer_id: records[peer_id].account.name for peer_id in members}),
             accounts=MappingProxyType({peer_id: records[peer_id].account.id for peer_id in members}),
             parked=frozenset(peer_id for peer_id in members if records[peer_id].park is not None),
+            elsewhere=frozenset(
+                peer_id for peer_id in members if records[peer_id].generation != self._store.generation
+            ),
             has_free_place=room.has_free_place_for_agent(self._store.place_limit),
             sections=MappingProxyType(dict(self._sections.get(room.room_id, {}))),
         )
@@ -544,6 +549,8 @@ class FeatureTransitions:
             if key in self._works:
                 self._worker.stop_work(key)
         for work in change.dispatched:
+            if work.seat in view.elsewhere:
+                continue
             if view.room_id is None:  # pragma: no cover - a hook dispatches work only in the room it was offered
                 raise ValueError("A transition of no room dispatches no work")
             room = _WorkRoom(self, view.room_id)
