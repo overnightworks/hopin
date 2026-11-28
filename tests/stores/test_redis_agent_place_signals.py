@@ -36,14 +36,17 @@ def agent_subject():
 
 
 @pytest.fixture
-def agent_call(sign_in_settings, redis_gate, agent_subject):
-    """HopIn in this process over the real Redis, and the token of an agent that has called once, so that it holds a
-    lease. A call of the same agent for another owner, and the end of the lease, change its standing."""
+def agent_call(sign_in_settings, redis_url, redis_gate, agent_subject):
+    """HopIn in this process over the real Redis, its calls reaching it directly and participation through the gate, so
+    that a gate that refuses requests breaks participation's signals and not the call; and the token of an agent that
+    has called once, so that it holds a lease. A call of the same agent for another owner, and the end of the lease,
+    change its standing."""
     sign_in = sign_in_settings()
     with serving_dialed_call(
         sign_in,
         FakeIssuer(sign_in),
-        shared_stores=connect_shared_stores(redis_gate.url),
+        shared_stores=connect_shared_stores(redis_url),
+        participation_stores=connect_shared_stores(redis_gate.url),
     ) as call:
         token = call.agent_token(owner=OWNER_SUBJECT, subject=agent_subject)
         call.standing(token)
