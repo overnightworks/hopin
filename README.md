@@ -10,7 +10,7 @@ Only members of the Keycloak group `REALM_LOGIN_GROUP` names use it. Why HopIn e
 
 Up to 6 people see and hear each other in one call, share a screen, mute microphone and camera independently, chat line to line between the browsers, and lock the room against newcomers; a dropped connection keeps its place for a short while. A quiz master asks everyone five quiz questions and counts the right answers, and a registered app's table shows on the call's stage. The page is a SvelteKit build that `make frontend` writes and the server serves.
 
-The ruled behaviour, each rule with the test that proves it: the call in [docs/call.md](docs/call.md), the game master in [docs/game-master.md](docs/game-master.md), the stage in [docs/stage.md](docs/stage.md).
+The ruled behaviour: the call in [docs/call.md](docs/call.md), the game master in [docs/game-master.md](docs/game-master.md), the stage in [docs/stage.md](docs/stage.md).
 
 ## Quick Start
 
@@ -33,10 +33,10 @@ The frontend in `frontend/` needs Node 26 (24 also works) and pnpm, whose versio
 ## Documentation
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): context, building blocks, a call's runtime, deployment, trust
-- [docs/game-master.md](docs/game-master.md): the game master's ruled behaviour and the tests that prove it
+- [docs/game-master.md](docs/game-master.md): the game master's ruled behaviour
 - [docs/configuration.md](docs/configuration.md): every setting, its default and its form
 - [docs/person-data.md](docs/person-data.md): what HopIn holds about a person, its export, and what erasing a person removes and keeps
-- [docs/call.md](docs/call.md): the call's ruled behaviour, pre-join to end screen, and the tests that prove it
+- [docs/call.md](docs/call.md): the call's ruled behaviour, pre-join to end screen
 - [docs/stage.md](docs/stage.md): the stage on which a call shows a registered app's table, and the tests that prove it
 - [docs/agent-endpoint.md](docs/agent-endpoint.md): how an agent reaches a call over MCP: who is admitted, each tool and what an agent reads
 - [docs/runbooks/release.md](docs/runbooks/release.md): the release workflow and how its image reaches production

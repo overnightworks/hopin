@@ -4,13 +4,10 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.support.calls import (
-    add_init_scripts,
     join,
-    join_by_link,
     open_call,
     open_host,
     open_more,
-    record_page_errors,
 )
 from tests.e2e.support.dialed_agent import (
     AGENT_HEARING_SWITCH,
@@ -47,10 +44,14 @@ def test_a_dialed_in_agent_shows_as_a_tile_every_page_sees_and_its_sponsor_or_th
     """CALL-48, CALL-49, CALL-50: A dialed-in agent shows with its sponsor; its sponsor or the host sends it away from
     its here row in More, and a member of the adders group who is not its sponsor sees the tile and no here row."""
     host, invite_link = open_host(open_person, e2e_server.base_url, page_errors, DESKTOP)
-    guest = record_page_errors(open_person(**DESKTOP), page_errors)
-    add_init_scripts(guest, (RECORD_PEER_CONNECTIONS,))
-    grant_adders(member_of(guest).account.id)
-    join_by_link(guest, invite_link)
+    guest = join(
+        open_person,
+        invite_link,
+        DESKTOP,
+        (RECORD_PEER_CONNECTIONS,),
+        page_errors,
+        before_join=lambda page: grant_adders(member_of(page).account.id),
+    )
     wait_for_peer_count(host, 1)
     wait_for_peer_count(guest, 1)
     bystander = join(open_person, invite_link, DESKTOP, (RECORD_PEER_CONNECTIONS,), page_errors)
