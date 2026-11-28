@@ -257,8 +257,9 @@ _STOP_SPEAKING_DECLARATION: Final = ToolDeclaration(
     description=(
         "Cut the sentence you are saying aloud in the call you joined, in every seat, and drop every sentence of yours "
         "that waits behind it; each of those speak calls answers stopped. You may speak again at once. It answers the "
-        "text of the line the cut sentence left, dropped: true when no sentence had started that it cut, as when "
-        "you were held before yours started, nothing_playing when no sentence of yours plays and not_active when "
+        "text of the line the cut sentence left, dropped: true when no sentence had started that it cut but it dropped "
+        "sentences that wait or are still being rendered, as when you were held before yours started, nothing_playing "
+        "when no sentence of yours plays, waits or is being rendered and not_active when "
         "you are not joined there or your person's seat is away. It ends a hold, whose id you may name as "
         "interrupted; an id that is not the hold is refused as not_interrupted."
     ),
