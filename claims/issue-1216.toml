@@ -1,0 +1,7 @@
+claim_id = "5ad6c7e8b96f4d3a8fd235eeb7d9e7f1"
+agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
+role = "builder"
+base = "01efd9e062120fcd96776b2c58a3853bf7db0e02"
+branch = "claude/issue-1216-switches-takes-joined-agents-from-places"
+scope = ["src/hopin/participation/switches.py"]
+opened_commit = "26a749ef80bfe857ce201267041621292b02fe7d"
