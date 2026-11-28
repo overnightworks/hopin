@@ -1,5 +1,5 @@
 claim_id = "d2051d367f8f4c1cb8ff02df819ab36c"
-agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
+agent = "Claude 321bddec-b6e0-4911-a8f9-521a9bd6ab32"
 role = "builder"
 base = "01efd9e062120fcd96776b2c58a3853bf7db0e02"
 branch = "claude/issue-1212-a-call-s-rooms-seats-and-frames-live-in"
