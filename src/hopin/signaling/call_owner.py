@@ -10,7 +10,7 @@ commit whose reply never came, which no socket holds, is swept.
 import asyncio
 import contextlib
 from datetime import timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import structlog
 
@@ -27,15 +27,37 @@ if TYPE_CHECKING:
 
     from tandem import Hold, Lapse
 
+    from hopin.rooms.models import Departure
     from hopin.signaling.call_store import ProcessLease
     from hopin.signaling.frames import PeerId
-    from hopin.signaling.handler import SignalingHandler
+    from hopin.signaling.transition import Calls
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
+class CallRouting(Protocol):
+    """What the owner asks of the room routing above it: the leave, the announcement of a departure and the end of a
+    room in grace."""
+
+    async def leave(self, peer_id: PeerId, *, lapsed: bool = False) -> Departure | None: ...
+
+    async def announce(self, departure: Departure | None) -> None: ...
+
+    async def end_graced_room(self, room_id: str, generation: str) -> None: ...
+
+
+class CallServices(Protocol):
+    """The handler as the owner sees it: the calls it commits to and the routing it frees seats through."""
+
+    @property
+    def calls(self) -> Calls: ...
+
+    @property
+    def routing(self) -> CallRouting: ...
+
+
 class CallOwner:
-    def __init__(self, handler: SignalingHandler, lease: ProcessLease) -> None:
+    def __init__(self, handler: CallServices, lease: ProcessLease) -> None:
         self._handler = handler
         self._lease = lease
         self._previous_round: set[PeerId] = set()
