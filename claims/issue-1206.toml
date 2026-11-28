@@ -1,8 +1,0 @@
-claim_id = "d207e872f3d84ad29b74122dd4b4eca1"
-agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
-role = "builder"
-base = "ca2292568591ed0d3b0a46ab1cc83aad1a6fd435"
-branch = "claude/issue-1206-transition-api-is-awaited-in-memory"
-scope = ["src/hopin/agent/hearing_route.py", "src/hopin/agent/mcp.py", "src/hopin/game/table.py", "src/hopin/participation/agent_speech.py", "src/hopin/participation/feature.py", "src/hopin/participation/seeing.py", "src/hopin/participation/shown_figures.py", "src/hopin/participation/speech_in_windows.py", "src/hopin/participation/voice.py", "src/hopin/people.py", "src/hopin/signaling/features.py", "src/hopin/signaling/handler.py", "src/hopin/signaling/routing.py", "src/hopin/signaling/seats.py", "src/hopin/signaling/transition.py", "tests"]
-opened_commit = "4629c1613ea4d0225e8eb6d5fcd0c1f5e4ba6e50"
-whole_reason = "One signature turns async and every caller follows; a part would leave the API both sync and async."
