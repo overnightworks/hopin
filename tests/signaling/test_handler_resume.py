@@ -157,7 +157,7 @@ class TestParkingAndWindow:
         socket.push(disconnect_frame(1006))
         await link.tasks[socket]
 
-        assert handler.seats_of("stranger") == ()
+        assert await handler.seats_of("stranger") == ()
 
     @pytest.mark.parametrize("silent_seconds", [5, RESUME_WINDOW_SECONDS - 0.1])
     async def test_guest_resuming_inside_the_window_keeps_its_seat_and_the_others_hear_nothing(

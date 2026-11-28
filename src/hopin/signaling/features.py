@@ -115,28 +115,28 @@ class TransitionHost:
         return self._feature.signal_types
 
     async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
-        view = self._transitions.seat_view(peer_id)
+        view = await self._transitions.seat_view(peer_id)
         return await self._transitions.run(view, partial(self._feature.on_frame, view, peer_id, frame))
 
     async def seat_joined(self, peer_id: PeerId) -> None:
-        view = self._transitions.seat_view(peer_id)
+        view = await self._transitions.seat_view(peer_id)
         await self._transitions.run(view, partial(self._feature.seat_joined, view, peer_id))
 
-    def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> list[Committed]:
+    async def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> list[Committed]:
         """Apply the feature's `seat_left` to the room the seat left and commit it, leaving its seats to be woken
         together with the departure that tells the room."""
-        view = self._transitions.view(room_id).naming(peer_id, name)
+        view = (await self._transitions.view(room_id)).naming(peer_id, name)
         transition = Transition()
         self._feature.seat_left(view, peer_id, transition)
-        return self._transitions.commit(view, transition)
+        return await self._transitions.commit(view, transition)
 
-    def seat_changed(self, peer_id: PeerId) -> None:
+    async def seat_changed(self, peer_id: PeerId) -> None:
         """Apply the feature's `seat_changed` to the view of the seat's room now and commit it at once; it cannot send,
         so no seat waits to be woken."""
-        view = self._transitions.seat_view(peer_id)
+        view = await self._transitions.seat_view(peer_id)
         change = Change()
         self._feature.seat_changed(view, peer_id, change)
-        self._transitions.commit(view, change)
+        await self._transitions.commit(view, change)
 
     def room_ended(self, room_id: str) -> None:
         self._transitions.room_ended(room_id)

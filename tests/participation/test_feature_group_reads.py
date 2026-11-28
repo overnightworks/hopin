@@ -81,7 +81,7 @@ class TestAnAddWhoseFreshReadIsStillRunning:
         await let_reads_finish()
 
         assert (
-            participation.standings_of(AGENT),
+            await participation.standings_of(AGENT),
             member.frames(ParticipationSignal.AGENT_REFUSED),
         ) == (
             (),
@@ -103,7 +103,7 @@ class TestAnAddWhoseFreshReadIsStillRunning:
         await let_reads_finish()
 
         assert (
-            participation.standings_of(AGENT),
+            await participation.standings_of(AGENT),
             [frame["reason"] for frame in member.frames(ParticipationSignal.AGENT_REFUSED)],
         ) == ((), [AgentRefusal.NO_SEAT.value])
 
@@ -121,7 +121,7 @@ class TestAnAddWhoseFreshReadIsStillRunning:
         release.set()
         await link.settle(member.socket)
         await let_reads_finish()
-        [standing] = participation.standings_of(AGENT)
+        [standing] = await participation.standings_of(AGENT)
         accepted = await participation.accept(
             AGENT, acceptance_of(owner.room_id, standing.invitation.invitation_id, standing.invitation.epoch), None
         )
@@ -141,7 +141,7 @@ class TestAnAddWhoseFreshReadIsStillRunning:
         await let_reads_finish()
 
         reasons = [frame["reason"] for frame in member.frames(ParticipationSignal.AGENT_REFUSED)]
-        assert (participation.standings_of(AGENT), reasons) == ((), [AgentRefusal.GONE.value])
+        assert (await participation.standings_of(AGENT), reasons) == ((), [AgentRefusal.GONE.value])
 
 
 class TestReadsThatAreAlreadyRunning:

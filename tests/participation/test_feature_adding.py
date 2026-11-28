@@ -190,7 +190,7 @@ class TestAnAdd:
         await add(stranger, offer["agent_key"])
 
         assert refusals_sent_to(stranger) == [AgentRefusal.NOT_ADDER.value]
-        assert participation.standings_of(AGENT) == ()
+        assert await participation.standings_of(AGENT) == ()
 
     async def test_an_add_of_a_seat_that_joined_the_group_after_an_earlier_read_is_accepted(
         self, link, participation, groups_of_seat, listeners
@@ -205,7 +205,7 @@ class TestAnAdd:
 
         await add(stranger, offer["agent_key"])
 
-        assert (refusals_sent_to(stranger), len(participation.standings_of(AGENT))) == ([], 1)
+        assert (refusals_sent_to(stranger), len(await participation.standings_of(AGENT))) == ([], 1)
 
     async def test_an_add_of_an_agent_that_does_not_listen_is_refused_not_listening_and_opens_no_invitation(
         self, link, participation, listeners
@@ -220,7 +220,7 @@ class TestAnAdd:
 
         await add(member, offer["agent_key"])
 
-        assert (refusals_sent_to(member), participation.standings_of(AGENT)) == (
+        assert (refusals_sent_to(member), await participation.standings_of(AGENT)) == (
             [AgentRefusal.NOT_LISTENING.value],
             (),
         )
@@ -238,7 +238,7 @@ class TestAnAdd:
         await add(member, offer["agent_key"])
 
         assert [offers_sent_to(member)[0]["pending"], offers_sent_to(second)] == [True, []]
-        [standing] = participation.standings_of(AGENT)
+        [standing] = await participation.standings_of(AGENT)
         assert standing.state.value == "invited"
 
     async def test_a_repeated_add_by_the_inviting_seat_returns_its_invitation_with_its_id_and_timer_and_no_refusal(
@@ -251,12 +251,12 @@ class TestAnAdd:
         await let_reads_finish()
         [offer] = offers_sent_to(member)
         await add(member, offer["agent_key"])
-        [standing] = participation.standings_of(AGENT)
+        [standing] = await participation.standings_of(AGENT)
         timers = scheduler.pending_timers()
 
         await add(member, offer["agent_key"])
 
-        assert (refusals_sent_to(member), participation.standings_of(AGENT), scheduler.pending_timers()) == (
+        assert (refusals_sent_to(member), await participation.standings_of(AGENT), scheduler.pending_timers()) == (
             [],
             (standing,),
             timers,
@@ -271,14 +271,14 @@ class TestAnAdd:
         await let_reads_finish()
         [offer] = offers_sent_to(member)
         await add(member, offer["agent_key"])
-        [first] = participation.standings_of(AGENT)
+        [first] = await participation.standings_of(AGENT)
         await scheduler.advance(INVITATION_SECONDS - 1)
         await agent_calls(participation)  # the agent keeps calling, so its lease holds
         await scheduler.advance(1)
 
         await add(member, offer["agent_key"])
 
-        [second] = participation.standings_of(AGENT)
+        [second] = await participation.standings_of(AGENT)
         assert (refusals_sent_to(member), second.invitation.invitation_id != first.invitation.invitation_id) == (
             [],
             True,
@@ -291,7 +291,7 @@ class TestAnAdd:
         await let_reads_finish()
         [offer] = offers_sent_to(member)
         await add(member, offer["agent_key"])
-        [standing] = participation.standings_of(AGENT)
+        [standing] = await participation.standings_of(AGENT)
         await participation.accept(
             AGENT, acceptance_of(owner.room_id, standing.invitation.invitation_id, standing.invitation.epoch), None
         )
@@ -311,11 +311,11 @@ class TestAnAdd:
         await let_reads_finish()
         [offer] = offers_sent_to(member)
         await add(member, offer["agent_key"])
-        [standing] = participation.standings_of(AGENT)
+        [standing] = await participation.standings_of(AGENT)
 
         await add(second, offer["agent_key"])
 
-        assert (refusals_sent_to(second), participation.standings_of(AGENT)) == (
+        assert (refusals_sent_to(second), await participation.standings_of(AGENT)) == (
             [AgentRefusal.INVITED_BY_ANOTHER.value],
             (standing,),
         )
@@ -348,7 +348,10 @@ class TestAnAdd:
 
         await add(member, offer["agent_key"])
 
-        assert (refusals_sent_to(member), [standing.state.value for standing in participation.standings_of(AGENT)]) == (
+        assert (
+            refusals_sent_to(member),
+            [standing.state.value for standing in await participation.standings_of(AGENT)],
+        ) == (
             [],
             ["invited"],
         )

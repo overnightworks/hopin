@@ -112,7 +112,7 @@ class RoomRouting:
     def room_of(self, peer_id: PeerId) -> str | None:
         return self._store.room_of(peer_id)
 
-    def open_seat(self, account: Account, websocket: WebSocket) -> PeerId:
+    async def open_seat(self, account: Account, websocket: WebSocket) -> PeerId:
         """Opens a seat; a parked seat holds no socket, so only live ones count toward the account's cap."""
         live_seats = sum(1 for _, record in self._store.held_by(account.id) if record.park is None)
         if live_seats >= MAX_LIVE_SEATS_PER_ACCOUNT:
@@ -123,7 +123,7 @@ class RoomRouting:
         opening.edit(
             SeatOpened(peer_id, SeatRecord(account, hash_token(token)), SeatSocket(websocket, unsent_token=token))
         )
-        self._store.commit_edits(opening)
+        await self._store.commit_edits(opening)
         return peer_id
 
     async def send_error(self, peer_id: PeerId, error: HopInError) -> None:
@@ -240,17 +240,17 @@ class RoomRouting:
         """Hold the seat for a resume after its socket dropped."""
         parking = CoreTransition()
         parking.edit(SeatParked(peer_id))
-        self._store.commit_edits(parking)
+        await self._store.commit_edits(parking)
         await logger.ainfo("seat.parked", peer_id=peer_id)
 
     async def _expire_park(self, peer_id: str) -> None:
         await self.handle_disconnect(PeerId(peer_id))
 
     async def handle_disconnect(self, peer_id: PeerId) -> None:
-        await self.announce(self.leave(peer_id))
+        await self.announce(await self.leave(peer_id))
 
-    def leave(self, peer_id: PeerId) -> Departure | None:
-        """Forgets the seat and its place in the room without awaiting, so a server's end leaves no seat to park
+    async def leave(self, peer_id: PeerId) -> Departure | None:
+        """Forgets the seat and its place in the room without suspending, so a server's end leaves no seat to park
         or resume; the departure it returns is announced separately."""
         record = self._store.record_of(peer_id)
         left_at = self._deadlines.now() if record.park is None else record.park.dropped_at
@@ -261,7 +261,7 @@ class RoomRouting:
             leaving.edit(ParticipantRemoved(departure.room_id, peer_id))
             if departure.host_left:
                 leaving.edit(HostGraceStarted(departure.room_id, peer_id, left_at + HOST_GRACE_SECONDS))
-        self._store.commit_edits(leaving)
+        await self._store.commit_edits(leaving)
         return departure
 
     def _departure(self, peer_id: PeerId, room_id: str | None) -> Departure | None:
@@ -309,7 +309,7 @@ class RoomRouting:
         forgetting = CoreTransition()
         for peer_id in recipients:
             forgetting.edit(SeatForgotten(peer_id))
-        self._store.commit_edits(forgetting)
+        await self._store.commit_edits(forgetting)
         for socket in sockets:
             await self._seats.close_socket(socket.websocket)
         await logger.ainfo("room.closed", room_ref=room_reference(room_id), reason=reason.value)
@@ -358,7 +358,7 @@ class RoomRouting:
         taking_over = CoreTransition()
         taking_over.edit(SeatForgotten(connection.peer_id))
         taking_over.edit(SeatTakenOver(peer_id, hash_token(token), socket))
-        self._store.commit_edits(taking_over)
+        await self._store.commit_edits(taking_over)
         connection.peer_id = peer_id
 
         await self._seats.close_socket(superseded)

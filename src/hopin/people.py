@@ -190,10 +190,9 @@ def create_people_router(identity: IdentityStores, signaling_handler: SignalingH
     @router.api_route(PERSON_EXPORT_PATH, methods=READ_METHODS, dependencies=[Depends(admitted_admin)])
     async def export_person(request: Request, subject: str) -> Response:
         config = web_auth_config(request)
-        # The store is read on a worker thread; the handler's seats are read here on the event loop, where no
-        # signaling coroutine can change them meanwhile.
+        # The store is read on a worker thread; the handler's seats are read here on the event loop.
         records = await run_in_threadpool(identity.records_of, subject)
-        seats = signaling_handler.seats_of(subject)
+        seats = await signaling_handler.seats_of(subject)
         exported_at = datetime.fromtimestamp(int(config.wall_clock()), UTC)
         return Response(
             zip_of(build_export(subject, exported_at, records, seats)),
@@ -207,7 +206,7 @@ def create_people_router(identity: IdentityStores, signaling_handler: SignalingH
             # Reads only: no lock, no wait, no change. The store is read on a worker thread, the seats on the loop.
             stored = await run_in_threadpool(identity.records_of, subject)
             held = ErasedIdentity(accounts=int(stored.account is not None), sessions=len(stored.sessions))
-            reach = signaling_handler.reach_of(subject)
+            reach = await signaling_handler.reach_of(subject)
         else:
             # The rows go first: a seat ended while its session lives is re-opened by the page's reconnect.
             held = await run_in_threadpool(identity.erase, subject)

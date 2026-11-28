@@ -100,7 +100,7 @@ class TestAPersonTalksOverASentence:
         participation.speech.words_heard(room_id, guest.peer_id, "Moment")
         window_changes.clear()
 
-        heard(participation, guest.peer_id, "Moment bitte", began_at=0.0)
+        await heard(participation, guest.peer_id, "Moment bitte", began_at=0.0)
 
         window = window_of(participation, GUEST, room_id)
         assert (window.talked_over, [line.text for line in window.lines], window_changes) == (

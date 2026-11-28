@@ -32,7 +32,7 @@ class Seeing:
         places: Places,
         deadlines: Deadlines,
         tell: Callable[[str, Sequence[str], ParticipationFrame], Awaitable[None]],
-        recipients: Callable[[str], list[PeerId]],
+        recipients: Callable[[str], Awaitable[list[PeerId]]],
     ) -> None:
         self._hearing = hearing
         self._places = places
@@ -64,4 +64,4 @@ class Seeing:
         await self._tell(agent.room_id, [agent.sponsor], AgentLookRequestFrame(request_id))
 
     async def _show(self, agent: DialedAgent) -> None:
-        await self._tell(agent.room_id, self._recipients(agent.room_id), AgentLookedFrame(agent.agent_id))
+        await self._tell(agent.room_id, await self._recipients(agent.room_id), AgentLookedFrame(agent.agent_id))

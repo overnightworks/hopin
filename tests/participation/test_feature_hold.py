@@ -63,9 +63,9 @@ class TestAPersonStartsSpeaking:
         committed = []
         commit = InMemoryCallStore.commit
 
-        def noting(store, view, change):
+        async def noting(store, view, change):
             committed.append(change)
-            return commit(store, view, change)
+            return await commit(store, view, change)
 
         monkeypatch.setattr(InMemoryCallStore, "commit", noting)
 

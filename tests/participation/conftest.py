@@ -1,3 +1,4 @@
+import asyncio
 import json
 import threading
 import time
@@ -56,7 +57,10 @@ class Changes(list):
         self.feature = feature
 
     def __call__(self, person):
-        self.append(Change(person, tuple(standing.state for standing in self.feature.standings_of(person))))
+        asyncio.get_running_loop().create_task(self.record(person), eager_start=True)
+
+    async def record(self, person):
+        self.append(Change(person, tuple(standing.state for standing in await self.feature.standings_of(person))))
 
 
 @pytest.fixture

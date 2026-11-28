@@ -353,13 +353,13 @@ class TestDisconnect:
     async def test_disconnect_without_room_is_safe(self, link, handler):
         browser = await connect(link, "c1")
         await browser.drop(1000)
-        assert handler.seats_of("c1") == ()
+        assert await handler.seats_of("c1") == ()
 
     async def test_disconnect_from_deleted_room(self, link, handler, room_manager):
         room, browsers = await seat_in_room(link, room_manager, "p1")
         room_manager.remove_room(room.room_id)
         await browsers["p1"].drop(1000)
-        assert handler.seats_of("p1") == ()
+        assert await handler.seats_of("p1") == ()
 
 
 class TestPeerInNoRoom:
@@ -410,19 +410,19 @@ class TestSeatsOf:
         )
         await handler.handle_websocket(guest)
 
-        [parked] = handler.seats_of("anna")
+        [parked] = await handler.seats_of("anna")
         assert (parked.call_id, parked.host, parked.replay_frames) == (room.room_id, False, len(guest.sent))
-        assert [(seat.call_id, seat.host) for seat in handler.seats_of("host1")] == [(room.room_id, True)]
-        assert [(seat.call_id, seat.host) for seat in handler.seats_of("ben")] == [(room.room_id, False)]
+        assert [(seat.call_id, seat.host) for seat in await handler.seats_of("host1")] == [(room.room_id, True)]
+        assert [(seat.call_id, seat.host) for seat in await handler.seats_of("ben")] == [(room.room_id, False)]
 
         await scheduler.advance(RESUME_WINDOW_SECONDS)
 
-        assert handler.seats_of("anna") == ()
+        assert await handler.seats_of("anna") == ()
 
     async def test_lists_a_seat_that_has_not_joined_a_call_without_a_call_id(self, link, handler):
         await connect(link, "anna")
 
-        assert [(seat.call_id, seat.host) for seat in handler.seats_of("anna")] == [(None, False)]
+        assert [(seat.call_id, seat.host) for seat in await handler.seats_of("anna")] == [(None, False)]
 
 
 class TestHandleWebsocket:
