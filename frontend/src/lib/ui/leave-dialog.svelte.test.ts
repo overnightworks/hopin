@@ -79,15 +79,26 @@ describe("leaving on pagehide", () => {
         return leave;
     }
 
-    it("CALL-10: a pagehide that enters the back-forward cache keeps the call", async () => {
-        expect(await pagehide(true, true)).not.toHaveBeenCalled();
-    });
-
-    it("CALL-10: a pagehide that unloads a connected page leaves once", async () => {
-        expect(await pagehide(false, true)).toHaveBeenCalledOnce();
-    });
-
-    it("CALL-10: a pagehide of a page that is not in a call leaves nothing", async () => {
-        expect(await pagehide(false, false)).not.toHaveBeenCalled();
+    it.each([
+        {
+            name: "CALL-10: a pagehide that enters the back-forward cache keeps the call",
+            persisted: true,
+            inCall: true,
+            calls: 0,
+        },
+        {
+            name: "CALL-10: a pagehide that unloads a connected page leaves once",
+            persisted: false,
+            inCall: true,
+            calls: 1,
+        },
+        {
+            name: "CALL-10: a pagehide of a page that is not in a call leaves nothing",
+            persisted: false,
+            inCall: false,
+            calls: 0,
+        },
+    ])("$name", async ({ persisted, inCall, calls }) => {
+        expect(await pagehide(persisted, inCall)).toHaveBeenCalledTimes(calls);
     });
 });
