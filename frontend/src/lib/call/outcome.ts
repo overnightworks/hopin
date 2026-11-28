@@ -53,7 +53,10 @@ export function reportConnectionOutcomes(
                 report(CONNECTION_OUTCOME.RESUMED);
             } else if (!established) {
                 established = true;
-                void outcomeOfEstablished(connection).then(report);
+                void outcomeOfEstablished(connection).then((outcome) => {
+                    // The call ended while the stats were pending; the signaling session is gone.
+                    if (connection.connectionState !== "closed") report(outcome);
+                });
             }
         } else if (state === "disconnected") {
             lost = established;

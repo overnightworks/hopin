@@ -7,6 +7,7 @@ from hopin.words import text
 from tests.e2e.support.calls import (
     add_init_scripts,
     call_link_of,
+    close_the_page,
     join,
     press_start_call,
     record_page_errors,
@@ -217,7 +218,7 @@ def test_the_card_comes_back_with_the_same_link_when_the_guest_leaves(
     guest = join(open_person, call_link, page_errors=page_errors)
     expect(host.locator(CARD)).not_to_be_visible()
 
-    guest.close()
+    close_the_page(guest)
 
     expect(host.locator(CARD)).to_be_visible()
     expect(host.locator(LINK_TEXT)).to_have_text(call_link)
