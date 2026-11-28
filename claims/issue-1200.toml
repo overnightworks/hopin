@@ -1,8 +1,0 @@
-claim_id = "87774103cb8741808d19364ec02c369c"
-agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
-role = "builder"
-base = "79f44c49b33f170257b9d90f7a7574e7535fd54a"
-branch = "claude/issue-1200-hold-and-hearing-tests-share-one-opt-in"
-scope = ["pyproject.toml", "tests/conftest.py", "tests/participation"]
-opened_commit = "46610ea4fc656ab0a9e0384b61bf7a1769446c62"
-whole_reason = "One opt-in shared by the modules that copy it: moving it and deleting the copies is one change."
