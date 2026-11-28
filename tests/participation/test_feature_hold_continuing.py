@@ -4,7 +4,7 @@ hold, at participation's real feature and the agents library's real record of wh
 import asyncio
 
 import pytest
-from agents.member import ContinueSpeakingRefusal
+from agents.member import ContinueSpeakingRefusal, SpeakRefusal
 
 from hopin.participation.vocabulary import (
     AgentRefusal,
@@ -206,7 +206,7 @@ class TestContinuingSpeaking:
         rendered.set()
 
         assert (await speaking_over, sounds(host)) == (
-            ContinueSpeakingRefusal.NOT_INTERRUPTED,
+            SpeakRefusal.NOT_INTERRUPTED,
             [VOICE.value, HELD.value, CONTINUED.value],
         )
 
