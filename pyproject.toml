@@ -215,9 +215,10 @@ name = "Signaling's modules depend downwards only"
 type = "layers"
 containers = ["hopin.signaling"]
 # The handler drives the call's feature and room routing; the feature port reads and sends through routing;
-# routing drives the call through the store's transitions; the store commits seats and rooms, whose seats keep the replay
-# logs; replay logs hold frames.
-layers = ["handler", "features", "routing", "transition", "seats", "replay", "frames"]
+# routing drives the call through the transitions; call_owner serves the lapses of lost processes through routing; the
+# transitions commit to the call store, which keeps rooms, seats and their logs in Redis in the layout of call_format;
+# replay holds what a frame supersedes, and frames the frames.
+layers = ["handler", "features", "routing", "call_owner", "transition", "seats", "call_store", "call_format", "replay", "frames"]
 
 [[tool.importlinter.contracts]]
 id = "sign-in-knows-no-call"

@@ -1,4 +1,5 @@
 import asyncio
+import secrets
 import time
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime
@@ -27,6 +28,7 @@ from hopin.auth.sign_in import (
     create_pages_router,
 )
 from hopin.config.constants import (
+    HOLDER_ID_BYTES,
     PERMISSIONS_POLICY,
     SESSION_SWEEP_SECONDS,
 )
@@ -36,7 +38,8 @@ from hopin.config.web_policy import (
     PEOPLE_PATH_RULES,
 )
 from hopin.people import create_people_router
-from hopin.rooms.manager import RoomManager
+from hopin.signaling.call_owner import CallOwner
+from hopin.signaling.call_store import CallStore, ProcessLease, call_leases
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.identity import SessionIdentityResolver
 from hopin.signaling.scheduler import AsyncioScheduler, Deadlines, InMemoryDeadlines, Scheduler, TimerHandle
@@ -153,13 +156,16 @@ def _lifespan(
     wall_clock: Callable[[], float],
     scheduler: Scheduler,
     signaling_handler: SignalingHandler,
+    call_owner: CallOwner,
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         sweep = _ExpiredSessionSweep(identity, wall_clock, scheduler)
         try:
-            logger.info("process.ready")
-            yield
+            # The process holds its calls from its lease until its stop frees them, so a stop frees by the lapse's path.
+            async with call_owner.serving():
+                logger.info("process.ready")
+                yield
         finally:
             sweep.stop()
             await signaling_handler.shut_down()
@@ -215,10 +221,13 @@ def _include_routes(
     request_language: RequestLanguage,
     shared_stores: SharedStores,
     turn_relay: TurnRelay | None,
+    lease: ProcessLease,
 ) -> None:
     fixed_feature_routers, templated_feature_routers = _split_by_path_form(built_features)
     call_core_routers = [
-        create_router(signaling_handler, page_build, request_language, shared_stores.answers),
+        create_router(
+            signaling_handler, page_build, request_language, lambda: lease.serving and shared_stores.answers()
+        ),
         create_ice_servers_router(settings.stun_server, turn_relay),
         create_call_features_router(signaling_handler.features),
     ]
@@ -243,9 +252,12 @@ def _new_app(
     timers: Scheduler,
     deadlines: Deadlines,
     built_features: list[BuiltCallFeature],
-) -> tuple[FastAPI, SignalingHandler]:
+    shared_stores: SharedStores,
+) -> tuple[FastAPI, SignalingHandler, ProcessLease]:
+    redis = shared_stores.async_redis
+    lease = ProcessLease(call_leases(redis), holder=secrets.token_hex(HOLDER_ID_BYTES))
     signaling_handler = SignalingHandler(
-        RoomManager(max_participants_per_room=settings.max_participants_per_room),
+        CallStore(redis, lease, place_limit=settings.max_participants_per_room),
         SessionIdentityResolver(),
         timers,
         deadlines,
@@ -255,9 +267,11 @@ def _new_app(
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
-        lifespan=_lifespan(identity, auth_config.wall_clock, timers, signaling_handler),
+        lifespan=_lifespan(
+            identity, auth_config.wall_clock, timers, signaling_handler, CallOwner(signaling_handler, lease)
+        ),
     )
-    return app, signaling_handler
+    return app, signaling_handler, lease
 
 
 def _build_features(
@@ -324,7 +338,9 @@ def _assemble_app(
         turn_relay,
     )
     bearer = _bearer_of(built_features)
-    app, signaling_handler = _new_app(settings, identity, sign_in_configs.web_auth, timers, deadlines, built_features)
+    app, signaling_handler, lease = _new_app(
+        settings, identity, sign_in_configs.web_auth, timers, deadlines, built_features, shared_stores
+    )
     _include_routes(
         app,
         settings,
@@ -335,6 +351,7 @@ def _assemble_app(
         request_language,
         shared_stores,
         turn_relay,
+        lease,
     )
     app.state.settings = settings
     auth.install(app, bearer=bearer)

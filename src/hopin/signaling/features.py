@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
     from hopin.signaling.frames import ForeignFrame, PeerId
-    from hopin.signaling.transition import InMemoryCallStore, LiveSeats, RoomView, Work, WorkRoom
+    from hopin.signaling.transition import Calls, LiveSeats, RoomView, Work, WorkRoom
 
 
 class TransitionFeature(ABC):
@@ -97,7 +97,7 @@ class TransitionHost:
     """Runs a feature where the call core calls its hooks: each hook it is offered is one transition of the seat's
     room, and the work those transitions dispatch runs here, where the seats' sockets are held."""
 
-    def __init__(self, feature: TransitionFeature, store: InMemoryCallStore, live_seats: LiveSeats) -> None:
+    def __init__(self, feature: TransitionFeature, store: Calls, live_seats: LiveSeats) -> None:
         self._feature = feature
         self._transitions = FeatureTransitions(feature, store, live_seats)
         feature.attach(self._transitions)
@@ -115,12 +115,16 @@ class TransitionHost:
         return self._feature.signal_types
 
     async def on_frame(self, peer_id: PeerId, frame: ForeignFrame) -> bool:
-        view = await self._transitions.seat_view(peer_id)
-        return await self._transitions.run(view, partial(self._feature.on_frame, view, peer_id, frame))
+        async def step(view: RoomView) -> tuple[bool, list[Committed]]:
+            return await self._transitions.run(view, partial(self._feature.on_frame, view, peer_id, frame), peer_id)
+
+        return await self._transitions.in_seat_room(peer_id, step)
 
     async def seat_joined(self, peer_id: PeerId) -> None:
-        view = await self._transitions.seat_view(peer_id)
-        await self._transitions.run(view, partial(self._feature.seat_joined, view, peer_id))
+        async def step(view: RoomView) -> tuple[None, list[Committed]]:
+            return await self._transitions.run(view, partial(self._feature.seat_joined, view, peer_id), peer_id)
+
+        await self._transitions.in_seat_room(peer_id, step)
 
     async def commit_seat_left(self, peer_id: PeerId, *, room_id: str, name: str) -> list[Committed]:
         """Apply the feature's `seat_left` to the room the seat left and commit it, leaving its seats to be woken
@@ -156,7 +160,7 @@ class FeatureClashError(StartRefusedError):
 
 
 def build_features(
-    features: Sequence[TransitionFeature], store: InMemoryCallStore, live_seats: LiveSeats
+    features: Sequence[TransitionFeature], store: Calls, live_seats: LiveSeats
 ) -> tuple[TransitionHost, ...]:
     clashes = _clashes(features)
     if clashes:

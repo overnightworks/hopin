@@ -1,4 +1,3 @@
-import hashlib
 import json
 import secrets
 from dataclasses import dataclass, field
@@ -10,22 +9,14 @@ from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from hopin.config.constants import PEER_ID_BYTES, RESUME_TOKEN_BYTES, SEAT_CLOSED_BY_SERVER_CODE
 from hopin.signaling.frames import RESUME_TOKEN_KEY, TOKEN_BEARING_TYPES, TYPE_KEY, JsonObject, PeerId
-from hopin.signaling.replay import ReplayLog
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from starlette.requests import HTTPConnection
 
-    from hopin.rooms.models import Account
+    from hopin.signaling.call_store import CallStore
     from hopin.signaling.scheduler import TimerHandle
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
-
-
-@dataclass(frozen=True)
-class Park:
-    dropped_at: float
 
 
 @dataclass(frozen=True)
@@ -43,31 +34,6 @@ def mint_resume_token() -> str:
     return secrets.token_urlsafe(RESUME_TOKEN_BYTES)
 
 
-def hash_token(token: str) -> bytes:
-    return hashlib.sha256(token.encode()).digest()
-
-
-@dataclass
-class SeatRecord:
-    """The stored part of a seat: the account behind it, its room, its park, what the browser has sent, the hash of its
-    resume token and the log of what it was sent. The call store's commit is its only writer."""
-
-    account: Account
-    token_hash: bytes = field(repr=False)
-    room_id: str | None = None
-    park: Park | None = None
-    received_seq: int = 0
-    log: ReplayLog = field(default_factory=ReplayLog, repr=False)
-
-    def accepts(self, token: str) -> bool:
-        """Whether the token is the seat's, compared by its hash in constant time."""
-        try:
-            claimed = hash_token(token)
-        except UnicodeEncodeError:
-            return False
-        return secrets.compare_digest(claimed, self.token_hash)
-
-
 @dataclass
 class SeatSocket:
     """The part of a seat that belongs to the socket serving it now; a resume replaces it with the new socket's. Its
@@ -79,6 +45,7 @@ class SeatSocket:
     replaying: bool = False
     writers_started: int = 0
     outcome_times: tuple[float, ...] = ()
+    generation: str = ""
 
 
 @dataclass
@@ -94,11 +61,11 @@ class Connection:
 
 
 class Seats:
-    """The sockets this process holds for its seats, and what is written to them: the logged frames of a seat's stored
-    record, which only the call store's commit writes."""
+    """The sockets this process holds for its seats, and what is written to them: the logged frames of a seat's log in
+    the call store, which only the store's commit writes."""
 
-    def __init__(self, records: Mapping[PeerId, SeatRecord]) -> None:
-        self._records = records
+    def __init__(self, store: CallStore) -> None:
+        self._store = store
         self._sockets: dict[PeerId, SeatSocket] = {}
         self._closed_by_server: WeakSet[WebSocket] = WeakSet()
 
@@ -115,6 +82,14 @@ class Seats:
     def socket_of(self, peer_id: PeerId) -> SeatSocket:
         return self._sockets[peer_id]
 
+    def peers(self) -> frozenset[PeerId]:
+        """The seats whose sockets this process holds."""
+        return frozenset(self._sockets)
+
+    def sockets_outside(self, generation: str) -> list[SeatSocket]:
+        """The sockets of seats opened under another generation than this one."""
+        return [socket for socket in self._sockets.values() if socket.generation != generation]
+
     def connection_of(self, peer_id: PeerId) -> HTTPConnection:
         return self._sockets[peer_id].websocket
 
@@ -124,22 +99,20 @@ class Seats:
         # seq, claimed with no await before it starts; a slow write never holds the next one back, and a writer whose
         # slow write ends leaves the frames after it to the newer writer, so none of them overtakes the newer one's.
         socket = self._sockets.get(peer_id)
-        record = self._records.get(peer_id)
-        if socket is None or record is None:
+        if socket is None:
             return
         socket.writers_started += 1
         writer = socket.writers_started
-        while (
-            self._sockets.get(peer_id) is socket
-            and not socket.replaying
-            and record.park is None
-            and socket.writers_started == writer
-        ):
-            pending = record.log.since(socket.delivered_seq)
-            if not pending:
+        while self._is_writer(peer_id, socket, writer):
+            read = await self._store.read_log(peer_id, socket.delivered_seq)
+            if not self._is_writer(peer_id, socket, writer) or read is None or read.parked or not read.frames:
                 return
-            socket.delivered_seq = pending[0].seq
-            await self.write(socket.websocket, _with_unsent_token(socket, pending[0].frame), peer_id)
+            pending = read.frames[0]
+            socket.delivered_seq = pending.seq
+            await self.write(socket.websocket, _with_unsent_token(socket, pending.frame), peer_id)
+
+    def _is_writer(self, peer_id: PeerId, socket: SeatSocket, writer: int) -> bool:
+        return self._sockets.get(peer_id) is socket and not socket.replaying and socket.writers_started == writer
 
     @staticmethod
     async def write(websocket: WebSocket, frame: JsonObject, peer_id: str | None = None) -> bool:
@@ -157,17 +130,18 @@ class Seats:
         that follow; false when the log no longer reaches back to that seq."""
         cursor = last_seq
         while self._sockets.get(peer_id) is socket:
-            record = self._records[peer_id]
-            if not record.log.reaches_back_to(cursor):
+            read = await self._store.read_log(peer_id, cursor)
+            if read is None or cursor < read.floor:
                 return False
-            pending = record.log.since(cursor)
-            if not pending:
+            if not read.frames:
                 socket.delivered_seq = cursor
                 socket.replaying = False
+                # A frame logged while the log was read found the socket replaying and was held.
+                await self.deliver(peer_id)
                 return True
-            if not await self.write(socket.websocket, pending[0].frame):
+            if not await self.write(socket.websocket, read.frames[0].frame):
                 return True
-            cursor = pending[0].seq
+            cursor = read.frames[0].seq
         return True
 
     def closed_by_server(self, websocket: WebSocket) -> bool:

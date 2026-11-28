@@ -67,7 +67,7 @@ from hopin.agent.tools import (
     video_looks_of_accept,
 )
 from hopin.agent.video_session import VideoOpening
-from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS, REDIS_AGENTS_KEY_PREFIX
+from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL, READ_METHODS, REDIS_FAMILY_PREFIX
 from hopin.participation.feature import Participation
 from hopin.participation.figure_transport import get_figure_over_https
 from hopin.participation.figures import (
@@ -488,7 +488,7 @@ class ParticipationFeature:
             self.figure_sources,
             hears=self.hearing is not None,
             voices=self.voices,
-            places=RedisPlaceStore(self.redis, key_prefix=REDIS_AGENTS_KEY_PREFIX),
+            places=RedisPlaceStore(self.redis, key_prefix=REDIS_FAMILY_PREFIX),
         )
         hearing_tokens = self._hearing_tokens(deadlines, scheduler, auth_config)
         voice = self._voice(relying_party, hearing_tokens)
