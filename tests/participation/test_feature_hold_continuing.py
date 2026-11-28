@@ -4,10 +4,10 @@ hold, at participation's real feature and the agents library's real record of wh
 import asyncio
 
 import pytest
+from agents.member import ContinueSpeakingRefusal
 
 from hopin.participation.vocabulary import (
     AgentRefusal,
-    HoldRefusal,
     SpeakStarted,
 )
 from tests.participation.support.people import person_named, room_of
@@ -171,7 +171,7 @@ class TestContinuingSpeaking:
         refused = await participation.continue_speaking(GUEST, room_id, interrupted)
 
         assert (refused, standing(participation, room_id), continues(host)) == (
-            HoldRefusal.NOT_INTERRUPTED,
+            ContinueSpeakingRefusal.NOT_INTERRUPTED,
             ("1", False),
             [],
         )
@@ -188,7 +188,7 @@ class TestContinuingSpeaking:
 
         refused = await participation.continue_speaking(GUEST, room_id, "1")
 
-        assert (refused, continues(host)) == (HoldRefusal.NOT_INTERRUPTED, [])
+        assert (refused, continues(host)) == (ContinueSpeakingRefusal.NOT_INTERRUPTED, [])
 
     async def test_call_70_a_speak_with_the_hold_that_a_continue_ended_meanwhile_is_refused_not_interrupted(
         self, participation, call
@@ -206,7 +206,7 @@ class TestContinuingSpeaking:
         rendered.set()
 
         assert (await speaking_over, sounds(host)) == (
-            HoldRefusal.NOT_INTERRUPTED,
+            ContinueSpeakingRefusal.NOT_INTERRUPTED,
             [VOICE.value, HELD.value, CONTINUED.value],
         )
 
@@ -255,4 +255,4 @@ class TestContinuingSpeaking:
         stale = await participation.continue_speaking(GUEST, room_id, "1")
         continued = await participation.continue_speaking(GUEST, room_id, "2")
 
-        assert (stale, continued, len(continues(host))) == (HoldRefusal.NOT_INTERRUPTED, None, 2)
+        assert (stale, continued, len(continues(host))) == (ContinueSpeakingRefusal.NOT_INTERRUPTED, None, 2)

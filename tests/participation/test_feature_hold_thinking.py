@@ -2,8 +2,9 @@
 at participation's real feature and the agents library's real record of who may hear whom."""
 
 import pytest
+from agents.member import SpeakRefusal
 
-from hopin.participation.vocabulary import THINKING_MAX_SECONDS, FigureGesture, HoldRefusal, ParticipationSignal
+from hopin.participation.vocabulary import THINKING_MAX_SECONDS, FigureGesture, ParticipationSignal
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import SENTENCE_MS, hold_of_a_playing_sentence, speak
 
@@ -23,7 +24,7 @@ async def a_hold_over_a_thinking_agent(participation, call):
     room_id = await hold_of_a_playing_sentence(participation, call)
     await participation.figures.state_turn(GUEST, room_id, thinking=True)
     refused = await participation.speak(GUEST, room_id, "Zwei", None)
-    assert refused == HoldRefusal.HELD
+    assert refused == SpeakRefusal.HELD
     return room_id
 
 

@@ -5,6 +5,7 @@ import asyncio
 import contextlib
 
 import pytest
+from agents.member import SpeakRefusal
 
 from hopin.participation.chat_window import WindowVoice
 from hopin.participation.vocabulary import (
@@ -13,7 +14,6 @@ from hopin.participation.vocabulary import (
     ParticipationSignal,
     SpeakFallback,
     SpeakStarted,
-    SpeakStop,
     VoiceFailure,
 )
 from hopin.rooms.reference import room_reference
@@ -150,7 +150,7 @@ class TestAVoiceThatFails:
         await participation.stop_speaking(GUEST, room_id)
 
         assert (await written, written_lines(participation, GUEST, room_id)) == (
-            SpeakStop.STOPPED,
+            SpeakRefusal.STOPPED,
             [("Eins", True, True)],
         )
         assert [line.cut for line in participation.read_window(GUEST, room_id).lines] == [True]
@@ -182,7 +182,7 @@ class TestAVoiceThatFails:
         stopped = await speak(participation, "Zwei", render=fail_while_stopped, room_id=room_id)
 
         assert (stopped, [text for text, *_ in written_lines(participation, GUEST, room_id)]) == (
-            SpeakStop.STOPPED,
+            SpeakRefusal.STOPPED,
             ["Eins"],
         )
 
