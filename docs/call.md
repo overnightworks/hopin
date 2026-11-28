@@ -1,6 +1,6 @@
 # Call
 
-What exactly does a HopIn call promise, from the pre-join to the end screens, and which test proves each rule?
+What exactly does a HopIn call promise, from the pre-join to the end screens, and which test cites each rule?
 
 ## Pre-join
 
