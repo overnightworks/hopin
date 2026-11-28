@@ -1,0 +1,8 @@
+claim_id = "506299c663384c32853868f4d470aeb8"
+agent = "Claude 321bddec-b6e0-4911-a8f9-521a9bd6ab32"
+role = "builder"
+base = "3a6cdf212647242dbca27b633360c8753f09babd"
+branch = "claude/issue-1220-hopin-s-flow-page-steps-run-against-any"
+scope = [".github/workflows/ci.yml", ".gitignore", "Makefile", "README.md", "mise.lock", "mise.toml", "pyproject.toml", "scripts/live_journeys.sh", "tests/e2e/live", "tests/e2e/support/calls.py", "tests/e2e/support/form_factors.py", "tests/e2e/support/people.py"]
+opened_commit = "17989695acec2423ba04d2e459952f7ecdb4b341"
+whole_reason = "The task platform calls, the journey it runs and CI's exclusion of it are one contract with platform's command; a part alone either runs nothing or lets CI run a journey against production."
