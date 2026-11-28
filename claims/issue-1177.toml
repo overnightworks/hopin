@@ -1,8 +1,0 @@
-claim_id = "1e4b72df8fde4841bc02239a49b170ca"
-agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
-role = "builder"
-base = "ca2292568591ed0d3b0a46ab1cc83aad1a6fd435"
-branch = "claude/issue-1177-served-file-kinds-are-one-record"
-scope = ["src/hopin/agent/mcp.py", "src/hopin/participation/figures.py", "src/hopin/participation/frames.py", "src/hopin/participation/shown_figures.py", "src/hopin/participation/vocabulary.py", "tests/e2e/participation/test_agent_figure.py", "tests/e2e/participation/test_agent_persona_room.py", "tests/participation/test_feature_figure.py", "tests/participation/test_feature_looks.py", "tests/participation/test_feature_persona_room.py", "tests/participation/test_feature_video_looks.py", "tests/participation/test_figures_fetch.py", "tests/participation/test_figures_store.py"]
-opened_commit = "363f661673a6845790eab259dca60da26eed6345"
-whole_reason = "One shape spread over four modules moves into one owner; a part alone leaves two owners of the shape."
