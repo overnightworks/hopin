@@ -5,7 +5,7 @@ What exactly does the game master promise a call, and which test proves each rul
 Ruled by the operator:
 
 - GM-01: Everyone's "Mehr" holds "Quiz starten"; a tap makes the game master ask one question in everyone's chat.
-- GM-04: Answers go into their own answer field, never into the chat; the others see only how many have answered until the reveal.
+- GM-04: Answers go into their own answer field, never into the chat; the others see only how many have answered until the reveal. An answer is capped at 200 characters after trimming; a longer one is refused as too long to its sender alone.
 - GM-05: A quiz has 5 questions, then the game master's final score.
 - GM-06: A question is revealed once everyone present has answered, or when the person who started the quiz taps "Auflösen".
 - GM-07: Game master lines carry "Quizmaster" and a "KI" badge, never a person's name.
