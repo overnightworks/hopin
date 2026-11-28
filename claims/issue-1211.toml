@@ -1,0 +1,8 @@
+claim_id = "b13734a446a34ac684f3e80f68d486d9"
+agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
+role = "builder"
+base = "5ea8a40fc7a8a60e59efbd19e885ba49d4f38731"
+branch = "claude/issue-1211-agents-floor-orders-agent-sentences"
+scope = ["docs/call.md", "pyproject.toml", "quality", "src/hopin/agent/hearing_route.py", "src/hopin/agent/tools.py", "src/hopin/participation", "tests/agent", "tests/participation", "uv.lock"]
+opened_commit = "0901dc1682d09d0694729d644ff0e7548444dfca"
+whole_reason = "The core takes over one decision, the order of an agent's sentences and holds, and the queue that decided it goes in the same change; either half alone leaves two owners of that order."
