@@ -87,6 +87,11 @@ def wait_until_in_the_call(person: Page) -> None:
     )
 
 
+def close_the_page(person: Page) -> None:
+    """The person closes their tab: the page runs its unload steps, as a browser does, and leaves the call."""
+    person.close(run_before_unload=True)
+
+
 def join(
     open_person: Callable[..., Page],
     invite_link: str,

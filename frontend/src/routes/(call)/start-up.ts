@@ -262,6 +262,10 @@ export function startUp() {
     });
     installLeaveConfirmed(leaveCall);
     installLeaveRequested(requestLeave);
+    // A page entering the back-forward cache stays in the call; one that unloads ends it with the close code 1000.
+    window.addEventListener("pagehide", (event) => {
+        if (!event.persisted && state.inCall) leaveCall();
+    });
     installStartRequested(() => {
         openPrejoin(PREJOIN_KIND.HOST);
     });
