@@ -1,6 +1,6 @@
 # Stage
 
-What does HopIn promise a call about the table of a registered app on its stage, and what proves each rule? The app itself, its chairs and its sign-in are the app's.
+What does HopIn promise a call about the table of a registered app on its stage, and which test proves each rule? The app itself, its chairs and its sign-in are the app's.
 
 The head's decisions, which carry the item's lines O1 A, O2 A and H10:
 

@@ -10,7 +10,7 @@ Only members of the Keycloak group `REALM_LOGIN_GROUP` names use it. Why HopIn e
 
 Up to 6 people see and hear each other in one call, share a screen, mute microphone and camera independently, chat line to line between the browsers, and lock the room against newcomers; a dropped connection keeps its place for a short while. A quiz master asks everyone five quiz questions and counts the right answers, and a registered app's table shows on the call's stage. The page is a SvelteKit build that `make frontend` writes and the server serves.
 
-The ruled behaviour, each rule's id cited in the test that proves it (its docstring, or the start of its name), except the stage's ST-10, which the CI job `Removal drill` proves: the call in [docs/call.md](docs/call.md), the game master in [docs/game-master.md](docs/game-master.md), the stage in [docs/stage.md](docs/stage.md).
+The ruled behaviour: the call in [docs/call.md](docs/call.md), the game master in [docs/game-master.md](docs/game-master.md), the stage in [docs/stage.md](docs/stage.md).
 
 ## Quick Start
 
