@@ -488,18 +488,21 @@ def serving_dialed_call(
     turn_transport=None,
     monotonic_clock=time.monotonic,
     shared_stores=None,
+    participation_stores=None,
 ) -> Iterator[DialedCall]:
     """HopIn serving participation; `figure_transport` is the figures' source, and a figure fetch without one fails the
     test. `hearing` is the speech service agents hear through and `speaking` the one they speak through, none with
     the setting off; `video` is the video service agents open sessions on and `turn_transport` the TURN provider's
     port, which the sign-in settings must switch on for it to be asked.
     `shared_stores` are the processes' shared stores, a Redis of the test's own in memory unless a test names the real
-    ones."""
+    ones; `participation_stores` are the ones participation reads its places and listeners through, `shared_stores`
+    unless a test breaks the one and keeps the other."""
     stores = single_process_stores()
     stores.sessions = WatchedSessions(stores.sessions)
     scheduler = ManualScheduler()
     voices = WatchedVoices()
     shared_stores = shared_stores or in_thread_stores()
+    participation_stores = participation_stores or shared_stores
     participation = _ParticipationBuilt(
         ParticipationFeature(
             sign_in.settings.public_origin,
@@ -509,7 +512,7 @@ def serving_dialed_call(
             speaking=speaking,
             video=video,
             voices=voices,
-            redis=shared_stores.async_redis,
+            redis=participation_stores.async_redis,
             realm=TEST_REALM,
         )
     )

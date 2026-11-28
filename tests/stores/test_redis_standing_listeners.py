@@ -43,7 +43,8 @@ def agent_subject():
 
 @pytest.fixture
 def processes(sign_in_settings, redis_url, agent_subject):
-    """Two processes against one Redis, each through a gate of its own."""
+    """Two processes against one Redis, each reaching its places and listeners through a gate of its own and its calls
+    directly, so a gate that refuses requests breaks the places and listeners read and not the call."""
     sign_in = sign_in_settings()
     with ExitStack() as stack:
         started = []
@@ -54,7 +55,8 @@ def processes(sign_in_settings, redis_url, agent_subject):
                 serving_dialed_call(
                     sign_in,
                     FakeIssuer(sign_in),
-                    shared_stores=connect_shared_stores(gate.url),
+                    shared_stores=connect_shared_stores(redis_url),
+                    participation_stores=connect_shared_stores(gate.url),
                 )
             )
             _, login = call.member(subject=OWNER_SUBJECT, groups=(AGENT_ADDERS_GROUP,))
