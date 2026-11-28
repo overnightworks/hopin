@@ -1,6 +1,7 @@
 """What the table tests share: the frames a quiz sends, the call they join and the waits they make."""
 
 import asyncio
+import inspect
 import json
 
 from hopin.config.constants import SignalType
@@ -177,7 +178,8 @@ async def shut_down_within_cap(handler):
 async def yield_until(condition):
     """Let the other tasks run until the condition holds; for a step that no frame announces."""
     for _ in range(YIELD_CAP):
-        if condition():
+        holds = condition()
+        if (await holds) if inspect.isawaitable(holds) else holds:
             return
         await asyncio.sleep(0)
     raise AssertionError("the condition never held")
@@ -202,10 +204,10 @@ async def start_and_hold(game_master, browser, **hold_options):
     return held
 
 
-async def open_a_question(call, starter):
-    """The starter's tap, until every seat of the call has the question open."""
+async def open_a_question(call, starter, times=1):
+    """The starter's tap, until every seat of the call has been sent the question open `times` times."""
     await starter.say(START)
-    await sent_to_all(call, answering(starter))
+    await sent_to_all(call, answering(starter), times)
 
 
 async def broken_write(_text):

@@ -96,11 +96,14 @@ class TestASentenceThatPlaysWhileItRenders:
     ):
         """CALL-61."""
         host, *_ = call
+        known = asyncio.all_tasks()
 
         await streaming.streamed.breaks_off()
+        answer = await behind
+        await announced_since(known)
 
         assert (
-            await behind,
+            answer,
             [window_texts(participation, person, streaming.room_id) for person in (GUEST, HOST)],
             len(voice_ids(host)),
         ) == (SpeakStarted.SPOKEN, [[("Eins", True, True)], [("Eins", False, True)]], 2)

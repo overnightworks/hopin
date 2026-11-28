@@ -14,8 +14,8 @@ def stage():
 
 
 @pytest.fixture
-def handler(room_manager, scheduler, deadlines, stage):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, deadlines, [stage])
+def handler(call_store, scheduler, deadlines, stage):
+    return SignalingHandler(call_store, SocketAccountResolver(), scheduler, deadlines, [stage])
 
 
 @pytest_asyncio.fixture

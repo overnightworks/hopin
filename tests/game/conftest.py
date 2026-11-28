@@ -57,8 +57,8 @@ def game(deadlines, game_master, voice, voices):
 
 
 @pytest.fixture
-def handler(room_manager, scheduler, deadlines, game):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, deadlines, [game])
+def handler(call_store, scheduler, deadlines, game):
+    return SignalingHandler(call_store, SocketAccountResolver(), scheduler, deadlines, [game])
 
 
 @pytest_asyncio.fixture

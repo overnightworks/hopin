@@ -15,6 +15,7 @@ from hopin.config.constants import (
     WEBSOCKET_DISCONNECT_EVENT,
 )
 from hopin.errors import HopInError, InvalidMessageError, TooManyCallsError
+from hopin.signaling.call_store import COMMIT_FAILURES, DepartureTold
 from hopin.signaling.features import TransitionHost, build_features
 from hopin.signaling.frames import (
     ConnectionOutcomeFrame,
@@ -31,19 +32,15 @@ from hopin.signaling.frames import (
     decode_frame,
     error_frame,
 )
-from hopin.signaling.routing import Departure, RoomRouting
-from hopin.signaling.seats import Connection, SeatRecord, SeatSnapshot
-from hopin.signaling.transition import (
-    Committed,
-    InMemoryCallStore,
-    RoomView,
-    Transition,
-)
+from hopin.signaling.routing import RoomRouting
+from hopin.signaling.seats import Connection, SeatSnapshot
+from hopin.signaling.transition import Calls, Committed, CoreTransition, RoomView
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from hopin.rooms.manager import RoomManager
+    from hopin.rooms.models import Departure, SeatRecord
+    from hopin.signaling.call_store import CallStore
     from hopin.signaling.features import TransitionFeature
     from hopin.signaling.frames import JsonObject
     from hopin.signaling.identity import IdentityResolver
@@ -63,19 +60,19 @@ class PersonReach:
 class SignalingHandler:
     def __init__(
         self,
-        room_manager: RoomManager,
+        call_store: CallStore,
         identity_resolver: IdentityResolver,
         scheduler: Scheduler,
         deadlines: Deadlines,
         features: Sequence[TransitionFeature] = (),
     ) -> None:
-        self._room_manager = room_manager
         self._identity_resolver = identity_resolver
         self._scheduler = scheduler
-        self._store = InMemoryCallStore(room_manager, deadlines, self._room_ended, self._seat_changed)
-        self._routing = RoomRouting(room_manager, self._store, deadlines, self._seat_left)
-        self._seats = self._store.seats
-        self._features = build_features(features, self._store, self._seats)
+        self._store = call_store
+        self._calls = Calls(call_store, deadlines, self._room_ended, self._seat_changed)
+        self._routing = RoomRouting(self._calls, deadlines, self._seat_left)
+        self._seats = self._calls.seats
+        self._features = build_features(features, self._calls, self._seats)
         self._feature_of_type = {
             signal_type: feature for feature in self._features for signal_type in feature.signal_types.values()
         }
@@ -83,6 +80,14 @@ class SignalingHandler:
     @property
     def features(self) -> tuple[TransitionHost, ...]:
         return self._features
+
+    @property
+    def calls(self) -> Calls:
+        return self._calls
+
+    @property
+    def routing(self) -> RoomRouting:
+        return self._routing
 
     def _room_ended(self, room_id: str) -> None:
         for feature in self._features:
@@ -92,52 +97,66 @@ class SignalingHandler:
         for feature in self._features:
             await feature.seat_changed(peer_id)
 
-    async def _seat_left(self, departure: Departure, told_frames: Sequence[tuple[PeerId, JsonObject]]) -> None:
+    async def _seat_left(
+        self, departure: Departure, told_frames: Sequence[tuple[PeerId, JsonObject]]
+    ) -> list[Committed]:
         """The room is told of the departure in one commit with each feature's answer to it, so a feature's frame
-        supersedes its own outdated ones before any reaches a seat."""
-        told = Transition()
+        supersedes its own outdated ones before any reaches a seat. The room hears of a departure once: the commit
+        that tells it also takes the departure from the room."""
+        told = CoreTransition()
+        told.edit(DepartureTold(departure.room_id, PeerId(departure.peer_id)))
         for peer_id, frame in told_frames:
             told.send(peer_id, frame)
-        committed = [Committed(await self._store.commit(RoomView(), told))]
+        committed = [Committed(await self._calls.commit(RoomView(), told))]
         for feature in self._features:
             committed += await feature.commit_seat_left(
-                departure.peer_id, room_id=departure.room_id, name=departure.name
+                PeerId(departure.peer_id), room_id=departure.room_id, name=departure.name
             )
-        await self._store.wake_committed(committed)
+        return committed
 
     async def shut_down(self) -> None:
         """Shut the call's features down in order and wait until each has cleaned up; the calls' feature state ends with
         them."""
         for feature in self._features:
             await feature.shut_down()
-        self._store.end_all()
+        self._calls.end_all()
 
-    async def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:  # NOSONAR(S7503) a store read is awaited
-        """The seats an account holds, parked ones included, read in one instant."""
-        return tuple(self._snapshot_of(record) for _, record in self._store.held_by(account_id))
+    async def seats_of(self, account_id: str) -> tuple[SeatSnapshot, ...]:
+        """The seats an account holds, on every process, parked ones included."""
+        return tuple(
+            [await self._snapshot_of(peer_id, record) for peer_id, record in await self._store.held_by(account_id)]
+        )
 
-    async def reach_of(self, account_id: str) -> PersonReach:  # NOSONAR(S7503) a store read is awaited
-        """Counted in one instant like `seats_of`. A call the account hosts counts when another
-        seat or an agent is in it; a host alone in its grace changes nothing for others."""
-        hosted = self._room_manager.hosted_by(account_id)
-        return PersonReach(seats=len(self._store.held_by(account_id)), calls=sum(room.has_guests for room in hosted))
+    async def reach_of(self, account_id: str) -> PersonReach:
+        """What the account holds on every process. A call the account hosts counts when another seat or an agent is in
+        it; a host alone in its grace changes nothing for others."""
+        hosted = await self._store.hosted_by(account_id)
+        return PersonReach(
+            seats=len(await self._store.held_by(account_id)), calls=sum(room.has_guests for room in hosted)
+        )
 
     async def end_all_of(self, account_id: str) -> PersonReach:
         """Ends the calls the account hosts at once for everyone, unnamed, then closes every seat it still holds as a
-        session end does, a parked one included, and answers what was there when it began."""
+        session end does, a parked one included, and answers what was there when it began. A seat whose socket another
+        process holds is gone from the store, and that process closes its socket at its next commit or minute check."""
         reach = await self.reach_of(account_id)
         # Each pass reads again, because a call or a seat can end on its own while an earlier one is being closed.
-        while hosted := self._room_manager.hosted_by(account_id):
+        while hosted := await self._store.hosted_by(account_id):
             await self._routing.end_room_unnamed(hosted[0].room_id)
-        while held := self._store.held_by(account_id):
+        while held := await self._store.held_by(account_id):
             peer_id, _ = held[0]
-            await self._end_seat(peer_id, self._seats.socket_of(peer_id).websocket, SESSION_ENDED_CLOSE_CODE)
+            socket = self._seats.find(peer_id)
+            await self._end_seat(peer_id, None if socket is None else socket.websocket, SESSION_ENDED_CLOSE_CODE)
         return reach
 
-    def _snapshot_of(self, record: SeatRecord) -> SeatSnapshot:
+    async def _snapshot_of(self, peer_id: PeerId, record: SeatRecord) -> SeatSnapshot:
         room_id = record.room_id
-        hosted = room_id is not None and self._room_manager.get_room(room_id).is_hosted_by(record.account)
-        return SeatSnapshot(call_id=room_id, host=hosted, replay_frames=len(record.log))
+        room = None if room_id is None else await self._store.find_room(room_id)
+        return SeatSnapshot(
+            call_id=room_id,
+            host=room is not None and room.is_hosted_by(record.account),
+            replay_frames=await self._store.log_length(peer_id),
+        )
 
     async def handle_websocket(self, websocket: WebSocket) -> None:
         account = await self._identity_resolver.resolve(websocket)
@@ -182,8 +201,19 @@ class SignalingHandler:
         text = frame.get("text")
         if text is not None and self._serves_seat(connection):
             with unit_trace(None):
-                await self._handle_message(connection, text)
+                try:
+                    await self._handle_message(connection, text)
+                except COMMIT_FAILURES as failure:
+                    await self._fail_seat(connection, failure)
+                    return False
         return True
+
+    async def _fail_seat(self, connection: Connection, failure: Exception) -> None:
+        """A commit this process cannot make, because it lost its lease, a store did not answer or a frame was refused,
+        closes the acting socket; the page reconnects and resumes the seat if this process still holds it."""
+        await logger.aerror("call_commit.failed", peer_id=connection.peer_id, error_type=type(failure).__name__)
+        connection.dropped = True
+        await self._seats.close_socket(connection.websocket, SERVER_ERROR_CLOSE_CODE)
 
     def _schedule_recheck(self, connection: Connection) -> TimerHandle:
         return self._scheduler.call_later(SESSION_RECHECK_SECONDS, partial(self._recheck_on_tick, connection))
@@ -225,11 +255,12 @@ class SignalingHandler:
         connection.ended = True
         await self._end_seat(connection.peer_id, connection.websocket, close_code)
 
-    async def _end_seat(self, peer_id: PeerId, websocket: WebSocket, close_code: int) -> None:
+    async def _end_seat(self, peer_id: PeerId, websocket: WebSocket | None, close_code: int) -> None:
         # The seat leaves before anything suspends, so a drop or a resume read meanwhile finds no seat; the room
         # hears of it only after the close, so another participant's slow socket cannot hold this one open.
         departure = await self._routing.leave(peer_id)
-        await self._seats.close_socket(websocket, close_code)
+        if websocket is not None:
+            await self._seats.close_socket(websocket, close_code)
         await self._routing.announce(departure)
         await logger.ainfo("session.expired", peer_id=peer_id)
 
@@ -240,10 +271,14 @@ class SignalingHandler:
             return
         # Outside the socket's session trace, like a frame: the line a leaver cuts wakes another agent's turn.
         with unit_trace(None):
-            if connection.dropped and self._routing.room_of(connection.peer_id) is not None:
-                await self._routing.park(connection.peer_id)
-            else:
-                await self._routing.handle_disconnect(connection.peer_id)
+            try:
+                if connection.dropped and await self._routing.room_of(connection.peer_id) is not None:
+                    await self._routing.park(connection.peer_id)
+                else:
+                    await self._routing.handle_disconnect(connection.peer_id)
+            except COMMIT_FAILURES as failure:
+                # The seat stays in the store for the lapse or the sweep of this process to free.
+                await logger.aerror("call_end.failed", peer_id=connection.peer_id, error_type=type(failure).__name__)
 
     async def _handle_message(self, connection: Connection, raw_data: str) -> None:
         peer_id = connection.peer_id
@@ -264,9 +299,9 @@ class SignalingHandler:
             if incoming.sequence is None:
                 await self._send_error(peer_id, InvalidMessageError("Missing sequence number"))
                 return
-            if incoming.sequence <= self._store.record_of(peer_id).received_seq:
+            if incoming.sequence <= (await self._store.record_of(peer_id)).received_seq:
                 return
-            self._store.receive(peer_id, incoming.sequence)
+            self._calls.receive(peer_id, incoming.sequence)
 
         try:
             if isinstance(incoming.frame, InvalidMessageError):
@@ -275,7 +310,7 @@ class SignalingHandler:
         except HopInError as exc:
             await self._send_error(peer_id, exc)
         finally:
-            await self._store.settle_received(peer_id)
+            await self._calls.settle_received(peer_id)
 
     async def _dispatch(self, peer_id: PeerId, frame: DispatchedFrame) -> None:
         match frame:

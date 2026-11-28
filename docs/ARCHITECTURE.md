@@ -1,6 +1,6 @@
 # HopIn Architecture
 
-How HopIn is built, how a call runs and what it trusts. For what HopIn is and how to run it, see the [README](../README.md). Each package states its rules in its docstring or header; a call's rules, each with its test, are in [docs/call.md](call.md).
+How HopIn is built, how a call runs and what it trusts. For what HopIn is and how to run it, see the [README](../README.md). Each package states its rules in its docstring or header; a call's rules are in [docs/call.md](call.md).
 
 ## 1. Context and Scope
 
@@ -61,9 +61,9 @@ Caption: what each part may import, from the `layers` contract in `pyproject.tom
 | Package | Job |
 |---|---|
 | `config` | settings, constants, enums and the secret-file reader |
-| `stores` | the Redis every process shares, the ports `create_app` takes (`SharedStores`, `IdentityStores`), and the Postgres engine, its schema, `hopin migrate` and the accounts and sessions |
-| `rooms` | rooms, participants, the places people and agents share, the lock |
-| `signaling` | the WebSocket: identity, frames, seats, replay, timers, the feature port |
+| `stores` | the Redis every process shares (windows, place signals and every running call), the ports `create_app` takes (`SharedStores`, `IdentityStores`), and the Postgres engine, its schema, `hopin migrate` and the accounts and sessions |
+| `rooms` | the records of a call (rooms, participants, seats, the places people and agents share, the lock) and the pure rules that decide on them; no registry |
+| `signaling` | the WebSocket: identity, frames, the call store and its one commit, the process's lease and the lapse that frees a lost process's seats, seats, timers, the feature port |
 | `web` | the page build, the request's language, health, the ICE server list |
 | `auth` | sign-in against Keycloak through webauth, built once by `WebAuth.build` before the routes and installed by `auth.install` after the last, and the session gate |
 | `people` | the admin export and erasure of what HopIn holds about one person |
@@ -74,7 +74,7 @@ Caption: what each part may import, from the `layers` contract in `pyproject.tom
 | `app` | the composition root: wires the packages, names no feature |
 | `main` | starts the server and switches the optional features in |
 
-The feature port is `TransitionFeature` in `signaling`: each optional feature plugs into it and runs on transitions, so the call core compiles and runs without any of them. The call core and the features commit through one store, and the commit is the only writer of rooms, seats and seat logs; a seat's log never holds its resume token. The browser mirrors it: `GET /api/call-features` names the wired features, and the shell imports them before signaling connects.
+The feature port is `TransitionFeature` in `signaling`: each optional feature plugs into it and runs on transitions, so the call core compiles and runs without any of them. The call core and the features commit through one store in Redis, and its commit, one Lua script per transition, is the only writer of rooms, seats and seat logs; a seat's log never holds its resume token, only its SHA-256 is stored. The script runs only while the committing process's lease is live (tandem's `lease_state`, read in the script) and only for a seat that the committer's generation owns; a process that lost its lease, or a stalled one, writes nothing, and the lapse of a generation frees every seat, agent place and room in grace it held. The browser mirrors it: `GET /api/call-features` names the wired features, and the shell imports them before signaling connects.
 
 `make frontend` builds the page into `src/hopin/web/build/`; the server refuses to start without it.
 
@@ -137,7 +137,7 @@ The rules of a room (host, lock, resume window, host grace, stage table, quiz ru
 
 One container, built from `Dockerfile`, runs as the one pod of the `hopin` namespace on the platform (k3s with Flux) from its attested private GHCR image. The platform's repository owns the manifests under `apps/hopin/`, which hold the live settings; secret files come from `platform-secrets` under `/run/secrets`. The Cloudflare tunnel terminates https and runs through Traefik to HopIn on 8080; readiness is `GET /health`. Keycloak's back-channel logout reaches HopIn there: the platform's realm names `/auth/backchannel-logout` for the `hopin` client and the pod admits Keycloak's pods to it.
 
-Every process reaches one Redis at `HOPIN_REDIS_URL`, holding the rate limit windows and the agent connector's member-place signals; the server refuses to start without it and `/health` is not ready while it does not answer. Every process also reaches one Postgres at `HOPIN_DATABASE_URL`, whose schema (`accounts` and `sessions`) `hopin migrate` brings to the image's head under an advisory lock, so concurrent init containers wait for one another; migrations only expand. `hopin serve` refuses to start on a database that is not at that head and `/health` is not ready while the database does not answer. Accounts and sessions live there, so a sign-in survives a restart and every process admits the same session; all other state lives in memory, so a restart ends every call.
+Every process reaches one Redis at `HOPIN_REDIS_URL`, holding the rate limit windows, the agent connector's member-place signals and every running call's rooms, seats and frames; the server refuses to start without it and `/health` is not ready while it does not answer. Every process also reaches one Postgres at `HOPIN_DATABASE_URL`, whose schema (`accounts` and `sessions`) `hopin migrate` brings to the image's head under an advisory lock, so concurrent init containers wait for one another; migrations only expand. `hopin serve` refuses to start on a database that is not at that head and `/health` is not ready while the database does not answer. Accounts and sessions live there, so a sign-in survives a restart and every process admits the same session; a call's state lives in Redis under the generation of the process that serves it, and a restart of HopIn still ends its calls, because the lapse of the old generation frees them; a Redis restart forgets every call, and the sockets close with 1011 within one lease renewal. Sections of the features, deadlines and the sockets themselves stay in a process's memory.
 
 ## 5. Crosscutting Concepts
 
@@ -147,11 +147,11 @@ Every process reaches one Redis at `HOPIN_REDIS_URL`, holding the rate limit win
 
 **Headers.** webauth's Content-Security-Policy with the build's script and style hashes, a Permissions-Policy and the build's cache rules (`web/page_build.py`).
 
-**Persistence.** Only the accounts and sessions in Postgres, Redis's rate limit windows and the connector's place records outlast a restart; rooms, seats and replay logs live in process memory. docs/person-data.md says what HopIn holds about a person.
+**Persistence.** Only the accounts and sessions in Postgres, Redis's rate limit windows and the connector's place records outlast a restart; rooms, seats and replay logs live in Redis, which never writes to disk, and a restart of Redis forgets them. docs/person-data.md says what HopIn holds about a person.
 
 **Deadlines.** Every timer that outlives a connection is a named deadline behind the `Deadlines` port (`signaling/scheduler.py`). **Logging.** Conventions are in the docstring of `src/hopin/main.py`.
 
-**Proof.** Python tests under `tests/` judge logic per package; Vitest judges the browser's logic; Playwright tests drive the built page, the start-up module and the `.svelte` files; the shared-stores job runs two processes against one Redis and one Postgres and webauth's checks for store adapters against the Postgres accounts and sessions. CI merges their coverage and judges it at 100 %. Import-linter contracts and `make wire-check` prove structure, and the removal drill (`scripts/remove_feature.py`) proves the call survives the deletion of the game and of Skat. [docs/call.md](call.md) maps each rule to its test.
+**Proof.** Python tests under `tests/` judge logic per package; Vitest judges the browser's logic; Playwright tests drive the built page, the start-up module and the `.svelte` files; the shared-stores job runs two processes against one Redis and one Postgres and webauth's checks for store adapters against the Postgres accounts and sessions. CI merges their coverage and judges it at 100 %. Import-linter contracts and `make wire-check` prove structure, and the removal drill (`scripts/remove_feature.py`) proves the call survives the deletion of the game and of Skat. Each call rule's id (CALL-nn) is cited in the test that proves it.
 
 ### Trust
 
@@ -162,7 +162,7 @@ Each line: what the party sees and what HopIn trusts of it.
 - **Anyone without a session** reaches the sign-in routes and a few static files only (`auth/gate.py`); HopIn trusts nothing they send.
 - **Keycloak** decides who is a member and admin; HopIn trusts its signed tokens from the one issuer, and its logout token to end sessions, so that route stays off the public internet. The session row holds each login's ID token and refresh token, both secrets, in plain text, and the session id only as its SHA-256. Three residuals follow: a database dump together with the client secret renews access until the Keycloak session ends, backups keep the tokens of ended sessions (a deleted row stays in them up to three months), and a copied ID token allows a logout without a prompt.
 - **The proxy hops** in `HOPIN_TRUSTED_PROXIES` are trusted to state the person's address in `X-Forwarded-For`; empty trusts none.
-- **The other members of a call** see each other's addresses and relayed frames, and read each other's lines, which reach them end to end under DTLS, so neither HopIn's server nor the Cloudflare tunnel in front of it sees a line unless an agent is joined; the parties who deliver the page, HopIn's server (its operator, or an intruder in it) and Cloudflare's tunnel, can still swap the relayed connection descriptions with their DTLS fingerprints, or change the page's script, and read along, a risk HopIn leaves as the mesh's media has it, and it shows no safety code because the same parties would deliver the code; they cannot address people outside their room or act as host.
+- **The other members of a call** see each other's addresses and relayed frames, and read each other's lines, which reach them end to end under DTLS, so neither HopIn's server nor the Cloudflare tunnel in front of it sees a line unless an agent is joined; the parties who deliver the page, HopIn's server (its operator, or an intruder in it), Cloudflare's tunnel and whoever reaches the shared Redis can still swap the relayed connection descriptions with their DTLS fingerprints, or change the page's script, and read along, a risk HopIn leaves as the mesh's media has it, and it shows no safety code because the same parties would deliver the code; they cannot address people outside their room or act as host.
 - **The STUN server** learns each asking browser's address; a wrong answer at worst prevents a connection.
 - **The TURN provider** sees who connects to whom, when and how much, never media content; HopIn trusts only its credential answer, over https, and it bills the operator.
 - **Each registered app's frame** (`HOPIN_STAGE_APPS`) is a sandboxed page of another origin; it cannot use camera, microphone or screen, and HopIn reads from it only a checked `ready`. The operator's registry is the only source of origins the page may frame.
@@ -172,7 +172,12 @@ Each line: what the party sees and what HopIn trusts of it.
 - **The LiteLLM gateway** receives per run HopIn's key, the quiz prompt, the given answers with players' names and the tapper's fingerprint; HopIn trusts one cut line from it, shown as text.
 - **The speech service** is the operator's own, on an isolated network over plain HTTP; it receives a line's text, the starter's or agent's token, HopIn's workload token and, while an agent hears, a member's microphone sound. HopIn trusts it to answer one bounded sound and serves that unchanged.
 - **The video service** (`HOPIN_VIDEO__ORIGIN`) is the operator's own, on an isolated network over plain HTTP; it receives an agent's token exchanged for the video audience alone, HopIn's workload token and a TURN credential for the relay it is to use. HopIn trusts only its events and its health, never what the session shows. It holds the card's one place for a session's whole length, which is the agent's place in the call.
-- **The shared Redis** is trusted to hold the windows and answer; it has no password and only the `hopin` namespace reaches it; whoever reaches it could read counted addresses or clear a budget.
+- **The shared Redis** is trusted to hold the windows and every running call and to answer; it has no password and only the `hopin` namespace reaches it. For every running call it holds:
+  - its rooms: host account id and name, lock, members;
+  - its seats: account id, name, and the resume token only as SHA-256;
+  - each seat's newest 256 frames: descriptions with DTLS fingerprints, candidates with addresses, names, media state, and the lines and texts features send.
+
+  Whoever reaches it can, for every running call, read those frames, swap a relayed description and so read along, unlock or end the call and free seats; and could read counted addresses or clear a budget. The hash keeps a reader, not a writer, from resuming a seat.
 - **The shared Postgres** is trusted to hold the schema and answer; HopIn's user has the one database, the URL carries no password and the engine hides statement parameters and logs no statement, so neither a password nor a session token reaches a log or an error line.
 - **The operator's settings and secret files** are trusted fully; secrets are read from files and never enter the environment.
 
@@ -185,7 +190,6 @@ Each line: what the party sees and what HopIn trusts of it.
 ## 7. Not chosen
 
 - A media server (SFU) instead of the mesh: the server relays no call media and needs no media bandwidth; a call size the mesh upload cannot carry reopens it.
-- Rooms, seats and replay logs in a database: they are lost on restart by design; calls that must survive a restart, or a second instance sharing them, reopen it.
 - An app as a web component, or HopIn and an app linked server to server: the sandboxed frame keeps the app's code and sign-in out of HopIn's page and needs no shared secret; a table that must start from the call, not from a pasted link, reopens it.
 - An agent service between HopIn and the LiteLLM gateway: HopIn reaches the gateway directly through the `overnightworks-agents` package; a second consumer needing the same agents, or a tool-running agent that must not run in HopIn's process, reopens it.
 
@@ -196,5 +200,7 @@ Each line: what the party sees and what HopIn trusts of it.
 - Whoever delivers the page, HopIn's server with its operator and Cloudflare's tunnel, can read people's lines, files and media by swapping the relayed fingerprints or the page's script; no safety code closes this, because those parties would deliver it, and only an app installed apart from HopIn would, which the vision rules out.
 - The agent link has no receipts: a line for the agents shows delivered once handed on, and the server drops one beyond a seat's budget, or when no agent is joined, without telling the page. The page paces its lines to the budget, holds them while the socket is cut and charges the lines a resume writes again, but it cannot see when the server counts a line: a socket that dies unnoticed or stalls and then delivers its frames together can bring more than a burst at once, and the server drops the rest, so a line for the agents may be lost then. Only a server receipt for the agent link closes this; it waits for usage evidence.
 - A file is sent once to each person, so a sender's upload grows with the people in the call times the per-file cap; it is fetched only while the sender stays, and a later joiner or a page that reloads gets nothing earlier. A receiver's memory holds up to the total received-bytes cap.
-- A restart ends every call; sessions survive it.
-- Redis is a hard dependency with no in-memory fallback, because a fallback would grant each process the full budget again: while it does not answer, budgeted routes answer `503` and `/health` is not ready, so HopIn is down for everyone; calls in memory survive.
+- A restart of HopIn ends every call, because the old generation's lapse frees its calls; sessions survive it. A Redis restart forgets every call.
+- A process that was killed leaves its seats counting toward the account's cap of 8 for up to about 20 s, until its lease lapses and another process frees them; a process stalled longer than its lease lasts loses its calls though it lives, and its sockets close once its renewal shows the new generation.
+- Redis holds up to 256 frames per seat, each at most `STORED_FRAME_MAX_BYTES` (4 bytes per inbound character and an envelope), about 64 MiB per seat, about 384 MiB per call of 6 and 512 MiB per account of 8, on a Redis with `noeviction` and no `maxmemory`.
+- Redis is a hard dependency with no in-memory fallback, because a fallback would grant each process the full budget again: while it does not answer, budgeted routes answer `503` and `/health` is not ready, so HopIn is down for everyone; a call act fails and closes its socket with 1011, and no call survives a Redis that loses its data.

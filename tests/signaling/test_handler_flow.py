@@ -101,17 +101,17 @@ class TestProductionWiring:
             issuer_transports=issuer.transports,
             identity=single_process_stores(),
         )
-        browser = TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
-        start = browser.get(AUTH_START_PATH)
-        query = issuer.authorize(
-            start.headers["location"], subject="subject", groups=[str(TEST_REALM.login_group)], username="alice"
-        )
-        callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
-        headers = {"origin": TEST_PUBLIC_ORIGIN, "cookie": cookie_header(callback.headers.get_list("set-cookie"))}
+        with TestClient(app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False) as browser:
+            start = browser.get(AUTH_START_PATH)
+            query = issuer.authorize(
+                start.headers["location"], subject="subject", groups=[str(TEST_REALM.login_group)], username="alice"
+            )
+            callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
+            headers = {"origin": TEST_PUBLIC_ORIGIN, "cookie": cookie_header(callback.headers.get_list("set-cookie"))}
 
-        with browser.websocket_connect(WEBSOCKET_PATH, headers=headers) as ws:
-            ws.send_json({"type": SignalType.JOIN.value})
-            room = ws.receive_json()
+            with browser.websocket_connect(WEBSOCKET_PATH, headers=headers) as ws:
+                ws.send_json({"type": SignalType.JOIN.value})
+                room = ws.receive_json()
 
         assert (room["type"], room["is_host"]) == (SignalType.ROOM_CREATED.value, True)
 

@@ -57,6 +57,14 @@ SESSION_RECHECK_SECONDS = 60
 RESUME_TOKEN_BYTES = 32
 REPLAY_LOG_LIMIT = 256
 MAX_SIGNALING_FRAME_LENGTH = 65536
+# What a seat's log keeps of a frame: its UTF-8 encoding, which takes up to 4 bytes a character of the inbound frame it
+# relays, and the envelope the server wraps it in. A server-built frame beyond it is refused.
+STORED_FRAME_ENVELOPE_BYTES = 1024
+STORED_FRAME_MAX_BYTES = 4 * MAX_SIGNALING_FRAME_LENGTH + STORED_FRAME_ENVELOPE_BYTES
+# A transition that meets another commit's change retries this many times before it fails loud.
+COMMIT_ATTEMPTS = 3
+# How long a commit's id is remembered, so a retry after a lost reply applies once.
+COMMIT_ID_SECONDS = 60
 
 WEBSOCKET_DISCONNECT_EVENT = "websocket.disconnect"
 # 1005 means no status arrived, from a dropped connection or a close frame without a code;
@@ -202,9 +210,18 @@ class ResumeRefusalCause(StrEnum):
 # A request holds its worker thread until the Redis client gives up (webauth's rate limits), so the wait is short.
 REDIS_SOCKET_TIMEOUT_SECONDS = 1.0
 REDIS_KEY_PREFIX = "hopin:v1"
-# agents keeps its keys under `<prefix>-agents`, so the one segment that is HopIn's own name keeps them from every other
-# key of this Redis.
-REDIS_AGENTS_KEY_PREFIX = "hopin"
+# A library keys its families under `<prefix>-<family>` (agents' places, tandem's leases), so the one segment that is
+# HopIn's own name keeps them from every other key of this Redis.
+REDIS_FAMILY_PREFIX = "hopin"
+# The leases of HopIn's processes: a lease's lapse frees the calls its process held.
+CALL_LEASE_FAMILY = "call-processes"
+# Random bytes of the holder id a process starts with: a fresh one per start, so no restart continues the last one.
+HOLDER_ID_BYTES = 16
+CALL_LEASE_LASTS_SECONDS = 15
+CALL_LEASE_RENEWAL_SECONDS = 5
+CALL_LEASE_START_RETRY_SECONDS = 1
+CALL_LAPSE_SWEEP_SECONDS = 5
+CALL_LAPSE_CLAIM_SECONDS = 10
 # How often the async client retries a connection before it gives up.
 REDIS_RETRY_ATTEMPTS = 3
 

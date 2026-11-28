@@ -191,17 +191,17 @@ class TestExemptions:
     def test_the_back_channel_the_health_check_and_the_home_page_answer_after_the_sign_in_budget_is_spent(
         self, exhausted_sign_in
     ):
-        browser = exhausted_sign_in.client()
-        assert exhausted_sign_in.post_malformed_logout_token(browser) == HTTPStatus.BAD_REQUEST
-        assert browser.get(HEALTH_PATH).status_code == HTTPStatus.OK
-        assert browser.get("/", headers=BROWSER_ACCEPT).status_code == HTTPStatus.FOUND
+        with exhausted_sign_in.client() as browser:
+            assert exhausted_sign_in.post_malformed_logout_token(browser) == HTTPStatus.BAD_REQUEST
+            assert browser.get(HEALTH_PATH).status_code == HTTPStatus.OK
+            assert browser.get("/", headers=BROWSER_ACCEPT).status_code == HTTPStatus.FOUND
 
     def test_the_exempt_paths_answer_after_the_default_budget_is_spent(self, exhausted_default):
-        browser = exhausted_default.client()
-        assert browser.get(LOGIN_PATH).status_code == HTTPStatus.TOO_MANY_REQUESTS
-        assert browser.get(AUTH_START_PATH).status_code == HTTPStatus.SEE_OTHER
-        assert browser.get(HEALTH_PATH).status_code == HTTPStatus.OK
-        assert exhausted_default.post_malformed_logout_token(browser) != HTTPStatus.TOO_MANY_REQUESTS
+        with exhausted_default.client() as browser:
+            assert browser.get(LOGIN_PATH).status_code == HTTPStatus.TOO_MANY_REQUESTS
+            assert browser.get(AUTH_START_PATH).status_code == HTTPStatus.SEE_OTHER
+            assert browser.get(HEALTH_PATH).status_code == HTTPStatus.OK
+            assert exhausted_default.post_malformed_logout_token(browser) != HTTPStatus.TOO_MANY_REQUESTS
 
     @pytest.mark.parametrize(
         ("method", "path"),

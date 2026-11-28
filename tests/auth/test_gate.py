@@ -130,6 +130,14 @@ class Application:
         self.config = installed_web_auth_config(self.app)
         self.client = TestClient(self.app, base_url=TEST_PUBLIC_ORIGIN, follow_redirects=False)
 
+    def __enter__(self) -> Application:
+        """Starts the app, whose calls are served once it holds its lease."""
+        self.client.__enter__()
+        return self
+
+    def __exit__(self, *exception: object) -> None:
+        self.client.__exit__(*exception)
+
     def seed(self, **options) -> SeededMember:
         return seed_member(self.stores, self.config, **options)
 
@@ -149,8 +157,9 @@ class Application:
 
 
 @pytest.fixture
-def application(sign_in_settings: Callable[..., SignInSettings]) -> Application:
-    return Application(sign_in_settings())
+def application(sign_in_settings: Callable[..., SignInSettings]) -> Iterator[Application]:
+    with Application(sign_in_settings()) as started:
+        yield started
 
 
 @contextmanager

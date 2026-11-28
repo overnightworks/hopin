@@ -19,6 +19,7 @@ from tests.participation.support.speaking import (
     SENTENCE_MS,
     VOICE,
     StreamedSentence,
+    announced_since,
     continues,
     hold_of_a_playing_sentence,
     hold_with_a_sentence_waiting,
@@ -126,14 +127,16 @@ class TestContinuingSpeaking:
         rendered = asyncio.Event()
         rendering_sentence = asyncio.create_task(participation.speak(GUEST, room_id, "Eins", still_rendering(rendered)))
         await asyncio.sleep(0)
+        known = asyncio.all_tasks()
         await participation.person_started(room_id, guest.peer_id)
         rendered.set()
-        for _ in range(20):
-            await asyncio.sleep(0)
+        await announced_since(known)
 
         continued = await participation.continue_speaking(GUEST, room_id, "1")
+        answered = await rendering_sentence
+        await announced_since(known)
 
-        assert (continued, await rendering_sentence, len(voice_ids(host)), standing(participation, room_id)) == (
+        assert (continued, answered, len(voice_ids(host)), standing(participation, room_id)) == (
             None,
             SpeakStarted.SPOKEN,
             1,

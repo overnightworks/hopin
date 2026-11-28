@@ -11,9 +11,9 @@ from hopin.participation.vocabulary import (
     FigureGesture,
     ParticipationSignal,
 )
-from hopin.rooms.manager import RoomManager
 from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS, HeldClose, Hold, host_and_guest
+from tests.support.call_state import call_store_over
 
 pytestmark = pytest.mark.integration
 
@@ -414,8 +414,8 @@ CALL_PLACES = 6
 @pytest.mark.asyncio
 class TestAgentsTakePlaces:
     @pytest.fixture
-    def room_manager(self):
-        return RoomManager(max_participants_per_room=CALL_PLACES)
+    def call_store(self, redis_server):
+        return call_store_over(redis_server, place_limit=CALL_PLACES)
 
     async def test_call_47_a_third_agent_joins_while_the_call_has_free_places(self, link, participation):
         """CALL-47: A call holds as many agents as it has places left; there is no limit of its own for agents."""
@@ -454,6 +454,23 @@ class TestAgentsTakePlaces:
         await participation.leave(person_named("second"), room_of(people[0]))
         latecomer = await link.join("latecomer", room_of(people[0]))
         assert latecomer.frames(SignalType.ERROR) == []
+
+    async def test_call_47_the_places_of_a_seat_that_left_and_of_its_agent_are_free_to_joins_racing_the_leave(
+        self, link, participation, call_store
+    ):
+        """CALL-47: A place freed by a leaving agent is open to the next join, also one racing the leave."""
+        people = [await link.join("first")]
+        people += [await link.join(name, room_of(people[0])) for name in ("second", "third", "fourth")]
+        for person in people[:2]:
+            await dial(participation, person)
+
+        leaving = asyncio.create_task(people[1].drop(1000))
+        latecomers = [link.join(name, room_of(people[0])) for name in ("fifth", "sixth")]
+        joined = await asyncio.gather(*latecomers)
+        await leaving
+
+        assert [latecomer.frames(SignalType.ERROR) for latecomer in joined] == [[], []]
+        assert len((await call_store.get_room(room_of(people[0]))).agent_ids) == 1
 
 
 @pytest.mark.asyncio

@@ -10,8 +10,8 @@ WAIT_SECONDS = 20
 POLL_SECONDS = 0.05
 
 
-def wait_for(condition: Callable[[], bool]) -> None:
-    deadline = time.monotonic() + WAIT_SECONDS
+def wait_for(condition: Callable[[], bool], seconds: float = WAIT_SECONDS) -> None:
+    deadline = time.monotonic() + seconds
     while not condition():
         assert time.monotonic() < deadline, "the condition did not come about"
         time.sleep(POLL_SECONDS)
