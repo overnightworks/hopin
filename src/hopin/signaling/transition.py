@@ -328,11 +328,7 @@ class Calls:
         ):  # pragma: no cover - a hook keeps state in its room
             raise ValueError("A transition of no room keeps no state")
         forgotten = {edit.peer_id for edit in edits if isinstance(edit, SeatForgotten)}
-        resumed_from_park = {
-            edit.peer_id: (await self._store.record_of(edit.peer_id)).park is not None
-            for edit in edits
-            if isinstance(edit, SeatTakenOver)
-        }
+        resumed_from_park = await self._parked_before_takeover(edits)
         received = self._received_by_this_task()
         woken = await self._store.commit(
             Commit(
@@ -349,12 +345,22 @@ class Calls:
             self._unwritten_seqs.pop(peer_id, None)
         if view.room_id is not None and change.puts:
             self._sections.setdefault(view.room_id, {}).update(change.puts)
-        for peer_id, socket in (change.sockets if isinstance(change, CoreTransition) else {}).items():
-            socket.generation = self._store.generation
-            self._seats.attach(peer_id, socket)
+        self._attach_sockets(change)
         for edit in edits:
             await self._follow(edit, resumed_from_park)
         return woken
+
+    async def _parked_before_takeover(self, edits: Sequence[Edit]) -> dict[PeerId, bool]:
+        return {
+            edit.peer_id: (await self._store.record_of(edit.peer_id)).park is not None
+            for edit in edits
+            if isinstance(edit, SeatTakenOver)
+        }
+
+    def _attach_sockets(self, change: Change) -> None:
+        for peer_id, socket in (change.sockets if isinstance(change, CoreTransition) else {}).items():
+            socket.generation = self._store.generation
+            self._seats.attach(peer_id, socket)
 
     def _received_by_this_task(self) -> dict[PeerId, int]:
         handling = asyncio.current_task()

@@ -24,7 +24,7 @@ import string
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from functools import partial
-from typing import TYPE_CHECKING, Final, assert_never
+from typing import TYPE_CHECKING, Final
 
 import structlog
 from redis.exceptions import RedisError
@@ -377,113 +377,159 @@ class _Draft:
                 self.rooms[room_id] = holding.without_agent(agent_id)
 
     async def _apply(self, edit: Edit) -> None:
-        match edit:
-            case SeatOpened(peer_id, record):
-                await self.seat(peer_id)
-                self.seats[peer_id] = replace(record, generation=self._generation)
-                await self.bump_account(record.account.id)
-            case SeatForgotten(peer_id):
-                forgotten = await self.seat(peer_id)
-                if forgotten is not None:
-                    self.seats[peer_id] = None
-                    await self.bump_account(forgotten.account.id)
-            case SeatParked(peer_id, dropped_at):
-                seat = await self.required_seat(peer_id)
-                self.seats[peer_id] = replace(seat, park=Park(dropped_at))
-                await self.bump_account(seat.account.id)
-            case SeatTakenOver(peer_id, token_hash):
-                seat = await self.required_seat(peer_id)
-                self.seats[peer_id] = replace(seat, park=None, token_hash=token_hash)
-                await self.bump_account(seat.account.id)
-            case RoomCreated(room_id, host_peer_id):
-                seat = await self.required_seat(host_peer_id)
-                if await self.room(room_id) is not None:
-                    raise VersionConflictError
-                host = Participant(host_peer_id, seat.account)
-                self.rooms[room_id] = Room(room_id=room_id, host=seat.account, participants=(host,))
-                self.seats[host_peer_id] = replace(seat, room_id=room_id)
-            case ParticipantAdded(room_id, peer_id):
-                room = await self.required_room(room_id)
-                seat = await self.required_seat(peer_id)
-                room.check_admission(seat.account, self._store.place_limit)
-                self.rooms[room_id] = room.with_participant(Participant(peer_id, seat.account))
-                self.seats[peer_id] = replace(seat, room_id=room_id)
-            case ParticipantRemoved(room_id, peer_id):
-                room = await self.required_room(room_id)
-                if peer_id in room.participant_ids:
-                    departure = room.departure_of(peer_id, self._generation)
-                    self.rooms[room_id] = room.without_participant(peer_id).with_departure(departure)
-            case RoomLockSet(room_id, requester, locked):
-                room = await self.required_room(room_id)
-                room.check_hosted_by((await self.required_seat(requester)).account)
-                self.rooms[room_id] = room.with_lock(locked=locked)
-            case RoomEnded(room_id, peer_ids):
-                await self.room(room_id)
-                self.rooms[room_id] = None
-                for peer_id in peer_ids:
-                    member = await self.seat(peer_id)
-                    if member is not None:
-                        self.seats[peer_id] = replace(member, room_id=None)
-            case HostGraceStarted(room_id, host_peer_id, deadline):
-                room = await self.required_room(room_id)
-                self.rooms[room_id] = room.with_grace(HostGrace(host_peer_id, deadline, self._generation))
-            case HostGraceCleared(room_id):
-                graced = await self.room(room_id)
-                if graced is not None and graced.grace is not None:
-                    self.rooms[room_id] = graced.with_grace(None)
-            case DepartureTold(room_id, peer_id):
-                telling = await self.room(room_id)
-                if telling is None or telling.departure_naming(peer_id) is None:
-                    raise DepartureAlreadyToldError
-                self.rooms[room_id] = telling.without_departure(peer_id)
-            case _:  # pragma: no cover - the type checker proves the match exhaustive
-                assert_never(edit)
+        await self._edit_handlers[type(edit)](self, edit)
+
+    async def _open_seat(self, edit: SeatOpened) -> None:
+        await self.seat(edit.peer_id)
+        self.seats[edit.peer_id] = replace(edit.record, generation=self._generation)
+        await self.bump_account(edit.record.account.id)
+
+    async def _forget_seat(self, edit: SeatForgotten) -> None:
+        forgotten = await self.seat(edit.peer_id)
+        if forgotten is not None:
+            self.seats[edit.peer_id] = None
+            await self.bump_account(forgotten.account.id)
+
+    async def _park_seat(self, edit: SeatParked) -> None:
+        seat = await self.required_seat(edit.peer_id)
+        self.seats[edit.peer_id] = replace(seat, park=Park(edit.dropped_at))
+        await self.bump_account(seat.account.id)
+
+    async def _take_over_seat(self, edit: SeatTakenOver) -> None:
+        seat = await self.required_seat(edit.peer_id)
+        self.seats[edit.peer_id] = replace(seat, park=None, token_hash=edit.token_hash)
+        await self.bump_account(seat.account.id)
+
+    async def _create_room(self, edit: RoomCreated) -> None:
+        seat = await self.required_seat(edit.host_peer_id)
+        if await self.room(edit.room_id) is not None:
+            raise VersionConflictError
+        host = Participant(edit.host_peer_id, seat.account)
+        self.rooms[edit.room_id] = Room(room_id=edit.room_id, host=seat.account, participants=(host,))
+        self.seats[edit.host_peer_id] = replace(seat, room_id=edit.room_id)
+
+    async def _add_participant(self, edit: ParticipantAdded) -> None:
+        room = await self.required_room(edit.room_id)
+        seat = await self.required_seat(edit.peer_id)
+        room.check_admission(seat.account, self._store.place_limit)
+        self.rooms[edit.room_id] = room.with_participant(Participant(edit.peer_id, seat.account))
+        self.seats[edit.peer_id] = replace(seat, room_id=edit.room_id)
+
+    async def _remove_participant(self, edit: ParticipantRemoved) -> None:
+        room = await self.required_room(edit.room_id)
+        if edit.peer_id in room.participant_ids:
+            departure = room.departure_of(edit.peer_id, self._generation)
+            self.rooms[edit.room_id] = room.without_participant(edit.peer_id).with_departure(departure)
+
+    async def _set_room_lock(self, edit: RoomLockSet) -> None:
+        room = await self.required_room(edit.room_id)
+        room.check_hosted_by((await self.required_seat(edit.requester)).account)
+        self.rooms[edit.room_id] = room.with_lock(locked=edit.locked)
+
+    async def _end_room(self, edit: RoomEnded) -> None:
+        await self.room(edit.room_id)
+        self.rooms[edit.room_id] = None
+        for peer_id in edit.peer_ids:
+            member = await self.seat(peer_id)
+            if member is not None:
+                self.seats[peer_id] = replace(member, room_id=None)
+
+    async def _start_host_grace(self, edit: HostGraceStarted) -> None:
+        room = await self.required_room(edit.room_id)
+        self.rooms[edit.room_id] = room.with_grace(HostGrace(edit.host_peer_id, edit.deadline, self._generation))
+
+    async def _clear_host_grace(self, edit: HostGraceCleared) -> None:
+        graced = await self.room(edit.room_id)
+        if graced is not None and graced.grace is not None:
+            self.rooms[edit.room_id] = graced.with_grace(None)
+
+    async def _tell_departure(self, edit: DepartureTold) -> None:
+        telling = await self.room(edit.room_id)
+        if telling is None or telling.departure_naming(edit.peer_id) is None:
+            raise DepartureAlreadyToldError
+        self.rooms[edit.room_id] = telling.without_departure(edit.peer_id)
+
+    _edit_handlers: Final[Mapping[type, Callable[..., Awaitable[None]]]] = {
+        SeatOpened: _open_seat,
+        SeatForgotten: _forget_seat,
+        SeatParked: _park_seat,
+        SeatTakenOver: _take_over_seat,
+        RoomCreated: _create_room,
+        ParticipantAdded: _add_participant,
+        ParticipantRemoved: _remove_participant,
+        RoomLockSet: _set_room_lock,
+        RoomEnded: _end_room,
+        HostGraceStarted: _start_host_grace,
+        HostGraceCleared: _clear_host_grace,
+        DepartureTold: _tell_departure,
+    }
 
     def command(self) -> dict[str, object]:
         """The script's command for the changes made: the versions it compares and the records and indices it writes."""
-        reads: dict[str, int] = {}
-        writes: list[dict[str, object]] = []
-        deletes: list[str] = []
-        expires: list[list[object]] = []
-        before_index: set[tuple[str, str]] = set()
-        after_index: set[tuple[str, str]] = set()
+        command = _CommandParts()
+        self._add_room_changes(command)
+        self._add_seat_changes(command)
+        self._add_account_bumps(command)
+        return command.as_script_command()
+
+    def _add_room_changes(self, command: _CommandParts) -> None:
         for room_id, room in self.rooms.items():
             before = self.room_reads[room_id]
             if room == before:
                 continue
-            reads[room_key(room_id)] = 0 if before is None else before.version
-            before_index |= room_index(before)
-            after_index |= room_index(room)
+            version = 0 if before is None else before.version
+            command.reads[room_key(room_id)] = version
+            command.before_index |= room_index(before)
+            command.after_index |= room_index(room)
             if room is None:
-                deletes.append(room_key(room_id))
+                command.deletes.append(room_key(room_id))
             else:
-                version = (0 if before is None else before.version) + 1
-                writes.append({"key": room_key(room_id), "fields": [["v", version], ["d", encode_room(room)]]})
+                fields = [["v", version + 1], ["d", encode_room(room)]]
+                command.writes.append({"key": room_key(room_id), "fields": fields})
+
+    def _add_seat_changes(self, command: _CommandParts) -> None:
         for peer_id, seat in self.seats.items():
-            before_seat = self.seat_reads[peer_id]
-            if seat == before_seat:
+            before = self.seat_reads[peer_id]
+            if seat == before:
                 continue
-            reads[seat_key(peer_id)] = 0 if before_seat is None else before_seat.version
-            before_index |= seat_index(peer_id, before_seat)
-            after_index |= seat_index(peer_id, seat)
+            version = 0 if before is None else before.version
+            command.reads[seat_key(peer_id)] = version
+            command.before_index |= seat_index(peer_id, before)
+            command.after_index |= seat_index(peer_id, seat)
             if seat is None:
-                deletes += [seat_key(peer_id), log_key(peer_id)]
+                command.deletes += [seat_key(peer_id), log_key(peer_id)]
             else:
-                version = (0 if before_seat is None else before_seat.version) + 1
-                fields = [["v", version], ["d", encode_seat(seat)], ["gen", seat.generation]]
-                writes.append({"key": seat_key(peer_id), "fields": fields})
+                fields = [["v", version + 1], ["d", encode_seat(seat)], ["gen", seat.generation]]
+                command.writes.append({"key": seat_key(peer_id), "fields": fields})
+
+    def _add_account_bumps(self, command: _CommandParts) -> None:
         for account_id, version in self.account_reads.items():
-            reads[account_key(account_id)] = version
+            command.reads[account_key(account_id)] = version
         for account_id in self.account_bumps:
-            writes.append({"key": account_key(account_id), "fields": [["v", self.account_reads[account_id] + 1]]})
-            expires.append([account_key(account_id), _ACCOUNT_VERSION_SECONDS])
+            fields = [["v", self.account_reads[account_id] + 1]]
+            command.writes.append({"key": account_key(account_id), "fields": fields})
+            command.expires.append([account_key(account_id), _ACCOUNT_VERSION_SECONDS])
+
+
+@dataclass
+class _CommandParts:
+    """The script's command as its changes add to it."""
+
+    reads: dict[str, int] = field(default_factory=dict)
+    writes: list[dict[str, object]] = field(default_factory=list)
+    deletes: list[str] = field(default_factory=list)
+    expires: list[list[object]] = field(default_factory=list)
+    before_index: set[tuple[str, str]] = field(default_factory=set)
+    after_index: set[tuple[str, str]] = field(default_factory=set)
+
+    def as_script_command(self) -> dict[str, object]:
         return {
-            "reads": [[key, version] for key, version in reads.items()],
-            "writes": writes,
-            "deletes": deletes,
-            "removes": [list(entry) for entry in sorted(before_index - after_index)],
-            "adds": [list(entry) for entry in sorted(after_index - before_index)],
-            "expires": expires,
+            "reads": [[key, version] for key, version in self.reads.items()],
+            "writes": self.writes,
+            "deletes": self.deletes,
+            "removes": [list(entry) for entry in sorted(self.before_index - self.after_index)],
+            "adds": [list(entry) for entry in sorted(self.after_index - self.before_index)],
+            "expires": self.expires,
         }
 
 
