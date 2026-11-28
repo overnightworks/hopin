@@ -31,6 +31,7 @@ from tests.participation.support.speaking import (
     STOP,
     VOICE,
     StreamedSentence,
+    announced_since,
     hold_of_a_playing_sentence,
     hold_with_a_sentence_waiting,
     holds,
@@ -563,8 +564,10 @@ class TestEveryDropAfterAHoldEndsTheSoundBeforeAnyNewVoice:
         """CALL-70."""
         host, guest, *_ = call
         await hold_of_a_playing_sentence(participation, call)
+        known = asyncio.all_tasks()
 
         await guest.drop()
+        await announced_since(known)
 
         assert sounds(host) == [VOICE.value, HELD.value, STOP.value]
 

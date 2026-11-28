@@ -776,7 +776,8 @@ class Participation(TransitionFeature):
 
     async def _tell_room(self, agent: DialedAgent, frame: ParticipationFrame, supersedes: Supersedes | None) -> None:
         """Send the frame to every seat in the agent's room."""
-        await self._tell(agent.room_id, await self._recipients(agent.room_id), frame, supersedes)
+        send = partial(send_in_room, frame=frame, supersedes=supersedes)
+        await self._transitions.apply(agent.room_id, lambda view, transition: send(view, transition, view.members))
 
     async def _tell(
         self, room_id: str, peer_ids: Sequence[str], frame: ParticipationFrame, supersedes: Supersedes | None = None

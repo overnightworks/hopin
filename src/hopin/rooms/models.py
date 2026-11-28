@@ -1,4 +1,4 @@
-"""The records of a call and the rules that decide on them; a record is immutable, and a rule returns the one it makes."""
+"""The records of a call and the rules that decide on them; a record is immutable, a rule returns the one it makes."""
 
 import hashlib
 import secrets

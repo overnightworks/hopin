@@ -301,7 +301,7 @@ class TestReveal:
         await host.say(REVEAL)
         await sent(host, IDLE)
 
-        await open_a_question([host], host)
+        await open_a_question([host], host, times=2)
 
         assert game_master.calls[-1].transcript == OPENING
 
@@ -521,6 +521,7 @@ class TestShutdown:
     async def test_shutting_down_cancels_a_held_run_and_waits_for_it(self, link, game_master):
         host, guest = await call_of(link, "host", "guest")
         await start_and_hold(game_master, guest)
+        await sent_to_all([host, guest], thinking(guest))
 
         await shut_down_within_cap(link.handler)
 

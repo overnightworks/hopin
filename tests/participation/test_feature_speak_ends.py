@@ -114,6 +114,7 @@ class TestAnEndWhileTheSentenceIsAnnounced:
         await held.reached()
         await scheduler.advance(SENTENCE_MS / 1000)
         second = await waiting_to_speak(participation, "zwei", room_id=room_of(host))
+        await held.reached(2)
         held.release.set()
         await asyncio.gather(first, second)
 

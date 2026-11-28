@@ -204,10 +204,10 @@ async def start_and_hold(game_master, browser, **hold_options):
     return held
 
 
-async def open_a_question(call, starter):
-    """The starter's tap, until every seat of the call has the question open."""
+async def open_a_question(call, starter, times=1):
+    """The starter's tap, until every seat of the call has been sent the question open `times` times."""
     await starter.say(START)
-    await sent_to_all(call, answering(starter))
+    await sent_to_all(call, answering(starter), times)
 
 
 async def broken_write(_text):

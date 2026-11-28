@@ -42,7 +42,7 @@ async def test_each_quiz_started_in_a_room_draws_its_own_topics(link, game_maste
     await host.say(END)
     await sent_to_all([host, guest], IDLE)
     await let_every_task_run()
-    await open_a_question([host, guest], host)
+    await open_a_question([host, guest], host, times=2)
 
     first, second = game_master.calls
     assert first.transcript[0].text == question_request(FIRST_QUIZ[0])
