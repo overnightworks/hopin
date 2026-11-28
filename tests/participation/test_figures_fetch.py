@@ -2,8 +2,8 @@
 
 import pytest
 
-from hopin.participation.figures import Figure, fetch_figure
-from hopin.participation.vocabulary import FIGURE_FETCH_SECONDS, FIGURE_MAX_BYTES, FigureRefusal
+from hopin.participation.figures import FIGURE_FILES, Figure, fetch_figure
+from hopin.participation.vocabulary import FIGURE_FETCH_SECONDS, FigureRefusal
 from tests.participation.support.figures import (
     GLB_HEADER,
     Answer,
@@ -100,19 +100,19 @@ class TestAFetchThatIsRefused:
         chunks_read = []
         origin.serve(
             figure_url(),
-            Answer(200, FILE, content_length=FIGURE_MAX_BYTES + 1, on_chunk=lambda: chunks_read.append(1)),
+            Answer(200, FILE, content_length=FIGURE_FILES.max_bytes + 1, on_chunk=lambda: chunks_read.append(1)),
         )
 
         assert (fetched(origin, clock), chunks_read) == (FigureRefusal.TOO_LARGE, [])
 
     def test_a_body_streamed_over_the_bound_without_a_length_is_cut_at_the_bound(self, origin, clock):
         chunks_read = []
-        body = bytes(FIGURE_MAX_BYTES + 1) + bytes(FIGURE_MAX_BYTES)
-        chunk_bytes = FIGURE_MAX_BYTES // 4
+        body = bytes(FIGURE_FILES.max_bytes + 1) + bytes(FIGURE_FILES.max_bytes)
+        chunk_bytes = FIGURE_FILES.max_bytes // 4
         origin.serve(figure_url(), Answer(200, body, chunk_bytes=chunk_bytes, on_chunk=lambda: chunks_read.append(1)))
 
         assert fetched(origin, clock) is FigureRefusal.TOO_LARGE
-        assert len(chunks_read) * chunk_bytes <= FIGURE_MAX_BYTES + chunk_bytes
+        assert len(chunks_read) * chunk_bytes <= FIGURE_FILES.max_bytes + chunk_bytes
 
     def test_a_stream_still_running_at_the_deadline_is_cut(self, origin, clock):
         chunks_read = []

@@ -3,7 +3,7 @@
 import pytest
 from agents.member import GESTURE_TOOL, SET_FRAMING_TOOL
 
-from hopin.participation.vocabulary import FIGURE_PATH, PERSONA_ROOM_PATH
+from hopin.participation.figures import FIGURE_FILES, PERSONA_ROOM_FILES
 from tests.participation.support.figure_scene import (
     FILE,
     JOINED,
@@ -43,8 +43,8 @@ class TestTheLooksOfAnAccept:
         joined = scene.owner.frame_of_type(JOINED)
 
         assert (joined["figure"], joined["room"]) == (
-            f"{FIGURE_PATH}/{digest_of(FILE)}",
-            f"{PERSONA_ROOM_PATH}/{room['sha256']}",
+            f"{FIGURE_FILES.path}/{digest_of(FILE)}",
+            f"{PERSONA_ROOM_FILES.path}/{room['sha256']}",
         )
         assert {GESTURE_TOOL, SET_FRAMING_TOOL} <= offered_tools(scene)
 
@@ -55,8 +55,8 @@ class TestTheLooksOfAnAccept:
 
         joined = scene.owner.frame_of_type(JOINED)
 
-        assert joined["figure"] == f"{FIGURE_PATH}/{digest_of(FILE)}"
-        assert read_figure(scene, f"{FIGURE_PATH}/{digest_of(OTHER_FILE)}").status_code == 404
+        assert joined["figure"] == f"{FIGURE_FILES.path}/{digest_of(FILE)}"
+        assert read_figure(scene, f"{FIGURE_FILES.path}/{digest_of(OTHER_FILE)}").status_code == 404
 
     def test_calling_41_the_old_figure_alone_is_shown_and_carries_no_room(self, scene, figure_origin):
         figure_origin.serve(figure_url(), ok(FILE))
@@ -64,4 +64,4 @@ class TestTheLooksOfAnAccept:
 
         joined = scene.owner.frame_of_type(JOINED)
 
-        assert (joined["figure"], "room" in joined) == (f"{FIGURE_PATH}/{digest_of(FILE)}", False)
+        assert (joined["figure"], "room" in joined) == (f"{FIGURE_FILES.path}/{digest_of(FILE)}", False)

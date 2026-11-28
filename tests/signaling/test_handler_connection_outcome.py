@@ -1,4 +1,4 @@
-"""CALL-76: a seat reports how its peer connections went as a closed code, which the server writes down."""
+"""A seat reports how its peer connections went as a closed code, which the server writes down."""
 
 import pytest
 import pytest_asyncio
@@ -37,6 +37,7 @@ def outcomes_in(logs):
 
 @pytest.mark.parametrize("outcome", list(ConnectionOutcome))
 async def test_call_76_each_outcome_is_logged_once_with_the_room_and_its_code_only(link, outcome):
+    """CALL-76."""
     host, guest = await host_and_guest(link)
 
     with structlog.testing.capture_logs() as logs:
@@ -53,6 +54,7 @@ async def test_call_76_each_outcome_is_logged_once_with_the_room_and_its_code_on
 
 
 async def test_call_76_a_code_outside_the_set_is_refused_and_not_logged(link):
+    """CALL-76."""
     _, guest = await host_and_guest(link)
 
     with structlog.testing.capture_logs() as logs:
@@ -63,6 +65,7 @@ async def test_call_76_a_code_outside_the_set_is_refused_and_not_logged(link):
 
 
 async def test_call_76_a_report_is_answered_with_no_frame(link):
+    """CALL-76."""
     _, guest = await host_and_guest(link)
     sent_before = len(guest.socket.sent)
 
@@ -72,6 +75,7 @@ async def test_call_76_a_report_is_answered_with_no_frame(link):
 
 
 async def test_call_76_a_seat_is_written_down_at_most_the_rate_in_one_window_and_another_seat_is_not_held_back(link):
+    """CALL-76."""
     host, guest = await host_and_guest(link)
 
     with structlog.testing.capture_logs() as logs:
@@ -85,6 +89,7 @@ async def test_call_76_a_seat_is_written_down_at_most_the_rate_in_one_window_and
 
 
 async def test_call_76_a_seat_in_a_full_room_is_written_down_for_every_connection_through_a_drop_and_its_resume(link):
+    """CALL-76."""
     _host, guest = await host_and_guest(link)
     other_seats = MAX_PARTICIPANTS_PER_ROOM - 1
     reports = [ConnectionOutcome.DIRECT, ConnectionOutcome.FAILED, ConnectionOutcome.RESUMED]
@@ -100,6 +105,7 @@ async def test_call_76_a_seat_in_a_full_room_is_written_down_for_every_connectio
 
 
 async def test_call_76_a_seat_in_no_room_is_not_written_down(link):
+    """CALL-76."""
     loner = Browser(link, "loner")
     loner.sockets.append(await link.open(account_named("loner")))
 

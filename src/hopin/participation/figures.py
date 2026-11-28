@@ -25,14 +25,9 @@ from urllib.parse import urljoin, urlsplit
 from logline import StepTimer
 
 from hopin.participation.vocabulary import (
-    CLIP_PATH,
-    FIGURE_CACHE_BYTES,
     FIGURE_FETCH_SECONDS,
     FIGURE_FETCH_WORKERS,
-    FIGURE_MAX_BYTES,
-    FIGURE_PATH,
     FIGURE_REDIRECTS,
-    PERSONA_ROOM_PATH,
     FigureRefusal,
 )
 from hopin.rooms.reference import room_reference
@@ -97,6 +92,66 @@ class NamedFigure:
     url: str
 
 
+def _figure_fetch_step(room_ref: str) -> StepTimer:
+    return StepTimer("figure_fetch.ended", _STEPS, room_ref=room_ref)
+
+
+def _clip_fetch_step(room_ref: str) -> StepTimer:
+    return StepTimer("clip_fetch.ended", _STEPS, room_ref=room_ref)
+
+
+def _persona_room_fetch_step(room_ref: str) -> StepTimer:
+    return StepTimer("persona_room_fetch.ended", _STEPS, room_ref=room_ref)
+
+
+def _figures_of(figure: Figure) -> tuple[Figure | Clip | PersonaRoom, ...]:
+    return (figure,)
+
+
+def _clips_of(figure: Figure) -> tuple[Figure | Clip | PersonaRoom, ...]:
+    return figure.clips
+
+
+def _persona_rooms_of(figure: Figure) -> tuple[Figure | Clip | PersonaRoom, ...]:
+    return () if figure.persona_room is None else (figure.persona_room,)
+
+
+@dataclass(frozen=True)
+class ServedFileKind:
+    """One kind of file a joined agent's figure names and the browser reads from HopIn: where it is read by digest, the
+    byte bound its fetch keeps, the cache of its store, the line each fetch writes and the files an agent's figure
+    names of the kind."""
+
+    path: str
+    max_bytes: int
+    cache_bytes: int
+    fetch_step: Callable[[str], StepTimer]
+    files_of: Callable[[Figure], tuple[Figure | Clip | PersonaRoom, ...]]
+
+    def path_of(self, sha256: str) -> str:
+        """Where the browser reads the file of this digest."""
+        return f"{self.path}/{sha256}"
+
+    def named_by(self, figure: Figure, sha256: str) -> tuple[str, ...]:
+        """The URLs the figure names for the digest."""
+        return tuple(file.url for file in self.files_of(figure) if file.sha256 == sha256)
+
+
+# A server bound at least as large as the figure profile's file budget (12 MiB in figure v0.1.0), so every figure the
+# profile admits fits.
+FIGURE_FILES: Final = ServedFileKind(
+    "/api/participation/figures", 12 * 1024 * 1024, 48 * 1024 * 1024, _figure_fetch_step, _figures_of
+)
+# A persona's clip for a gesture has its own bound and cache, apart from the figure's; the bound is at least the clip
+# profile's file budget (512 KiB in figure v0.8.0).
+CLIP_FILES: Final = ServedFileKind("/api/participation/clips", 512 * 1024, 8 * 1024 * 1024, _clip_fetch_step, _clips_of)
+# A server bound at least as large as the room profile's file budget (4 MiB in figure v0.10.0).
+PERSONA_ROOM_FILES: Final = ServedFileKind(
+    "/api/participation/persona-rooms", 4 * 1024 * 1024, 16 * 1024 * 1024, _persona_room_fetch_step, _persona_rooms_of
+)
+SERVED_FILE_KINDS: Final = (FIGURE_FILES, CLIP_FILES, PERSONA_ROOM_FILES)
+
+
 @dataclass(frozen=True)
 class FigureAnswer:
     """The answer to one GET: its status, its `Location` and `Content-Length` when sent, and its body as it streams."""
@@ -119,21 +174,6 @@ class FigureTransport(Protocol):
     def __call__(self, url: str, timeout_seconds: float) -> AbstractContextManager[FigureAnswer]:
         """One GET of exactly `url`, without credential, cookie, retry or redirect; the answer is read within the
         block. Raises `FigureFetchError`."""
-
-
-def figure_path(sha256: str) -> str:
-    """Where the browser reads the figure of this digest."""
-    return f"{FIGURE_PATH}/{sha256}"
-
-
-def clip_path(sha256: str) -> str:
-    """Where the browser reads the clip of this digest."""
-    return f"{CLIP_PATH}/{sha256}"
-
-
-def persona_room_path(sha256: str) -> str:
-    """Where the browser reads the persona room of this digest."""
-    return f"{PERSONA_ROOM_PATH}/{sha256}"
 
 
 def path_refusal(path: str) -> FigureRefusal | None:
@@ -226,7 +266,7 @@ def fetch_figure(
     figure: Figure,
     *,
     monotonic: Callable[[], float],
-    max_bytes: int = FIGURE_MAX_BYTES,
+    max_bytes: int = FIGURE_FILES.max_bytes,
 ) -> bytes | FigureRefusal:
     """The verified bytes of the file the figure's URL and digest name (a clip or a persona room is fetched alike,
     within its own `max_bytes`), or why there are none. One deadline spans the whole fetch, and at most one redirect to
@@ -288,10 +328,6 @@ def _verified(body: bytes, sha256: str) -> bytes | FigureRefusal:
     return body
 
 
-def figure_fetch_step(room_ref: str) -> StepTimer:
-    return StepTimer("figure_fetch.ended", _STEPS, room_ref=room_ref)
-
-
 class FigureStore:
     """The verified files of one kind by digest (figures, clips or persona rooms), least recently used first, within
     `cache_bytes`. A digest has one fetch at a time, and fetches run on two workers of their own, so stalled ones cannot
@@ -301,8 +337,8 @@ class FigureStore:
         self,
         fetch: Callable[[Figure], bytes | FigureRefusal],
         *,
-        cache_bytes: int = FIGURE_CACHE_BYTES,
-        step: Callable[[str], StepTimer] = figure_fetch_step,
+        cache_bytes: int = FIGURE_FILES.cache_bytes,
+        step: Callable[[str], StepTimer] = FIGURE_FILES.fetch_step,
     ) -> None:
         self._fetch_one = fetch
         self._cache_bytes = cache_bytes

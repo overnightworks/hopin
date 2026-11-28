@@ -5,14 +5,8 @@ import pytest
 import structlog.testing
 
 from hopin.config.constants import IMMUTABLE_ASSET_CACHE_CONTROL
-from hopin.participation.vocabulary import (
-    CLIP_MAX_BYTES,
-    CLIP_PATH,
-    FIGURE_PATH,
-    PERSONA_ROOM_MAX_BYTES,
-    PERSONA_ROOM_PATH,
-    FigureRefusal,
-)
+from hopin.participation.figures import CLIP_FILES, FIGURE_FILES, PERSONA_ROOM_FILES
+from hopin.participation.vocabulary import FigureRefusal
 from hopin.rooms.reference import room_reference
 from tests.participation.support.figure_scene import (
     FILE,
@@ -77,7 +71,7 @@ class TestTheRoomAtAccept:
 
         assert told == [path] * 2
         assert later.frame_of_type(JOINED)["room"] == path
-        assert path == f"{PERSONA_ROOM_PATH}/{digest_of(ROOM)}"
+        assert path == f"{PERSONA_ROOM_FILES.path}/{digest_of(ROOM)}"
         assert (served.status_code, served.content) == (200, ROOM)
         assert (served.headers["content-type"], served.headers["x-content-type-options"]) == (
             "model/gltf-binary",
@@ -128,7 +122,7 @@ class TestTheRoomAtAccept:
         joined = scene.owner.frame_of_type(JOINED)
 
         assert ("figure" in joined, "room" in joined) == (False, False)
-        assert read_figure(scene, f"{PERSONA_ROOM_PATH}/{digest_of(ROOM)}").status_code == 404
+        assert read_figure(scene, f"{PERSONA_ROOM_FILES.path}/{digest_of(ROOM)}").status_code == 404
 
 
 class TestTheRoute:
@@ -154,11 +148,11 @@ class TestTheRoute:
             pytest.param(ROOM, ok(glb(b"another room")), id="a wrong digest"),
             pytest.param(b"not a glb", None, id="no glTF header"),
             pytest.param(
-                glb(b"\x00" * PERSONA_ROOM_MAX_BYTES),
-                Answer(200, glb(b"\x00" * PERSONA_ROOM_MAX_BYTES)),
+                glb(b"\x00" * PERSONA_ROOM_FILES.max_bytes),
+                Answer(200, glb(b"\x00" * PERSONA_ROOM_FILES.max_bytes)),
                 id="over the bound with no length",
             ),
-            pytest.param(glb(b"\x00" * PERSONA_ROOM_MAX_BYTES), None, id="over the bound by its length"),
+            pytest.param(glb(b"\x00" * PERSONA_ROOM_FILES.max_bytes), None, id="over the bound by its length"),
         ],
     )
     def test_call_80_a_room_that_cannot_be_verified_is_a_bad_gateway_that_is_not_kept_and_the_figure_and_agent_stand(
@@ -176,14 +170,14 @@ class TestTheRoute:
         assert is_active(scene)
 
     def test_call_80_a_room_of_exactly_the_bound_is_served_though_it_is_over_the_clip_bound(self, scene, figure_origin):
-        room = glb(b"\x00" * (PERSONA_ROOM_MAX_BYTES - 12))
-        assert len(room) == PERSONA_ROOM_MAX_BYTES > CLIP_MAX_BYTES
+        room = glb(b"\x00" * (PERSONA_ROOM_FILES.max_bytes - 12))
+        assert len(room) == PERSONA_ROOM_FILES.max_bytes > CLIP_FILES.max_bytes
 
         served = read_figure(scene, joined_with_room(scene, figure_origin, room))
 
         assert (served.status_code, served.content) == (200, room)
 
-    @pytest.mark.parametrize("route", [FIGURE_PATH, CLIP_PATH])
+    @pytest.mark.parametrize("route", [FIGURE_FILES.path, CLIP_FILES.path])
     def test_call_80_the_digest_of_a_room_is_not_found_at_the_route_of_another_kind(self, scene, figure_origin, route):
         joined_with_room(scene, figure_origin)
 
@@ -192,7 +186,7 @@ class TestTheRoute:
     def test_call_80_the_digest_of_a_figure_is_not_found_at_the_room_route(self, scene, figure_origin):
         joined_with_room(scene, figure_origin)
 
-        assert read_figure(scene, f"{PERSONA_ROOM_PATH}/{digest_of(FILE)}").status_code == 404
+        assert read_figure(scene, f"{PERSONA_ROOM_FILES.path}/{digest_of(FILE)}").status_code == 404
 
     def test_call_80_once_the_agent_has_gone_its_room_is_not_found_though_the_cache_holds_it(
         self, scene, figure_origin

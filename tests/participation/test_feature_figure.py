@@ -14,14 +14,11 @@ from agents.member import (
 
 from hopin.agent.tools import LEAVE_CALL, SAY
 from hopin.config.constants import CALL_FEATURES_PATH, IMMUTABLE_ASSET_CACHE_CONTROL
-from hopin.participation.figures import figure_refusal
+from hopin.participation.figures import CLIP_FILES, FIGURE_FILES, figure_refusal
 from hopin.participation.memberships import AGENT_ADDERS_GROUP
 from hopin.participation.vocabulary import (
-    CLIP_MAX_BYTES,
-    CLIP_PATH,
     FEATURE_NAME,
     FIGURE_MODULE,
-    FIGURE_PATH,
     THINKING_MAX_SECONDS,
     FigureRefusal,
     ParticipationSignal,
@@ -239,7 +236,7 @@ class TestTheRoute:
     def test_a_digest_no_joined_agent_names_is_not_found_and_not_kept(self, scene, figure_origin, digest):
         joined_with(scene, figure_origin.serve(figure_url(), ok(FILE)))
 
-        served = read_figure(scene, f"{FIGURE_PATH}/{digest}")
+        served = read_figure(scene, FIGURE_FILES.path_of(digest))
 
         assert served.status_code == 404
         assert "immutable" not in served.headers.get("cache-control", "")
@@ -335,7 +332,7 @@ class TestThePersonasClips:
 
         assert told == [later.frame_of_type(JOINED)["gestures"]] * 2
         path = told[0][WAVE]
-        assert (path.startswith(f"{CLIP_PATH}/"), read_figure(scene, path).content) == (True, CLIP)
+        assert (path.startswith(f"{CLIP_FILES.path}/"), read_figure(scene, path).content) == (True, CLIP)
 
     def test_an_accept_without_a_clip_joins_with_no_gestures_on_the_tile(self, scene, figure_origin):
         figure_origin.serve(figure_url(), ok(FILE))
@@ -409,7 +406,7 @@ class TestThePersonasClips:
         [
             pytest.param(CLIP, Answer(404), id="not found"),
             pytest.param(CLIP, ok(glb(b"another clip")), id="a wrong digest"),
-            pytest.param(glb(b"\x00" * CLIP_MAX_BYTES), None, id="over the clip bound"),
+            pytest.param(glb(b"\x00" * CLIP_FILES.max_bytes), None, id="over the clip bound"),
             pytest.param(b"not a glb", None, id="no glTF header"),
         ],
     )
@@ -427,7 +424,7 @@ class TestThePersonasClips:
         assert is_active(scene)
 
     def test_the_clip_bound_is_not_the_figure_bound(self, scene, figure_origin):
-        figure = glb(b"\x00" * CLIP_MAX_BYTES)
+        figure = glb(b"\x00" * CLIP_FILES.max_bytes)
         figure_origin.serve(figure_url(), ok(figure))
 
         assert read_figure(scene, joined_with(scene, figure_url(), figure)).content == figure
@@ -435,7 +432,7 @@ class TestThePersonasClips:
     @pytest.mark.parametrize("on_clip_route", [True, False])
     def test_a_digest_is_read_only_at_the_route_of_its_own_kind(self, scene, figure_origin, on_clip_route):
         joined_with_clip(scene, figure_origin)
-        digest, route = (digest_of(FILE), CLIP_PATH) if on_clip_route else (digest_of(CLIP), FIGURE_PATH)
+        digest, route = (digest_of(FILE), CLIP_FILES.path) if on_clip_route else (digest_of(CLIP), FIGURE_FILES.path)
 
         served = read_figure(scene, f"{route}/{digest}")
 

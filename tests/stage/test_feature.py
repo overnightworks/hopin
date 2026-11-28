@@ -44,6 +44,7 @@ async def host_opener_and_guest(link):
 @pytest.mark.asyncio
 class TestAttach:
     async def test_every_seat_is_sent_the_table_with_its_opener(self, link):
+        """ST-01."""
         host, opener, guest = await host_opener_and_guest(link)
 
         await attach(opener)
@@ -54,6 +55,7 @@ class TestAttach:
         assert tables(host)[-1] == tables(opener)[-1] == shown
 
     async def test_the_table_frame_carries_the_attached_tables_id_and_none_without_a_table(self, link):
+        """ST-11."""
         host, opener, _guest = await host_opener_and_guest(link)
         assert tables(host)[-1]["table"] is None
 
@@ -64,6 +66,7 @@ class TestAttach:
         assert tables(host)[-1]["table"] is None
 
     async def test_the_table_frame_names_the_app_the_link_belongs_to_and_none_without_a_table(self, link):
+        """ST-01."""
         host, opener, _guest = await host_opener_and_guest(link)
         assert tables(host)[-1]["app"] is None
 
@@ -91,6 +94,7 @@ class TestAttach:
         assert tables(host)[-1]["attachment"] is None
 
     async def test_a_second_attach_is_busy_and_changes_nothing(self, link):
+        """ST-04."""
         _host, opener, guest = await host_opener_and_guest(link)
         await attach(opener)
         shown = tables(guest)[-1]
@@ -101,6 +105,7 @@ class TestAttach:
         assert tables(guest)[-1] == shown
 
     async def test_of_two_attaches_at_once_exactly_one_wins(self, link):
+        """ST-04."""
         host, opener, guest = await host_opener_and_guest(link)
 
         await asyncio.gather(attach(opener, TABLE_LINK), attach(guest, OTHER_TABLE_LINK))
@@ -114,6 +119,7 @@ class TestAttach:
 @pytest.mark.asyncio
 class TestDetach:
     async def test_the_opener_removes_the_table_for_everyone_with_a_later_revision(self, link):
+        """ST-03."""
         host, opener, guest = await host_opener_and_guest(link)
         await attach(opener)
         shown = tables(guest)[-1]
@@ -126,6 +132,7 @@ class TestDetach:
             assert gone["revision"] > shown["revision"]
 
     async def test_a_seat_that_neither_opened_it_nor_hosts_is_refused_while_the_opener_is_there(self, link):
+        """ST-03."""
         _host, opener, guest = await host_opener_and_guest(link)
         await attach(opener)
         shown = tables(guest)[-1]
@@ -136,6 +143,7 @@ class TestDetach:
         assert tables(opener)[-1] == shown
 
     async def test_a_stale_detach_removes_nothing_newer(self, link):
+        """ST-04."""
         _host, opener, guest = await host_opener_and_guest(link)
         await attach(opener)
         first = tables(guest)[-1]["attachment"]
@@ -185,6 +193,7 @@ class TestTheOpenerLeaves:
     async def test_an_opener_ending_during_its_attach_fan_out_leaves_every_seat_the_table_without_an_opener(
         self, link, scheduler
     ):
+        """ST-03."""
         host, opener, guest = await host_opener_and_guest(link)
         clear_sent(host, opener, guest)
         held = HeldWrite(host.socket, first_only=True)
@@ -205,6 +214,7 @@ class TestTheOpenerLeaves:
 @pytest.mark.asyncio
 class TestFreshJoinsAndTheCallsEnd:
     async def test_a_seat_that_joins_is_sent_the_apps_it_may_show_by_name_and_title(self, link):
+        """ST-01."""
         host = await link.join("host")
 
         [apps] = host.frames(StageSignal.STAGE_APPS)
@@ -212,6 +222,7 @@ class TestFreshJoinsAndTheCallsEnd:
         assert apps["apps"] == [{"name": SKAT.name, "title": SKAT.title}]
 
     async def test_a_seat_that_joins_is_sent_that_nothing_is_shown(self, link):
+        """ST-05."""
         host = await link.join("host")
 
         late = await link.join("late", host.room_id)
@@ -220,6 +231,7 @@ class TestFreshJoinsAndTheCallsEnd:
         assert (shown["attachment"], shown["src"], shown["opener_id"]) == (None, None, None)
 
     async def test_a_seat_that_joins_is_sent_the_table_that_is_shown(self, link):
+        """ST-01, ST-05."""
         host, opener, _guest = await host_opener_and_guest(link)
         await attach(opener)
 
@@ -228,6 +240,7 @@ class TestFreshJoinsAndTheCallsEnd:
         assert tables(late)[-1] == tables(host)[-1]
 
     async def test_a_resumed_seat_is_sent_the_tables_it_missed(self, link):
+        """ST-05."""
         _host, opener, guest = await host_opener_and_guest(link)
         await guest.drop()
 
@@ -258,6 +271,7 @@ class TestSeatsOutsideARoom:
 @pytest.mark.asyncio
 class TestTheCallsEnd:
     async def test_the_end_sends_no_further_table_state_into_the_ended_room(self, link):
+        """ST-06."""
         host, opener, _guest = await host_opener_and_guest(link)
         await attach(opener)
         shown_before = len(tables(opener))
@@ -267,6 +281,7 @@ class TestTheCallsEnd:
         assert (len(tables(opener)), bool(opener.frames(SignalType.ROOM_CLOSED))) == (shown_before, True)
 
     async def test_a_seat_told_after_the_room_ended_is_sent_no_table(self, link, handler):
+        """ST-06."""
         host, opener, _guest = await host_opener_and_guest(link)
         await attach(opener)
         [feature] = handler.features
@@ -284,6 +299,7 @@ async def attach_named(browser, app=SKAT.name, context=TABLE_ID):
 @pytest.mark.asyncio
 class TestAttachByName:
     async def test_an_app_and_a_context_attach_the_same_table_as_its_link(self, link):
+        """ST-15."""
         host, opener, _guest = await host_opener_and_guest(link)
 
         await attach_named(opener)
@@ -295,6 +311,7 @@ class TestAttachByName:
         ("app", "context"), [("chess", TABLE_ID), (SKAT.name, "a/b"), (SKAT.name, ""), (SKAT.name, "a" * 65)]
     )
     async def test_an_unknown_app_or_a_context_outside_the_bound_is_refused(self, link, app, context):
+        """ST-12."""
         host, opener, _guest = await host_opener_and_guest(link)
 
         await attach_named(opener, app, context)
@@ -316,6 +333,7 @@ class TestTheOpenCallShowingATable:
     async def test_a_call_that_attaches_a_table_is_the_call_showing_it_whether_it_used_a_link_or_a_name(
         self, link, stage
     ):
+        """ST-15."""
         first = await link.join("first")
         second = await link.join("second")
         assert stage.room_showing(SKAT.name, TABLE_ID) is None
@@ -327,6 +345,7 @@ class TestTheOpenCallShowingATable:
         assert stage.room_showing(SKAT.name, OTHER_TABLE_ID) == second.room_id
 
     async def test_the_first_call_to_attach_a_table_keeps_it_when_a_second_shows_the_same_one(self, link, stage):
+        """ST-15."""
         first = await link.join("first")
         second = await link.join("second")
 
@@ -336,6 +355,7 @@ class TestTheOpenCallShowingATable:
         assert stage.room_showing(SKAT.name, TABLE_ID) == first.room_id
 
     async def test_a_refused_attach_names_no_call(self, link, stage):
+        """ST-15."""
         _host, opener, guest = await host_opener_and_guest(link)
         await attach(opener)
 
@@ -345,6 +365,7 @@ class TestTheOpenCallShowingATable:
         assert stage.room_showing(SKAT.name, OTHER_TABLE_ID) is None
 
     async def test_a_detach_frees_the_table_for_the_next_call_to_attach(self, link, stage):
+        """ST-15."""
         first = await link.join("first")
         second = await link.join("second")
         await attach(first)
@@ -357,6 +378,7 @@ class TestTheOpenCallShowingATable:
         assert stage.room_showing(SKAT.name, TABLE_ID) == first.room_id
 
     async def test_the_detach_of_a_call_that_does_not_hold_the_table_leaves_the_winner_in_place(self, link, stage):
+        """ST-15."""
         winner = await link.join("winner")
         other = await link.join("other")
         await attach(winner)
@@ -367,6 +389,7 @@ class TestTheOpenCallShowingATable:
         assert stage.room_showing(SKAT.name, TABLE_ID) == winner.room_id
 
     async def test_the_end_of_the_call_frees_the_table(self, link, stage):
+        """ST-15."""
         host, opener, _guest = await host_opener_and_guest(link)
         await attach(opener)
 
@@ -375,6 +398,7 @@ class TestTheOpenCallShowingATable:
         assert stage.room_showing(SKAT.name, TABLE_ID) is None
 
     async def test_the_end_of_another_call_leaves_the_winner_in_place(self, link, stage):
+        """ST-15."""
         winner = await link.join("winner")
         other = await link.join("other")
         await attach(winner)

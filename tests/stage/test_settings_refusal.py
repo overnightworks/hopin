@@ -56,14 +56,17 @@ REFUSED = "HOPIN_STAGE_APPS is malformed"
 
 @pytest.mark.parametrize("value", MALFORMED_REGISTRIES.values(), ids=MALFORMED_REGISTRIES.keys())
 def test_refuses_a_malformed_registry_in_one_line_naming_the_setting_and_never_its_value(serve_refusal, value):
+    """ST-13."""
     serve_refusal("HOPIN_STAGE_APPS", value, REFUSED)
 
 
 @pytest.mark.parametrize("origin", MALFORMED_ORIGINS)
 def test_refuses_an_entry_with_a_malformed_origin_in_one_line_never_echoing_it(serve_refusal, origin):
+    """ST-13."""
     serve_refusal("HOPIN_STAGE_APPS", json.dumps([entry(origin=origin, title="sentinel")]), REFUSED)
 
 
 @pytest.mark.parametrize("path", MALFORMED_PATHS)
 def test_refuses_an_entry_with_a_malformed_frame_path_in_one_line_never_echoing_it(serve_refusal, path):
+    """ST-13."""
     serve_refusal("HOPIN_STAGE_APPS", json.dumps([entry(frame_path=path, title="sentinel")]), REFUSED)

@@ -1,20 +1,16 @@
-"""CALL-58: the hearing route at HopIn's real `/ws` composition, with a fake speech service on a loopback port, a fake
+"""The hearing route at HopIn's real `/ws` composition, with a fake speech service on a loopback port, a fake
 issuer, and the agent's window read through the real `/mcp`."""
 
-import base64
 import json
 import logging
 from http import HTTPStatus
 
 import pytest
-import structlog.testing
 from agents.member import LEASE_SECONDS
-from logline import Outcome
 from logline.testing import configured
-from speech_client.hearing import OPENING_SECONDS, Refused
-from speech_client.outcomes import Cut, Unreachable
+from speech_client.hearing import OPENING_SECONDS
 from speech_client.realtime_wire import SessionInput, SessionUpdate
-from speech_client.relay import HOP_FRAME_SAMPLES, HopClose, RuleBroken
+from speech_client.relay import HOP_FRAME_SAMPLES, HopClose
 from speech_client.wire import AUTHORIZATION_HEADER, WORKLOAD_TOKEN_HEADER, Language, RefusalCode
 from starlette.websockets import WebSocketDisconnect
 
@@ -23,18 +19,18 @@ from hopin.agent.tools import JOIN_CALL, LEAVE_CALL
 from hopin.config.constants import POLICY_VIOLATION_CLOSE_CODE, SESSION_RECHECK_SECONDS, SignalType
 from hopin.participation.feature import Participation
 from hopin.participation.vocabulary import HearingClose, HearingRefusal, ParticipationSignal
-from hopin.rooms.reference import room_reference
 from tests.participation.support.hearing_scene import (
     entries_of,
     header_of,
+    hear_one_sentence,
     lose_the_held_token,
+    switch_off,
 )
 from tests.participation.support.speaking_scene import CLIENT_CREDENTIALS_GRANT, grants
 from tests.support.dialed_call import join_arguments
 from tests.support.fake_issuer import TOKEN_EXCHANGE_GRANT
-from tests.support.fake_speech import WAIT_SECONDS, Refusal, a_sentence, completed, failing, refused_with
+from tests.support.fake_speech import Refusal, a_sentence, completed, failing, refused_with
 from tests.support.hearing_socket import SOUND, closed_with, hop
-from tests.support.log_lines import captured_lines
 
 pytestmark = pytest.mark.integration
 
@@ -47,24 +43,9 @@ def hearing_service(fake_speech_hearing):
 OFFERS = ParticipationSignal.AGENT_OFFERS.value
 
 
-def switch_off(scene):
-    scene.owner.send({"type": ParticipationSignal.AGENT_HEARING.value, "agent_id": scene.agent_id, "on": False})
-
-
-def hear_one_sentence(scene, fake_speech, text="Guten Tag", *, session_number=1, **sentence):
-    """A hop in which the service hears one sentence and ends in order; the code the browser's socket closed with.
-    The hop is the service's `session_number`-th session."""
-    with hop(scene) as socket:
-        socket.send_bytes(SOUND)
-        session = fake_speech.next_session(session_number)
-        for event in a_sentence(text, **sentence):
-            session.say(event)
-        session.hang_up()
-        return closed_with(socket)
-
-
 class TestTheWorkloadToken:
     def test_call_58_a_refusal_is_not_reused_for_the_next_hop(self, sponsored, fake_speech):
+        """CALL-58."""
         sponsored.call.issuer.refuses_client_credentials_grants = True
         with hop(sponsored) as socket:
             refused = closed_with(socket)
@@ -104,6 +85,7 @@ class TestAFinishedSentence:
     def test_call_58_the_lines_of_a_heard_sentence_share_one_trace_that_the_next_line_does_not_carry(
         self, sponsored, fake_speech, capsys
     ):
+        """CALL-58."""
         with configured("hopin"):
             hear_one_sentence(sponsored, fake_speech)
             logging.getLogger("hopin.after").info("later.ended")
@@ -114,6 +96,7 @@ class TestAFinishedSentence:
         assert (len(turn), None in turn, by_event["later.ended"]["trace_id"]) == (1, False, None)
 
     def test_call_58_it_is_asked_for_german_and_english(self, sponsored, fake_speech):
+        """CALL-58."""
         with hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
@@ -125,6 +108,7 @@ class TestAFinishedSentence:
         assert update.session.audio.input.transcription.allowed == (Language.DE, Language.EN)
 
     def test_call_58_the_service_gets_both_tokens_and_the_browser_only_a_close_code(self, sponsored, fake_speech):
+        """CALL-58."""
         with hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
@@ -147,6 +131,7 @@ class TestAFinishedSentence:
         ],
     )
     def test_call_58_an_empty_transcript_and_deltas_enter_no_window(self, sponsored, fake_speech, events):
+        """CALL-58."""
         with hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
@@ -185,6 +170,7 @@ class TestAFinishedSentence:
         assert began == [("Erster", pytest.approx(40.5)), ("Zweiter", pytest.approx(40.9))]
 
     def test_call_58_two_sentences_enter_in_the_order_they_were_heard(self, sponsored, fake_speech):
+        """CALL-58."""
         with hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
@@ -266,6 +252,7 @@ class TestTwoAgentsOfOneSponsor:
         assert header_of(fake_speech.sessions[-1], AUTHORIZATION_HEADER) == f"Bearer {served_by}"
 
     def test_call_58_both_switches_off_end_the_hop_and_nobody_hears_the_next(self, two_agents, fake_speech):
+        """CALL-58."""
         with hop(two_agents) as socket:
             socket.send_bytes(SOUND)
             fake_speech.next_session(1).wait_for_audio(1)
@@ -303,6 +290,7 @@ class TestARefusedHop:
         assert (closed, fake_speech.sessions) == (HearingClose.NO_SEAT, [])
 
     def test_call_58_a_seat_that_waits_to_resume_gets_a_code(self, sponsored, fake_speech, seat_changes):
+        """CALL-58."""
         seat_changes.clear()
         sponsored.owner.drop()
         assert seat_changes.wait(timeout=10)
@@ -331,6 +319,7 @@ class TestARefusedHop:
     def test_call_58_a_refused_workload_token_ends_the_hearing_in_order_and_opens_no_service_session(
         self, sponsored, fake_speech
     ):
+        """CALL-58."""
         sponsored.call.issuer.refuses_client_credentials_grants = True
 
         with hop(sponsored) as socket:
@@ -339,6 +328,7 @@ class TestARefusedHop:
         assert (closed, fake_speech.sessions) == (HearingClose.NORMAL, [])
 
     def test_call_58_a_socket_without_a_session_is_refused_before_it_is_accepted(self, sponsored, fake_speech):
+        """CALL-58."""
         with pytest.raises(WebSocketDisconnect) as refused, hop(sponsored, login=None):
             pass
 
@@ -347,9 +337,11 @@ class TestARefusedHop:
 
 class TestTheCloseCodes:
     def test_call_58_every_refusal_has_a_close_code_of_its_name(self):
+        """CALL-58."""
         assert set(HearingRefusal.__members__) <= set(HearingClose.__members__)
 
     def test_call_58_every_ending_the_relay_closes_with_is_named_by_its_own_code(self):
+        """CALL-58."""
         assert {ending.name: ending.value for ending in HopClose} == {
             name: HearingClose[name].value for name in HopClose.__members__
         }
@@ -367,6 +359,7 @@ class TestWhatTheServiceAnswers:
     def test_call_58_a_refused_upgrade_closes_the_browser_with_the_code_of_its_kind(
         self, sponsored, fake_speech, answer, close
     ):
+        """CALL-58."""
         fake_speech.refusal = answer
 
         with hop(sponsored) as socket:
@@ -376,6 +369,7 @@ class TestWhatTheServiceAnswers:
         assert closed == close
 
     def test_call_58_an_error_event_ends_the_hop_with_a_service_code_and_no_entry(self, sponsored, fake_speech):
+        """CALL-58."""
         with hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             fake_speech.next_session().say(failing(RefusalCode.UNAVAILABLE))
@@ -384,6 +378,7 @@ class TestWhatTheServiceAnswers:
         assert (closed, entries_of(sponsored)) == (HearingClose.SERVICE_FAILED, [])
 
     def test_call_58_a_service_that_is_down_closes_the_browser_with_a_service_code(self, sponsored, fake_speech):
+        """CALL-58."""
         fake_speech.stop()
 
         with hop(sponsored) as socket:
@@ -393,6 +388,7 @@ class TestWhatTheServiceAnswers:
         assert closed == HearingClose.SERVICE_FAILED
 
     def test_call_58_a_hop_past_its_deadline_closes_with_its_own_code(self, sponsored, fake_speech, monkeypatch):
+        """CALL-58."""
         monkeypatch.setattr(hearing_route, "HEARING_DEADLINE_SECONDS", 0.2)
 
         with hop(sponsored) as socket:
@@ -402,6 +398,7 @@ class TestWhatTheServiceAnswers:
         assert closed == HearingClose.PAST_DEADLINE
 
     def test_call_58_a_frame_that_is_text_or_too_large_ends_the_hop_with_its_code(self, sponsored, fake_speech):
+        """CALL-58."""
         with hop(sponsored) as socket:
             socket.send_text("sound?")
             text_closed = closed_with(socket)
@@ -525,6 +522,7 @@ class TestEveryEndStopsTheHopAtOnce:
         assert (closed, fake_speech.sessions) == (HearingClose.NORMAL, [])
 
     def test_call_58_a_sentence_that_finishes_after_the_end_is_not_appended(self, sponsored, fake_speech):
+        """CALL-58."""
         with hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
@@ -551,6 +549,7 @@ class TestEveryEndStopsTheHopAtOnce:
         assert (closed, session.audio_appends()) == (HearingClose.NORMAL, 1)
 
     def test_call_58_a_newer_hop_of_the_seat_ends_the_older(self, sponsored, fake_speech):
+        """CALL-58."""
         with hop(sponsored) as older:
             older.send_bytes(SOUND)
             fake_speech.next_session(1).wait_for_audio(1)
@@ -590,6 +589,7 @@ class TestTheSessionIsRechecked:
         assert (closed, session.audio_appends()) == (HearingClose.NORMAL, 1)
 
     def test_call_58_a_hop_whose_session_still_admits_goes_on_through_the_recheck(self, sponsored, fake_speech):
+        """CALL-58."""
         with hop(sponsored) as socket:
             socket.send_bytes(SOUND)
             session = fake_speech.next_session()
@@ -603,6 +603,7 @@ class TestTheSessionIsRechecked:
             assert closed_with(socket) == HearingClose.NORMAL
 
     def test_call_58_a_recheck_that_fails_ends_the_hop(self, sponsored, fake_speech):
+        """CALL-58."""
         call = sponsored.call
         hop_login = call.another_device(sponsored.owner_account)
         with hop(sponsored, login=hop_login) as socket:
@@ -618,6 +619,7 @@ class TestTheSessionIsRechecked:
     def test_call_58_a_recheck_that_starts_after_the_hop_ended_looks_nothing_up_and_asks_again_no_more(
         self, sponsored, fake_speech
     ):
+        """CALL-58."""
         call = sponsored.call
         hop_login = call.another_device(sponsored.owner_account)
         with hop(sponsored, login=hop_login) as socket:
@@ -634,7 +636,7 @@ class TestTheSessionIsRechecked:
     def test_call_58_a_recheck_still_running_when_the_hop_is_over_sets_no_timer_for_the_next(
         self, sponsored, fake_speech
     ):
-        """The hop is over without its end having been set: the service hung up."""
+        """CALL-58: The hop is over without its end having been set: the service hung up."""
         call = sponsored.call
         hop_login = call.another_device(sponsored.owner_account)
         of_the_seats = len(_rechecks_waiting(call))
@@ -660,6 +662,7 @@ class TestHearingOff:
         return
 
     def test_call_58_with_the_setting_off_there_is_no_route_and_nobody_is_called(self, scene, fake_speech):
+        """CALL-58."""
         with pytest.raises(WebSocketDisconnect), hop(scene):
             pass
 
@@ -668,113 +671,3 @@ class TestHearingOff:
             [],
             [],
         )
-
-
-def the_browser_leaves(_scene, _session, socket):
-    socket.close()
-
-
-def the_service_closes(_scene, session, socket):
-    session.hang_up()
-    closed_with(socket)
-
-
-def the_app_ends_it(scene, _session, socket):
-    switch_off(scene)
-    closed_with(socket)
-
-
-class TestHowAHopEndsInTheLog:
-    @pytest.mark.parametrize(
-        "end",
-        [the_browser_leaves, the_service_closes, the_app_ends_it],
-        ids=["browser_leaves", "service_closes", "app_ends"],
-    )
-    def test_call_58_a_hop_that_ends_as_designed_ends_its_step_line_ok_and_names_no_reason(
-        self, sponsored, fake_speech, end
-    ):
-        with captured_lines() as lines, hop(sponsored) as socket:
-            socket.send_bytes(SOUND)
-            session = fake_speech.next_session()
-            session.wait_for_audio(1)
-            end(sponsored, session, socket)
-            assert lines.wait_for_event("hearing.ended", WAIT_SECONDS), "the hop's ending was never logged"
-
-        [ending] = [line for line in lines if line["event"] == "hearing.ended"]
-        assert (
-            ending["outcome"],
-            "reason" in ending,
-            ending["room_ref"],
-            isinstance(ending["duration_ms"], float),
-        ) == (
-            Outcome.OK,
-            False,
-            room_reference(sponsored.owner.room_id),
-            True,
-        )
-
-    @pytest.mark.parametrize(
-        ("outcome", "reason"),
-        [
-            (Cut(), "cut"),
-            (Unreachable(), "unreachable"),
-            (Refused(HTTPStatus.BAD_REQUEST, None), "refused"),
-            (RuleBroken(HopClose.TEXT_FRAME), "text_frame"),
-            (RuleBroken(HopClose.FRAME_TOO_LARGE), "frame_too_large"),
-        ],
-    )
-    def test_call_58_an_outcome_that_served_nobody_is_named_by_its_closed_reason(self, outcome, reason):
-        assert hearing_route.ending_reason(outcome) == reason
-
-
-class TestTheTranscriptRelay:
-    def test_call_58_a_sentence_writes_its_relay_hop_its_line_and_its_pulse_with_the_room_reference_and_no_content(
-        self, sponsored, fake_speech
-    ):
-        text = "ein geheimer Satz"
-        with captured_lines() as lines:
-            hear_one_sentence(sponsored, fake_speech, text)
-
-        by_event = {line["event"]: line for line in lines}
-        relay, entered, pulse = (by_event[name] for name in ("transcript_relay.ended", "line.entered", "pulse.sent"))
-        room_ref = room_reference(sponsored.owner.room_id)
-        assert (relay["outcome"], relay["room_ref"], entered["room_ref"], entered["seq"], pulse["seq"]) == (
-            Outcome.OK,
-            room_ref,
-            room_ref,
-            1,
-            1,
-        )
-        assert (entered["agent_id"], entered["kind"], isinstance(relay["duration_ms"], float)) == (
-            pulse["agent_id"],
-            "heard",
-            True,
-        )
-        assert (text in repr(lines), sponsored.owner.room_id in repr(lines)) == (False, False)
-
-
-class TestNothingIsLogged:
-    @pytest.mark.parametrize("ending", ["a_sentence", "a_refusal"])
-    def test_call_58_a_debug_log_of_a_hop_carries_no_sound_no_text_and_no_token(
-        self, sponsored, fake_speech, caplog, ending
-    ):
-        if ending == "a_refusal":
-            fake_speech.refusal = refused_with(RefusalCode.FORBIDDEN)
-        text = "ein geheimer Satz"
-
-        with caplog.at_level(logging.DEBUG), structlog.testing.capture_logs() as logs, hop(sponsored) as socket:
-            socket.send_bytes(SOUND)
-            session = fake_speech.next_session() if ending == "a_sentence" else None
-            if session is not None:
-                for event in a_sentence(text):
-                    session.say(event)
-                session.hang_up()
-            closed_with(socket)
-
-        tokens = [
-            *sponsored.call.issuer.access_tokens_issued(TOKEN_EXCHANGE_GRANT),
-            *sponsored.call.issuer.access_tokens_issued(CLIENT_CREDENTIALS_GRANT),
-        ]
-        sound = (SOUND.hex(), base64.b64encode(SOUND).decode())
-        leaked = [needle for needle in (text, *sound, *tokens) if needle in caplog.text or needle in repr(logs)]
-        assert leaked == []

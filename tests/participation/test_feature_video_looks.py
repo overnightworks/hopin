@@ -1,4 +1,4 @@
-"""CALL-81 to CALL-83: an agent's video session at HopIn's real `/mcp` and `/ws`, opened on a fake video service on a
+"""An agent's video session at HopIn's real `/mcp` and `/ws`, opened on a fake video service on a
 loopback port under a fake issuer and a fake TURN provider, and the fall to its figure when the session ends."""
 
 import asyncio
@@ -21,10 +21,11 @@ from hopin.agent.mcp import ParticipationFeature
 from hopin.agent.speech_settings import SpeechService
 from hopin.agent.tools import LEAVE_CALL, AcceptedVideoLooks
 from hopin.agent.video_settings import VideoService
+from hopin.participation.figures import FIGURE_FILES
 from hopin.participation.participants import Person
 from hopin.participation.places import Places
 from hopin.participation.video_looks import VideoLooks
-from hopin.participation.vocabulary import FIGURE_PATH, ParticipationSignal, VideoFailure
+from hopin.participation.vocabulary import ParticipationSignal, VideoFailure
 from hopin.rooms.reference import room_reference
 from tests.participation.support.figure_scene import FILE, JOINED, accept_with, figure_look, read_figure
 from tests.participation.support.figures import SOURCE_PREFIX, digest_of, figure_url, ok
@@ -162,6 +163,7 @@ class TestAVideoSessionOpens:
     def test_call_81_a_ready_first_video_look_opens_one_session_on_the_looks_name(
         self, scene, fake_video, with_a_figure_after
     ):
+        """CALL-81."""
         accepted(scene, with_a_figure_after)
 
         session = fake_video.next_session()
@@ -171,6 +173,7 @@ class TestAVideoSessionOpens:
     def test_call_81_the_session_is_opened_under_the_accepts_token_exchanged_for_the_video_audience_alone(
         self, scene, fake_video, with_a_figure_after
     ):
+        """CALL-81."""
         accepted(scene, with_a_figure_after)
 
         session = fake_video.next_session()
@@ -185,6 +188,7 @@ class TestAVideoSessionOpens:
     def test_call_81_the_session_is_opened_under_hopins_own_workload_token(
         self, scene, fake_video, with_a_figure_after
     ):
+        """CALL-81."""
         accepted(scene, with_a_figure_after)
 
         session = fake_video.next_session()
@@ -195,6 +199,7 @@ class TestAVideoSessionOpens:
     def test_call_83_the_session_update_names_the_relay_servers_alone_under_the_relay_policy(
         self, scene, fake_video, with_a_figure_after
     ):
+        """CALL-83."""
         accepted(scene, with_a_figure_after)
 
         update = SessionUpdate.model_validate(fake_video.next_session().wait_for_update())
@@ -206,6 +211,7 @@ class TestAVideoSessionOpens:
     def test_call_81_the_accept_leads_to_one_exchange_for_the_video_audience_and_each_exchange_asks_one_scope(
         self, scene, fake_video, with_a_figure_after
     ):
+        """CALL-81."""
         accepted(scene, with_a_figure_after)
         fake_video.next_session()
 
@@ -219,6 +225,7 @@ class TestAVideoSessionOpens:
     def test_call_82_the_first_look_that_the_health_offers_ready_opens_when_an_earlier_one_is_not(
         self, scene, fake_video, with_a_figure_after, lines
     ):
+        """CALL-82."""
         fake_video.looks[ESTABLISHED] = False
         accepted(scene, [FIRST, SECOND, figure_look(figure_url())])
 
@@ -242,6 +249,7 @@ class TestAVideoSessionOpens:
     def test_call_82_a_failed_session_mid_call_ends_it_for_good_with_one_line_and_leaves_the_figure(
         self, scene, fake_video, with_a_figure_after, lines, fail, reason
     ):
+        """CALL-82."""
         accepted(scene, with_a_figure_after)
         session = fake_video.next_session()
         session.wait_for_update()
@@ -270,6 +278,7 @@ class TestNoSessionOpens:
     def test_call_81_with_no_ready_video_look_ahead_of_its_figure_no_session_opens_and_no_line_is_written(
         self, scene, fake_video, figure_served, lines, looks, video_look_is_ready
     ):
+        """CALL-81."""
         fake_video.looks[ESTABLISHED] = video_look_is_ready
         accepted(scene, looks)
 
@@ -278,6 +287,7 @@ class TestNoSessionOpens:
     def test_call_81_a_look_after_a_not_ready_one_and_a_figure_is_not_shown(
         self, scene, fake_video, figure_served, lines
     ):
+        """CALL-81."""
         fake_video.looks[ESTABLISHED] = False
         accepted(scene, [FIRST, figure_look(figure_url()), SECOND])
 
@@ -292,6 +302,7 @@ class TestTurnOff:
     def test_call_81_with_turn_off_no_session_opens_and_nothing_is_asked_of_the_service(
         self, scene, fake_video, with_a_figure_after, lines
     ):
+        """CALL-81."""
         accepted(scene, with_a_figure_after)
 
         assert (fake_video.upgrades, ended_lines(lines), exchanges_for(scene.call, VIDEO_SCOPE)) == (0, [], [])
@@ -305,6 +316,7 @@ class TestSpeakingOff:
     def test_call_81_with_speaking_off_no_session_opens_and_nothing_is_asked_of_the_service(
         self, scene, fake_video, with_a_figure_after, lines
     ):
+        """CALL-81."""
         accepted(scene, with_a_figure_after)
 
         assert (fake_video.upgrades, ended_lines(lines), exchanges_for(scene.call, VIDEO_SCOPE)) == (0, [], [])
@@ -318,6 +330,7 @@ class TestVideoOff:
     def test_call_81_with_the_origin_unset_the_service_is_asked_nothing_and_no_video_token_is_exchanged(
         self, scene, fake_video, with_a_figure_after, lines
     ):
+        """CALL-81."""
         accepted(scene, with_a_figure_after)
 
         assert (
@@ -379,6 +392,7 @@ class TestASessionThatDoesNotOpen:
     def test_call_82_each_refusal_ends_the_attempt_for_good_with_one_refused_line_and_leaves_the_figure(
         self, scene, fake_video, turn_provider, with_a_figure_after, lines, break_it, reason
     ):
+        """CALL-82."""
         break_it(fake_video, scene.call.issuer, turn_provider)
         accepted(scene, with_a_figure_after)
         scene.call.pass_time(1)
@@ -409,6 +423,7 @@ class TestASessionThatDoesNotOpen:
     def test_call_82_a_service_that_answers_the_update_with_anything_else_ends_the_attempt_and_closes_the_session(
         self, scene, fake_video, with_a_figure_after, lines, answer, reason
     ):
+        """CALL-82."""
         fake_video.update_reply = answer
         accepted(scene, with_a_figure_after)
         scene.call.pass_time(1)
@@ -418,6 +433,7 @@ class TestASessionThatDoesNotOpen:
         fake_video.next_session().wait_until_closed()
 
     def test_call_82_a_service_that_nothing_listens_on_ends_the_open_as_unreachable(self):
+        """CALL-82."""
         with socket.socket() as unused:
             unused.bind(("127.0.0.1", 0))
             origin = f"http://127.0.0.1:{unused.getsockname()[1]}"
@@ -429,6 +445,7 @@ class TestASessionThatDoesNotOpen:
     def test_call_82_the_open_that_runs_past_its_deadline_ends_the_attempt_with_one_refused_line(
         self, scene, fake_video, with_a_figure_after, lines, open_deadline_seconds
     ):
+        """CALL-82."""
         fake_video.updates = False
         accepted(scene, with_a_figure_after)
 
@@ -443,6 +460,7 @@ class TestASessionThatDoesNotOpen:
     def test_call_82_the_line_carries_the_room_and_the_agent_beyond_the_standard_step_fields(
         self, scene, fake_video, with_a_figure_after, lines
     ):
+        """CALL-82."""
         fake_video.health_status = HTTPStatus.SERVICE_UNAVAILABLE
         accepted(scene, with_a_figure_after)
 
@@ -459,6 +477,7 @@ class TestASessionThatDoesNotOpen:
     def test_call_82_a_failed_first_look_opens_no_second_session_and_leaves_the_figure(
         self, scene, fake_video, figure_served, lines, looks
     ):
+        """CALL-82."""
         fake_video.refusal = refused_with(RefusalCode.UNAVAILABLE)
         accepted(scene, looks(figure_look(figure_url())))
         scene.call.pass_time(1)
@@ -510,6 +529,7 @@ class TestThePlaceEnds:
     def test_call_81_the_session_closes_with_the_place_and_one_ok_line_is_written(
         self, scene, fake_video, with_a_figure_after, lines, ends
     ):
+        """CALL-81."""
         accepted(scene, with_a_figure_after)
         session = fake_video.next_session()
         session.wait_for_update()
@@ -523,6 +543,7 @@ class TestThePlaceEnds:
         assert (line["outcome"], len(fake_video.sessions)) == ("ok", 1)
 
     def test_call_81_a_parked_sponsor_keeps_the_session(self, scene, fake_video, with_a_figure_after, lines):
+        """CALL-81."""
         accepted(scene, with_a_figure_after)
         session = fake_video.next_session()
         session.wait_for_update()
@@ -536,6 +557,7 @@ class TestThePlaceEnds:
     def test_call_81_a_place_that_ends_while_its_session_opens_closes_the_session_once_it_is_handed_over(
         self, scene, fake_video, with_a_figure_after, lines, agent_joins_again
     ):
+        """CALL-81."""
         fake_video.opening.clear()
         opening = threading.Thread(target=scene.call.pass_time, args=(0,))
         accepted_without_opening = accept_with(scene, None, looks=with_a_figure_after)
@@ -560,6 +582,7 @@ class TestTheAppsShutdown:
     def test_call_81_a_session_still_waiting_for_its_update_closes_and_writes_its_line_when_the_app_shuts_down(
         self, scene, fake_video, with_a_figure_after, lines
     ):
+        """CALL-81."""
         fake_video.updates = False
         opening = threading.Thread(target=accepted, args=(scene, with_a_figure_after))
         opening.start()
@@ -576,6 +599,7 @@ class TestTheAppsShutdown:
     def test_call_81_an_upgrade_still_waiting_for_the_service_ends_and_writes_its_line_when_the_app_shuts_down(
         self, scene, fake_video, with_a_figure_after, lines
     ):
+        """CALL-81."""
         fake_video.opening.clear()
         opening = threading.Thread(target=accepted, args=(scene, with_a_figure_after))
         opening.start()
@@ -591,6 +615,7 @@ class TestTheAppsShutdown:
 
 class TestAnAcceptWhoseAgentHoldsNoPlace:
     def test_call_81_no_open_starts_for_an_accept_after_which_the_agent_is_no_longer_joined(self):
+        """CALL-81."""
         scheduler = ManualScheduler()
         participation = SimpleNamespace(video_looks=VideoLooks(Places()))
         opening = video_session.VideoOpening(
@@ -609,6 +634,7 @@ class TestAnAcceptWhoseAgentHoldsNoPlace:
 
 class TestTheTokensAreHeldNowhereAfterTheUpgrade:
     def test_the_open_connection_holds_none_of_the_headers_it_upgraded_with(self, fake_video):
+        """CALL-81."""
         sent = caller_headers(workload_token="scenario-workload-token", person_token="scenario-person-token")
 
         async def held_after_the_open():
@@ -628,6 +654,7 @@ class TestTheVoiceAndTheAcceptNeverWaitOnVideo:
     def test_call_81_with_a_step_of_the_open_held_back_the_accept_answers_and_the_sentence_plays_at_once(
         self, scene, fake_video, turn_gate, with_a_figure_after, gate
     ):
+        """CALL-81."""
         release, asked = held_back(gate, scene.call, fake_video, turn_gate)
         assert not accept_with(scene, None, looks=with_a_figure_after).is_error
         opening = threading.Thread(target=scene.call.pass_time, args=(0,))
@@ -669,6 +696,7 @@ class TestNoCredentialLeaksToALog:
     def test_the_captured_lines_hold_no_token_credential_or_frame_with_the_sockets_logger_at_debug(
         self, scene, fake_video, with_a_figure_after, lines
     ):
+        """CALL-81."""
         accepted(scene, with_a_figure_after)
         session = fake_video.next_session()
         session.wait_for_update()
@@ -690,6 +718,7 @@ class TestEachAudienceHasItsOwnToken:
     def test_a_speech_token_never_reaches_the_video_service_and_a_video_token_never_reaches_the_speech_service(
         self, scene, fake_video, speech_origin, with_a_figure_after
     ):
+        """CALL-81."""
         accepted(scene, with_a_figure_after)
         session = fake_video.next_session()
         speak(scene)
@@ -705,12 +734,14 @@ class TestEachAudienceHasItsOwnToken:
     def test_an_accept_without_a_video_look_exchanges_nothing_for_the_video_audience(
         self, scene, fake_video, figure_served
     ):
+        """CALL-81."""
         accepted(scene, [figure_look(figure_url())])
 
         assert (exchanges_for(scene.call, VIDEO_SCOPE), digest_of(FILE) in scene.joined["figure"]) == ([], True)
-        assert scene.joined["figure"].startswith(FIGURE_PATH)
+        assert scene.joined["figure"].startswith(FIGURE_FILES.path)
 
     def test_the_video_scope_enters_no_persons_sign_in(self, video_service, shared_stores):
+        """CALL-81."""
         feature = ParticipationFeature(
             "https://hopin.test.invalid", redis=shared_stores.async_redis, realm=TEST_REALM, video=video_service
         )

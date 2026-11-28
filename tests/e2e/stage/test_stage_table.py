@@ -88,6 +88,7 @@ def test_a_pasted_link_shows_the_table_on_every_stage_and_to_a_later_joiner_with
     page_errors: list[str],
     form_factor: dict[str, Any],
 ) -> None:
+    """ST-01, ST-02."""
     host, guest, invite_link = open_call(open_person, e2e_server.base_url, page_errors, form_factor)
 
     show_table(host, table_link(stub_skat))
@@ -174,6 +175,7 @@ def test_the_frame_fills_the_surface_for_a_guest_who_sees_no_button(
 def test_the_opener_removes_the_table_and_the_videos_stay_the_same_elements_playing(
     open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
 ) -> None:
+    """ST-02, ST-03."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
     guest.evaluate(TAG_VIDEOS)
     first_time = guest.evaluate(FIRST_REMOTE_TIME)
@@ -193,6 +195,7 @@ def test_the_opener_removes_the_table_and_the_videos_stay_the_same_elements_play
 def test_the_host_removes_a_table_a_guest_brought(
     open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
 ) -> None:
+    """ST-03."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
 
     show_table(guest, table_link(stub_skat))
@@ -205,6 +208,7 @@ def test_the_host_removes_a_table_a_guest_brought(
 def test_anyone_removes_the_table_once_its_opener_has_left(
     open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
 ) -> None:
+    """ST-03."""
     device = DESKTOP
     host, opener, invite_link = open_call(open_person, e2e_server.base_url, page_errors, device)
     bystander = join(open_person, invite_link, device, page_errors=page_errors)
@@ -227,6 +231,7 @@ def test_a_seat_that_reloads_joins_afresh_and_sees_the_table(
     page_errors: list[str],
     browser_coverage: BrowserCoverage,
 ) -> None:
+    """ST-05."""
     device = DESKTOP
     host, guest, _invite_link = open_call(open_person, e2e_server.base_url, page_errors, device)
     show_table(host, table_link(stub_skat))
@@ -255,6 +260,7 @@ def test_a_guest_who_leaves_takes_the_table_from_their_own_stage(
 def test_a_link_that_is_no_table_of_skat_is_told_and_a_stale_second_attach_is_refused_as_busy(
     open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
 ) -> None:
+    """ST-04."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
 
     show_table(host, "https://elsewhere.example/t/" + "a" * 32)
@@ -296,6 +302,7 @@ def test_the_link_field_has_room_for_its_whole_placeholder(
 def test_the_framed_page_cannot_capture_media_navigate_the_top_or_send_a_referrer(
     open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
 ) -> None:
+    """ST-09."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
     dialogs: list[str] = []
     host.on("dialog", lambda dialog: dialogs.append(dialog.message))
@@ -331,6 +338,7 @@ HEARD_BARRIER = r'\{"heard":"barrier"\}'
 def test_the_call_answers_the_ready_of_the_frame_with_one_hello(
     open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
 ) -> None:
+    """ST-11."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
 
     show_table(host, table_link(stub_skat))
@@ -347,6 +355,7 @@ def test_a_ready_from_another_window_gets_no_hello(
     page_errors: list[str],
     intruder: str,
 ) -> None:
+    """ST-11."""
     host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
     show_table(host, table_link(stub_skat))
     expect(hellos_of(host)).to_have_text(re.compile(rf"\[{HELLO}\]"), timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
@@ -366,6 +375,7 @@ def test_a_ready_from_another_window_gets_no_hello(
 def test_a_ready_for_another_table_gets_no_hello(
     open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
 ) -> None:
+    """ST-11."""
     host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
     show_table(host, table_link(stub_skat))
     expect(hellos_of(host)).to_have_text(re.compile(rf"\[{HELLO}\]"), timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
@@ -384,6 +394,7 @@ def test_a_ready_for_another_table_gets_no_hello(
 def test_a_reloaded_frame_document_is_greeted_again(
     open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
 ) -> None:
+    """ST-11."""
     host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
     show_table(host, table_link(stub_skat))
     expect(hellos_of(host)).to_have_text(re.compile(rf"\[{HELLO}\]"), timeout=MEDIA_FLOWING_TIMEOUT_MILLISECONDS)
@@ -398,6 +409,7 @@ def test_a_reloaded_frame_document_is_greeted_again(
 def test_a_tile_held_in_the_corner_is_released_when_a_table_comes_and_the_pip_is_off(
     open_person: Callable[..., Page], e2e_server: RunningServer, stub_skat: StubSkat, page_errors: list[str]
 ) -> None:
+    """ST-02."""
     host, guest, _ = open_call(open_person, e2e_server.base_url, page_errors, PHONE)
     own_tile = guest.locator("#localContainer")
     guest.wait_for_function(OWN_TILE_IS_STILL)

@@ -1,4 +1,4 @@
-"""CALL-54 and CALL-60: the record of people talking over an agent's sentence, at participation's real feature and the
+"""The record of people talking over an agent's sentence, at participation's real feature and the
 agents library's real record of who may hear whom."""
 
 import pytest
@@ -36,6 +36,7 @@ class TestAPersonTalksOverASentence:
     async def test_call_54_a_person_the_agent_hears_starting_to_speak_while_its_sentence_plays_fills_talked_over(
         self, participation, call
     ):
+        """CALL-54."""
         host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
@@ -45,6 +46,7 @@ class TestAPersonTalksOverASentence:
         assert record_of(participation, GUEST, room_id) == ("1", False, [("guest", "")])
 
     async def test_call_54_only_the_agent_that_hears_the_person_is_talked_over(self, participation, call):
+        """CALL-54."""
         host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
@@ -60,6 +62,7 @@ class TestAPersonTalksOverASentence:
     async def test_call_54_a_person_the_sponsor_switched_the_agents_hearing_off_for_does_not_talk_it_over(
         self, participation, call
     ):
+        """CALL-54."""
         host, guest, mozart, _ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
@@ -76,6 +79,7 @@ class TestAPersonTalksOverASentence:
         assert record_of(participation, GUEST, room_id) is None
 
     async def test_call_54_the_words_heard_so_far_update_the_partial(self, participation, call):
+        """CALL-54."""
         host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
@@ -88,6 +92,7 @@ class TestAPersonTalksOverASentence:
     async def test_call_54_a_finished_line_replaces_the_partial_in_the_same_change_of_the_window(
         self, participation, call, window_changes
     ):
+        """CALL-54."""
         host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
@@ -105,6 +110,7 @@ class TestAPersonTalksOverASentence:
         )
 
     async def test_call_54_a_turn_without_words_ends_the_record_and_the_next_has_a_new_id(self, participation, call):
+        """CALL-54."""
         host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
@@ -117,6 +123,7 @@ class TestAPersonTalksOverASentence:
         assert (gone, record_of(participation, GUEST, room_id)) == (None, ("2", False, [("guest", "")]))
 
     async def test_call_54_a_turn_that_began_before_the_sentence_makes_no_record(self, participation, call):
+        """CALL-54."""
         host, guest, *_ = call
         room_id = room_of(host)
         await participation.person_started(room_id, guest.peer_id)
@@ -129,6 +136,7 @@ class TestAPersonTalksOverASentence:
     async def test_call_54_the_sponsor_switching_the_agents_hearing_off_takes_the_partial_away(
         self, participation, call
     ):
+        """CALL-54."""
         host, guest, mozart, _ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
@@ -147,6 +155,7 @@ class TestAPersonTalksOverASentence:
     async def test_call_54_a_window_change_is_told_for_the_start_and_for_the_turn_end(
         self, participation, call, window_changes
     ):
+        """CALL-54."""
         host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, room_id=room_id, render=LONG)
@@ -162,6 +171,7 @@ class TestTheRecordFollowsTheSentence:
     async def test_call_54_playing_turns_true_again_when_a_sentence_starts_while_the_record_stands(
         self, participation, call
     ):
+        """CALL-54."""
         host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, "Eins", room_id=room_id, render=LONG)
@@ -174,6 +184,7 @@ class TestTheRecordFollowsTheSentence:
     async def test_call_54_playing_turns_false_in_the_change_in_which_the_sentence_enters_the_window(
         self, participation, call, scheduler
     ):
+        """CALL-54."""
         host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, "Eins", room_id=room_id, render=LONG)
@@ -188,6 +199,7 @@ class TestTheRecordFollowsTheSentence:
     async def test_call_54_playing_stays_true_when_the_agents_next_sentence_starts_at_once(
         self, participation, call, scheduler
     ):
+        """CALL-54."""
         host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, "Eins", room_id=room_id, render=LONG)
@@ -203,6 +215,7 @@ class TestTheRecordFollowsTheSentence:
     async def test_call_54_a_sentence_that_starts_at_once_after_a_continued_one_changes_the_window_only_for_the_line(
         self, participation, call, scheduler, window_changes
     ):
+        """CALL-54."""
         host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, "Eins", room_id=room_id, render=LONG)
@@ -218,6 +231,7 @@ class TestTheRecordFollowsTheSentence:
     async def test_call_54_a_written_sentence_between_keeps_the_start_at_once(
         self, participation, call, scheduler, window_changes
     ):
+        """CALL-54."""
         host, guest, *_ = call
         room_id = room_of(host)
         await speak(participation, "Eins", room_id=room_id, render=LONG)

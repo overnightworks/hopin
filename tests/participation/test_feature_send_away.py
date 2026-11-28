@@ -1,5 +1,5 @@
-"""CALL-84: a present seat sends away an agent with an account of its own as the calling standard decides, on a fresh
-read of its groups or at once as a seat of the owner's account or the host."""
+"""A present seat sends away an agent with an account of its own as the calling standard decides, on a fresh read of
+its groups or at once as a seat of the owner's account or the host."""
 
 from dataclasses import dataclass
 
@@ -108,11 +108,13 @@ def kinds_sent_after(browser, count):
 
 class TestAMemberSendsTheAgentAway:
     async def test_a_member_the_fresh_read_finds_in_the_group_sends_it_away_and_every_seat_is_told(self, call):
+        """CALL-84: a member the fresh read finds in the group sends it away and every seat is told."""
         await call.press(call.member)
 
         assert (call.left_told_to(*call.everyone), await call.participation.standings_of(AGENT)) == ([1, 1, 1], ())
 
     async def test_an_older_accept_is_stale_and_the_agent_is_called_again_at_once(self, call):
+        """CALL-84: an older accept is stale and the agent is called again at once."""
         await call.press(call.member)
 
         stale = await call.accept(call.invitation)
@@ -121,6 +123,7 @@ class TestAMemberSendsTheAgentAway:
         assert (stale, again.epoch) == (AgentRefusal.STALE_INVITATION, call.invitation.epoch + 1)
 
     async def test_each_press_reads_the_groups_afresh(self, call, group_reads):
+        """CALL-84: each press reads the groups afresh."""
         reads_before = group_reads.count("guest")
 
         await call.press(call.member)
@@ -145,6 +148,7 @@ class TestAMemberSendsTheAgentAway:
         ) == ([OFFERS.value, REFUSED.value], [AgentRefusal.NOT_ALLOWED_TO_SEND_AWAY.value], [], 1)
 
     async def test_a_failed_read_refuses_send_away_unavailable_and_the_agent_stays(self, call, groups_of_seat):
+        """CALL-84: a failed read refuses send away unavailable and the agent stays."""
         groups_of_seat["guest"] = None
         seen = len(call.member.frames(OFFERS, REFUSED))
 
@@ -157,6 +161,7 @@ class TestAMemberSendsTheAgentAway:
         ) == ([OFFERS.value, REFUSED.value], [AgentRefusal.SEND_AWAY_UNAVAILABLE.value], 1)
 
     async def test_a_member_sends_away_an_agent_whose_owners_seat_waits_to_resume(self, call):
+        """CALL-84: a member sends away an agent whose owners seat waits to resume."""
         await call.owner.drop()
 
         await call.press(call.member)
@@ -164,6 +169,7 @@ class TestAMemberSendsTheAgentAway:
         assert await call.participation.standings_of(AGENT) == ()
 
     async def test_two_presses_give_one_removal_and_the_second_is_quiet(self, call, groups_of_seat):
+        """CALL-84: two presses give one removal and the second is quiet."""
         groups_of_seat["guest"] = held = HeldRead()
         await call.member.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": call.agent.agent_id})
         await call.member.say({"type": ParticipationSignal.AGENT_REMOVE.value, "agent_id": call.agent.agent_id})
@@ -179,6 +185,7 @@ class TestTheOwnersAndTheHostsSeats:
     async def test_the_owner_and_the_host_send_it_away_while_reads_fail_and_start_none(
         self, call, groups_of_seat, group_reads, sender
     ):
+        """CALL-84: the owner and the host send it away while reads fail and start none."""
         browser = getattr(call, sender)
         groups_of_seat[browser.name] = None
         reads_before = len(group_reads)
@@ -188,6 +195,7 @@ class TestTheOwnersAndTheHostsSeats:
         assert (await call.participation.standings_of(AGENT), len(group_reads)) == ((), reads_before)
 
     async def test_a_second_seat_of_the_owners_account_sends_it_away(self, call, link):
+        """CALL-84: a second seat of the owners account sends it away."""
         other_tab = await link.join(OWNER, call.room_id)
 
         await call.press(other_tab)
@@ -197,6 +205,7 @@ class TestTheOwnersAndTheHostsSeats:
 
 class TestASeatThatMayNot:
     async def test_a_seat_that_is_neither_member_owner_nor_host_is_refused_and_the_agent_stays(self, call, link):
+        """CALL-84: a seat that is neither member owner nor host is refused and the agent stays."""
         bystander = await link.join("bystander", call.room_id)
 
         await call.press(bystander)
@@ -208,6 +217,7 @@ class TestASeatThatMayNot:
         ) == ([AgentRefusal.NOT_ALLOWED_TO_SEND_AWAY.value], [0, 0, 0], 1)
 
     async def test_a_seat_of_another_call_sends_nothing_away_and_reads_nothing(self, call, link, group_reads):
+        """CALL-84: a seat of another call sends nothing away and reads nothing."""
         outsider = await link.join("outsider")
         reads_before = len(group_reads)
 
@@ -233,6 +243,7 @@ class TestAPressWhoseReadIsStillRunning:
         return second, held
 
     async def test_the_sender_that_left_meanwhile_sends_nothing_away(self, call, pressing):
+        """CALL-84: the sender that left meanwhile sends nothing away."""
         second, held = pressing
 
         await second.drop(code=1000)
@@ -242,6 +253,7 @@ class TestAPressWhoseReadIsStillRunning:
         assert (len(await call.participation.standings_of(AGENT)), call.left_told_to(*call.everyone)) == (1, [0, 0, 0])
 
     async def test_an_agent_gone_when_the_read_answers_is_quiet(self, call, pressing):
+        """CALL-84: an agent gone when the read answers is quiet."""
         second, held = pressing
         await call.press(call.owner, apart_from=second)
 
@@ -251,6 +263,7 @@ class TestAPressWhoseReadIsStillRunning:
         assert (call.left_told_to(call.host, second), refusals_sent_to(second)) == ([1, 1], [])
 
     async def test_an_agent_that_joined_again_under_a_new_id_is_not_removed_by_the_old_id(self, call, pressing):
+        """CALL-84: an agent that joined again under a new id is not removed by the old id."""
         second, held = pressing
         await call.press(call.owner, apart_from=second)
         again = await call.call_again(apart_from=second)
@@ -295,6 +308,7 @@ class TestWhoIsToldItMayBeSentAway:
     async def test_the_offers_frame_names_the_agent_to_each_seat_that_may_send_it_away_and_to_no_other(
         self, call, link, who, sees_it
     ):
+        """CALL-84: the offers frame names the agent to each seat that may send it away and to no other."""
         browsers = {
             "member": call.member,
             "owner": call.owner,
@@ -309,6 +323,7 @@ class TestWhoIsToldItMayBeSentAway:
     async def test_a_failed_read_leaves_the_owner_and_the_host_their_send_away(
         self, link, participation, listeners, groups_of_seat, who
     ):
+        """CALL-84: a failed read leaves the owner and the host their send away."""
         groups_of_seat[who] = None
 
         call = await joined_call(link, participation, listeners)
@@ -316,6 +331,7 @@ class TestWhoIsToldItMayBeSentAway:
         assert send_away_told_to(getattr(call, who)) == [call.agent.agent_id]
 
     async def test_a_seat_whose_own_read_failed_is_offered_no_send_away_by_membership(self, call, link, groups_of_seat):
+        """CALL-84: a seat whose own read failed is offered no send away by membership."""
         groups_of_seat["bystander"] = None
         bystander = await link.join("bystander", call.room_id)
         await let_reads_finish()
@@ -323,7 +339,7 @@ class TestWhoIsToldItMayBeSentAway:
         assert (send_away_told_to(bystander) or []) == []
 
     async def test_a_frame_goes_when_only_the_send_away_list_changed(self, call):
-        """The owner's offers, its control and the full place stay as they were; only its list changes."""
+        """CALL-84: the owner's offers, its control and the full place stay as they were; only its list changes."""
         before = len(call.owner.frames(OFFERS))
 
         await call.press(call.member)
