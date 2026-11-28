@@ -12,8 +12,8 @@ from hopin.config.constants import (
 from hopin.game.quiz import Speaker, Turn, question_request
 from hopin.game.table import Line, Refused
 from hopin.game.vocabulary import GAME_RUN_DEADLINE_SECONDS, GameRefusal
-from hopin.rooms.manager import RoomManager
 from hopin.rooms.reference import room_reference
+from hopin.signaling.call_store import CallStore
 from hopin.signaling.handler import SignalingHandler
 from tests.game.support.fake_game_master import DEFAULT_QUESTION
 from tests.game.support.table_world import (
@@ -53,8 +53,9 @@ from tests.game.support.table_world import (
     yield_until,
 )
 from tests.signaling.support.browsers import Browser, Link
+from tests.support.call_state import call_store_over
 from tests.support.log_lines import captured_lines
-from tests.support.signaling_fakes import ROOM_LIMIT, SocketAccountResolver, account_named, text_frame
+from tests.support.signaling_fakes import SocketAccountResolver, account_named, text_frame
 
 pytestmark = pytest.mark.asyncio
 
@@ -493,17 +494,16 @@ class TestRoomEnd:
         assert game_master.calls == []
 
 
-class RoomIdUsedAgain(RoomManager):
-    """Hands every new room the same id, as chance may hand a later call the id of one that ended."""
-
-    def new_room_id(self):
-        return "r" * ROOM_ID_LENGTH
-
-
 class TestARoomIdUsedAgain:
     @pytest.fixture
-    def room_manager(self):
-        return RoomIdUsedAgain(max_participants_per_room=ROOM_LIMIT)
+    def call_store(self, redis_server, monkeypatch):
+        """Hands every new room the same id, as chance may hand a later call the id of one that ended."""
+
+        async def same_room_id(_store):
+            return "r" * ROOM_ID_LENGTH
+
+        monkeypatch.setattr(CallStore, "new_room_id", same_room_id)
+        return call_store_over(redis_server)
 
     async def test_a_new_call_under_an_ended_calls_room_id_starts_a_new_quiz(self, link, game_master):
         [host] = await call_of(link, "host")
@@ -655,14 +655,18 @@ class TestSeatsComingAndGoing:
 
         assert game_frames(late) == asked(guest)
 
-    async def test_a_seat_joining_as_the_run_starts_is_told_thinking_once(self, link, game_master, room_manager):
+    async def test_a_seat_joining_as_the_run_starts_is_told_thinking_once(self, link, game_master, call_store):
         host = await link.join("host")
         room_id = host.socket.sent[0]["room_id"]
         joining = asyncio.Event()
         guest = Browser(link, "guest")
         guest.sockets.append(await link.open(account_named("guest"), send_gate=joining))
         guest.socket.push(text_frame({"type": SignalType.JOIN.value, "room_id": room_id}))
-        await yield_until(lambda: len(room_manager.get_room(room_id).participant_ids) == 2)
+
+        async def both_seated():
+            return len((await call_store.get_room(room_id)).participant_ids) == 2
+
+        await yield_until(both_seated)
 
         held = await start_and_hold(game_master, host)
         joining.set()
@@ -692,10 +696,10 @@ class TestSeatsComingAndGoing:
         assert game_frames(late) == []
 
 
-async def test_six_seats_get_the_question(scheduler, deadlines, game):
+async def test_six_seats_get_the_question(redis_server, scheduler, deadlines, game):
     """GM-18: Six seats get the question."""
     handler = SignalingHandler(
-        RoomManager(max_participants_per_room=MAX_PARTICIPANTS_PER_ROOM),
+        call_store_over(redis_server, place_limit=MAX_PARTICIPANTS_PER_ROOM),
         SocketAccountResolver(),
         scheduler,
         deadlines,

@@ -221,7 +221,7 @@ async def test_a_seat_that_joined_during_answering_plays_from_the_next_question(
 
 
 async def test_a_seat_that_joins_while_the_question_line_is_held_is_told_answering_but_is_no_player(
-    link, game_master, room_manager
+    link, game_master, call_store
 ):
     host, guest = await call_of(link, "host", "guest")
     room_id = host.socket.sent[0]["room_id"]
@@ -231,7 +231,11 @@ async def test_a_seat_that_joins_while_the_question_line_is_held_is_told_answeri
     late = Browser(link, "late")
     late.sockets.append(await link.open(account_named("late")))
     late.socket.push(text_frame({"type": SignalType.JOIN.value, "room_id": room_id}))
-    await yield_until(lambda: len(room_manager.get_room(room_id).participant_ids) == 3)
+
+    async def all_seated():
+        return len((await call_store.get_room(room_id)).participant_ids) == 3
+
+    await yield_until(all_seated)
 
     gate.set()
     await sent_to_all([host, guest, late], answering(host))

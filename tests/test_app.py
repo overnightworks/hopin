@@ -232,7 +232,7 @@ class TestCreateApp:
         )
         callback = browser.get(f"{AUTH_CALLBACK_PATH}?{query}")
         handshake = {"origin": TEST_PUBLIC_ORIGIN, "cookie": cookie_header(callback.headers.get_list("set-cookie"))}
-        with browser.websocket_connect(WEBSOCKET_PATH, headers=handshake) as socket:
+        with browser, browser.websocket_connect(WEBSOCKET_PATH, headers=handshake) as socket:
             socket.send_json({"type": SignalType.JOIN.value})
             room_id = socket.receive_json()["room_id"]
             for path in ["/", f"/c/{room_id}"]:
@@ -240,16 +240,15 @@ class TestCreateApp:
                 assert (response.status_code, "location" in response.headers) == (200, False)
 
     def test_registers_routes(self, sign_in_settings):
-        response = TestClient(
-            create_app(
-                sign_in_settings().settings,
-                TEST_REALM,
-                page_build=fixture_page_build(),
-                shared_stores=in_thread_stores(),
-                identity=single_process_stores(),
-            )
-        ).get("/health")
-        assert response.status_code == 200
+        app = create_app(
+            sign_in_settings().settings,
+            TEST_REALM,
+            page_build=fixture_page_build(),
+            shared_stores=in_thread_stores(),
+            identity=single_process_stores(),
+        )
+        with TestClient(app) as client:
+            assert client.get("/health").status_code == 200
 
     def test_serves_the_configured_stun_server_as_ice_servers(self, sign_in_settings):
         settings = sign_in_settings(stun_server="stun:stun.example.test:3478").settings
@@ -546,8 +545,8 @@ class TestRequestLine:
         )
         probe = secrets.token_urlsafe(8)
 
-        with configured("hopin"):
-            TestClient(app, base_url=TEST_PUBLIC_ORIGIN).get(f"{HEALTH_PATH}?probe={probe}")
+        with configured("hopin"), TestClient(app, base_url=TEST_PUBLIC_ORIGIN) as client:
+            client.get(f"{HEALTH_PATH}?probe={probe}")
 
         lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
         (request,) = [line for line in lines if line["event"] == REQUEST_EVENT]
@@ -608,7 +607,7 @@ class TestRequestLine:
         headers = {**handshake_headers(member), **forwarding_headers(forwarded_for)}
         client = proxied_client(peer)
 
-        with configured("hopin"), client.websocket_connect(WEBSOCKET_PATH, headers=headers) as socket:
+        with configured("hopin"), client, client.websocket_connect(WEBSOCKET_PATH, headers=headers) as socket:
             socket.send_text(json.dumps({"type": SignalType.JOIN.value}))
             socket.receive_json()
 

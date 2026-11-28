@@ -39,10 +39,10 @@ def changed():
 
 
 @pytest.fixture
-def handler(room_manager, scheduler, deadlines, changed):
+def handler(call_store, scheduler, deadlines, changed):
     """A call's handler running participation, which no seat ever reaches."""
     return SignalingHandler(
-        room_manager, SocketAccountResolver(), scheduler, deadlines, [_participation(deadlines, changed)]
+        call_store, SocketAccountResolver(), scheduler, deadlines, [_participation(deadlines, changed)]
     )
 
 

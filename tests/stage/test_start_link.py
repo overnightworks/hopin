@@ -69,6 +69,14 @@ class World:
             headers={"cookie": cookie_header(self.member.set_cookie_headers)},
         )
 
+    def __enter__(self):
+        """Starts the app, whose calls are served once it holds its lease."""
+        self.signed_in.__enter__()
+        return self
+
+    def __exit__(self, *exception):
+        return self.signed_in.__exit__(*exception)
+
     @contextmanager
     def call_showing(self, link=TABLE_LINK):
         """A call whose host has attached the table of `link`; the call is open inside the block."""
@@ -86,7 +94,8 @@ class World:
 
 @pytest.fixture
 def world(sign_in_settings):
-    return World(sign_in_settings, (StageFeature((SKAT,)),))
+    with World(sign_in_settings, (StageFeature((SKAT,)),)) as started:
+        yield started
 
 
 class TestTheStartLink:
@@ -144,7 +153,8 @@ class TestTheStartLink:
 class TestTheRouteOrder:
     @pytest.fixture
     def beside_a_routed_feature(self, sign_in_settings):
-        return World(sign_in_settings, (StageFeature((SKAT,)), RoutedFeature()))
+        with World(sign_in_settings, (StageFeature((SKAT,)), RoutedFeature())) as started:
+            yield started
 
     def test_a_feature_with_a_fixed_path_is_answered_ahead_of_the_call_core(self, beside_a_routed_feature):
         """ST-16."""

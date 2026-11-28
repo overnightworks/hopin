@@ -52,8 +52,8 @@ def resolver():
 
 
 @pytest_asyncio.fixture
-async def link(room_manager, scheduler, deadlines, resolver):
-    link = Link(SignalingHandler(room_manager, resolver, scheduler, deadlines))
+async def link(call_store, scheduler, deadlines, resolver):
+    link = Link(SignalingHandler(call_store, resolver, scheduler, deadlines))
     yield link
     await link.close_all()
 
@@ -103,7 +103,7 @@ class TestTick:
             )
 
     async def test_idle_guest_whose_sign_in_ended_is_closed_at_the_tick_and_the_host_hears_it_left(
-        self, link, scheduler, room_manager
+        self, link, scheduler, call_store
     ):
         host, guest = await host_and_guest(link)
         guest.socket.account = None
@@ -115,7 +115,7 @@ class TestTick:
         assert guest.socket.closed_with == SESSION_ENDED_CLOSE_CODE
         [left] = host.frames(SignalType.PARTICIPANT_LEFT)
         assert left["participant_id"] == guest.peer_id
-        assert room_manager.get_room(host.socket.sent[0]["room_id"]).participant_ids == [host.peer_id]
+        assert (await call_store.get_room(host.socket.sent[0]["room_id"])).participant_ids == [host.peer_id]
 
     async def test_host_whose_sign_in_ended_starts_the_grace_and_the_room_ends_a_minute_later(self, link, scheduler):
         host, guest = await host_and_guest(link)
@@ -130,7 +130,7 @@ class TestTick:
         assert len(guest.frames(SignalType.ROOM_CLOSED)) == 1
 
     async def test_check_that_raises_at_the_tick_closes_the_socket_and_parks_the_seat_until_the_store_answers(
-        self, link, scheduler, resolver, room_manager
+        self, link, scheduler, resolver, call_store
     ):
         host, guest = await host_and_guest(link)
         resolver.failing[guest.socket] = RuntimeError("store unavailable")
@@ -140,7 +140,7 @@ class TestTick:
         await guest.drop(SERVER_ERROR_CLOSE_CODE)
 
         assert host.frames(SignalType.PARTICIPANT_LEFT) == []
-        assert guest.peer_id in room_manager.get_room(host.socket.sent[0]["room_id"]).participant_ids
+        assert guest.peer_id in (await call_store.get_room(host.socket.sent[0]["room_id"])).participant_ids
         resolver.failing.clear()
         await guest.resume(account_named("guest"))
         await guest.accept_resumption()
@@ -172,7 +172,7 @@ class TestTick:
 class TestSuspendedCheck:
     @pytest.mark.parametrize("answer", ["refused", "admitted", "raises"])
     async def test_check_suspended_across_a_drop_leaves_the_parked_seat_alone(
-        self, link, scheduler, resolver, room_manager, answer
+        self, link, scheduler, resolver, call_store, answer
     ):
         host, guest = await host_and_guest(link)
         ticking = await suspend_check_of(guest, resolver, scheduler)
@@ -188,13 +188,13 @@ class TestSuspendedCheck:
         assert guest.socket.closed_with is None
         assert [entry for entry in logs if entry["event"] in ("session.expired", "session.check_failed")] == []
         assert host.frames(SignalType.PARTICIPANT_LEFT) == []
-        assert guest.peer_id in room_manager.get_room(host.socket.sent[0]["room_id"]).participant_ids
+        assert guest.peer_id in (await call_store.get_room(host.socket.sent[0]["room_id"])).participant_ids
         assert len(ticks_due_at(scheduler, 2 * SESSION_RECHECK_SECONDS)) == 1
 
     @pytest.mark.parametrize("old_handler", ["still_running", "finished"])
     @pytest.mark.parametrize("answer", ["refused", "admitted", "raises"])
     async def test_check_suspended_across_a_takeover_leaves_the_new_socket_in_its_seat(
-        self, link, scheduler, resolver, room_manager, answer, old_handler
+        self, link, scheduler, resolver, call_store, answer, old_handler
     ):
         host, guest = await host_and_guest(link)
         old_socket = guest.socket
@@ -217,7 +217,7 @@ class TestSuspendedCheck:
         assert old_socket.closed_with != SERVER_ERROR_CLOSE_CODE
         assert [entry for entry in logs if entry["event"] in ("session.expired", "session.check_failed")] == []
         assert len(host.frames(SignalType.PARTICIPANT_LEFT)) == before
-        assert guest.peer_id in room_manager.get_room(host.socket.sent[0]["room_id"]).participant_ids
+        assert guest.peer_id in (await call_store.get_room(host.socket.sent[0]["room_id"])).participant_ids
         assert len(ticks_due_at(scheduler, 2 * SESSION_RECHECK_SECONDS)) == 2
 
 
@@ -251,7 +251,7 @@ class TestSuspendedEnding:
         assert guest.frames(SignalType.HOST_AWAY, SignalType.HOST_BACK)[-1]["type"] == SignalType.HOST_BACK.value
 
     async def test_resume_while_the_session_ending_closes_the_socket_is_refused_and_the_host_hears_it_left(
-        self, link, scheduler, room_manager
+        self, link, scheduler, call_store
     ):
         host, guest = await host_and_guest(link)
         guest.socket.account = None
@@ -266,7 +266,7 @@ class TestSuspendedEnding:
         assert guest.frames(SignalType.RESUMED) == []
         assert guest.frames(SignalType.ERROR)[-1]["reason"] == ErrorReason.RESUME_REFUSED.value
         assert len(host.frames(SignalType.PARTICIPANT_LEFT)) == 1
-        assert guest.peer_id not in room_manager.get_room(host.socket.sent[0]["room_id"]).participant_ids
+        assert guest.peer_id not in (await call_store.get_room(host.socket.sent[0]["room_id"])).participant_ids
 
 
 class TestOtherEnds:

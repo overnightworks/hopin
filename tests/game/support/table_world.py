@@ -1,6 +1,7 @@
 """What the table tests share: the frames a quiz sends, the call they join and the waits they make."""
 
 import asyncio
+import inspect
 import json
 
 from hopin.config.constants import SignalType
@@ -177,7 +178,8 @@ async def shut_down_within_cap(handler):
 async def yield_until(condition):
     """Let the other tasks run until the condition holds; for a step that no frame announces."""
     for _ in range(YIELD_CAP):
-        if condition():
+        holds = condition()
+        if (await holds) if inspect.isawaitable(holds) else holds:
             return
         await asyncio.sleep(0)
     raise AssertionError("the condition never held")

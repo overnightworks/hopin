@@ -4,6 +4,7 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 import pytest
+from fakeredis import FakeServer
 from logline.testing import configured
 
 # Assertion rewriting must be registered before the first import of a support module.
@@ -13,17 +14,17 @@ pytest.register_assert_rewrite("tests.game.support")  # game
 
 from hopin.config.settings import RealmSettings, ServerSettings  # noqa: E402
 from hopin.main import build_application, main, run_uvicorn, uvicorn_options  # noqa: E402
-from hopin.rooms.manager import RoomManager  # noqa: E402
 from hopin.signaling.handler import SignalingHandler  # noqa: E402
 from hopin.signaling.scheduler import InMemoryDeadlines  # noqa: E402
 from tests.stores.support.postgres_identity import empty_database, postgres_stores, postgres_stores_with  # noqa: E402, F401
+from tests.support.call_state import call_store_over  # noqa: E402
 from tests.support.dialed_call import serving_dialed_call  # noqa: E402
 from tests.support.fake_issuer import FakeIssuer  # noqa: E402
 from tests.support.game_environment import set_game_environment  # noqa: E402  # game
 from tests.support.in_thread_stores import in_thread_stores  # noqa: E402
 from tests.support.page_build import fixture_page_build  # noqa: E402
 from tests.support.sign_in_settings import SignInSettings, build_sign_in_settings  # noqa: E402
-from tests.support.signaling_fakes import ROOM_LIMIT, ManualScheduler, SocketAccountResolver  # noqa: E402
+from tests.support.signaling_fakes import ManualScheduler, SocketAccountResolver  # noqa: E402
 from tests.support.stores import single_process_stores  # noqa: E402
 
 if TYPE_CHECKING:
@@ -98,8 +99,15 @@ def start_on_taken_port(sign_in_settings, monkeypatch: pytest.MonkeyPatch) -> Ca
 
 
 @pytest.fixture
-def room_manager():
-    return RoomManager(max_participants_per_room=ROOM_LIMIT)
+def redis_server():
+    """The Redis a test's processes share."""
+    return FakeServer()
+
+
+@pytest.fixture
+def call_store(redis_server):
+    """The call store of the test's one process."""
+    return call_store_over(redis_server)
 
 
 @pytest.fixture
@@ -113,8 +121,8 @@ def deadlines(scheduler):
 
 
 @pytest.fixture
-def handler(room_manager, scheduler, deadlines):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, deadlines)
+def handler(call_store, scheduler, deadlines):
+    return SignalingHandler(call_store, SocketAccountResolver(), scheduler, deadlines)
 
 
 @pytest.fixture

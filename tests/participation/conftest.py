@@ -158,7 +158,7 @@ def wall_clock(scheduler):
 
 @pytest.fixture
 def handler(
-    room_manager,
+    call_store,
     scheduler,
     wall_clock,
     deadlines,
@@ -179,7 +179,7 @@ def handler(
         return groups
 
     handler = SignalingHandler(
-        room_manager,
+        call_store,
         SocketAccountResolver(),
         scheduler,
         deadlines,

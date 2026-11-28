@@ -1,3 +1,4 @@
+import asyncio
 import re
 from pathlib import Path
 from xml.etree import ElementTree
@@ -15,10 +16,10 @@ from hopin.config.constants import (
     IMMUTABLE_ASSET_DIRECTORY,
     START_LINK_PATH,
 )
-from hopin.rooms.models import Account
 from hopin.signaling.handler import SignalingHandler
 from hopin.signaling.scheduler import AsyncioScheduler, InMemoryDeadlines
 from hopin.web.routes import create_router
+from tests.support.call_state import host_room
 from tests.support.in_thread_stores import in_thread_stores
 from tests.support.page_build import SIGN_IN_PAGE_FILES, SOURCE_LANGUAGE_DIRECTORY, fixture_page_build
 from tests.support.page_inventory import (
@@ -31,9 +32,9 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-def signaling_handler(room_manager):
+def signaling_handler(call_store):
     return SignalingHandler(
-        room_manager, SocketAccountResolver(), AsyncioScheduler(), InMemoryDeadlines(AsyncioScheduler())
+        call_store, SocketAccountResolver(), AsyncioScheduler(), InMemoryDeadlines(AsyncioScheduler())
     )
 
 
@@ -84,16 +85,18 @@ class TestHomePage:
 
 
 class TestCallPage:
-    def test_returns_html_for_a_known_room(self, client, room_manager):
-        room = room_manager.create_room("h1", Account(id="h1", name="h1"), room_manager.new_room_id())
-        response = client.get(f"{CALL_PATH}/{room.room_id}")
+    @pytest.mark.asyncio
+    async def test_returns_html_for_a_known_room(self, client, call_store):
+        room = await host_room(call_store, "h1")
+        response = await asyncio.to_thread(client.get, f"{CALL_PATH}/{room.room_id}")
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/html")
 
-    def test_answers_the_same_shell_for_a_known_room(self, client, room_manager):
-        room = room_manager.create_room("h1", Account(id="h1", name="h1"), room_manager.new_room_id())
+    @pytest.mark.asyncio
+    async def test_answers_the_same_shell_for_a_known_room(self, client, call_store):
+        room = await host_room(call_store, "h1")
 
-        response = client.get(f"{CALL_PATH}/{room.room_id}")
+        response = await asyncio.to_thread(client.get, f"{CALL_PATH}/{room.room_id}")
 
         assert response.content == fixture_page_build().shell.variants["de"].content
 

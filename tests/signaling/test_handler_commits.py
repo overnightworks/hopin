@@ -8,7 +8,7 @@ import pytest_asyncio
 
 from hopin.config.constants import ConnectionOutcome, SignalType
 from hopin.errors import HopInError
-from hopin.signaling.transition import InMemoryCallStore
+from hopin.signaling.transition import Calls
 from tests.signaling.support.browsers import Hold, Link, host_and_guest, note_for
 from tests.support.signaling_fakes import text_frame
 
@@ -34,7 +34,7 @@ async def link(handler):
 def commits(monkeypatch):
     """Every commit the call store makes while the test runs, in order."""
     made = []
-    commit = InMemoryCallStore.commit
+    commit = Calls.commit
 
     async def recording_commit(store, view, change):
         woken = ()
@@ -45,11 +45,11 @@ def commits(monkeypatch):
             refused = True
             raise
         finally:
-            seats = [seat for name in ("host", "guest") for seat in store.held_by(name)]
+            seats = [seat for name in ("host", "guest") for seat in await store.store.held_by(name)]
             made.append(Commit(woken, {peer_id: record.received_seq for peer_id, record in seats}, refused))
         return woken
 
-    monkeypatch.setattr(InMemoryCallStore, "commit", recording_commit)
+    monkeypatch.setattr(Calls, "commit", recording_commit)
     return made
 
 

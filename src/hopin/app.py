@@ -165,7 +165,10 @@ def _lifespan(
             # The process holds its calls from its lease until its stop frees them, so a stop frees by the lapse's path.
             async with call_owner.serving():
                 logger.info("process.ready")
-                yield
+                try:
+                    yield
+                finally:
+                    sweep.stop()
         finally:
             sweep.stop()
             await signaling_handler.shut_down()

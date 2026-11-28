@@ -20,7 +20,7 @@ from hopin.participation.vocabulary import (
     SpeakStarted,
     VoiceFailure,
 )
-from hopin.signaling.transition import InMemoryCallStore
+from hopin.signaling.transition import Calls
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import (
     CONTINUED,
@@ -60,13 +60,13 @@ class TestAPersonStartsSpeaking:
         """CALL-69."""
         host, guest, *_ = call
         committed = []
-        commit = InMemoryCallStore.commit
+        commit = Calls.commit
 
         async def noting(store, view, change):
             committed.append(change)
             return await commit(store, view, change)
 
-        monkeypatch.setattr(InMemoryCallStore, "commit", noting)
+        monkeypatch.setattr(Calls, "commit", noting)
 
         await participation.person_started(room_of(host), guest.peer_id)
 

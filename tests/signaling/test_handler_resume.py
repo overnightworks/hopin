@@ -17,8 +17,7 @@ from hopin.config.constants import (
     SignalType,
 )
 from hopin.errors import RoomNotFoundError
-from hopin.rooms.models import Account
-from hopin.signaling.seats import SeatRecord, hash_token
+from hopin.rooms.models import Account, SeatRecord, hash_token
 from tests.signaling.support.browsers import (
     MISSING,
     HeldWrite,
@@ -111,7 +110,7 @@ class TestParkingAndWindow:
     @pytest.mark.parametrize("code", [1005, 1006, 1011])
     @pytest.mark.parametrize(("dropper", "listener"), [("guest", "host"), ("host", "guest")])
     async def test_dropped_seat_stays_in_the_room_and_the_other_hears_neither_away_nor_left(
-        self, link, room_manager, dropper, listener, code
+        self, link, call_store, dropper, listener, code
     ):
         """CALL-10: Dropped seat stays in the room and the other hears neither away nor left."""
         browsers = dict(zip(("host", "guest"), await host_and_guest(link), strict=True))
@@ -120,7 +119,7 @@ class TestParkingAndWindow:
         await browsers[dropper].drop(code)
 
         assert len(browsers[listener].socket.sent) == heard_before
-        assert room_manager.get_room(browsers["host"].socket.sent[0]["room_id"]).participant_count == 2
+        assert (await call_store.get_room(browsers["host"].socket.sent[0]["room_id"])).participant_count == 2
 
     @pytest.mark.parametrize("code", [1000, 1001])
     async def test_guest_closing_normally_leaves_at_once(self, link, code):
@@ -179,7 +178,7 @@ class TestParkingAndWindow:
         assert host.frames(SignalType.PARTICIPANT_LEFT) == []
 
     async def test_window_running_out_removes_the_seat_for_real_and_a_late_resume_is_refused(
-        self, link, scheduler, room_manager
+        self, link, scheduler, call_store
     ):
         host, guest = await host_and_guest(link)
         await guest.drop()
@@ -192,10 +191,10 @@ class TestParkingAndWindow:
         [left] = host.frames(SignalType.PARTICIPANT_LEFT)
         assert left["participant_id"] == guest.peer_id
         assert guest.frames(SignalType.ERROR)[0]["reason"] == ErrorReason.RESUME_REFUSED.value
-        assert room_manager.get_room(host.socket.sent[0]["room_id"]).participant_ids == [host.peer_id]
+        assert (await call_store.get_room(host.socket.sent[0]["room_id"])).participant_ids == [host.peer_id]
 
     async def test_resume_after_the_timer_fired_but_before_its_callback_ran_keeps_the_seat(
-        self, link, scheduler, room_manager
+        self, link, scheduler, call_store
     ):
         host, guest = await host_and_guest(link)
         await guest.drop()
@@ -206,7 +205,7 @@ class TestParkingAndWindow:
         await window_expiry.callback()
 
         assert host.frames(SignalType.PARTICIPANT_LEFT) == []
-        assert guest.peer_id in room_manager.get_room(host.socket.sent[0]["room_id"]).participant_ids
+        assert guest.peer_id in (await call_store.get_room(host.socket.sent[0]["room_id"])).participant_ids
 
     async def test_stale_expiry_of_an_earlier_park_does_nothing_and_the_new_window_runs_its_full_length(
         self, link, scheduler
@@ -238,7 +237,7 @@ class TestParkingAndWindow:
 
 class TestParkedHost:
     async def test_host_unseen_for_the_window_is_away_with_the_rest_of_the_grace_and_the_call_ends_a_minute_on(
-        self, link, scheduler, room_manager
+        self, link, scheduler, call_store
     ):
         """CALL-11: Host unseen for the window is away with the rest of the grace and the call ends a minute on."""
         host, guest = await host_and_guest(link)
@@ -258,9 +257,9 @@ class TestParkedHost:
         [closed] = guest.frames(SignalType.ROOM_CLOSED)
         assert closed["reason"] == RoomClosedReason.HOST_GONE.value
         with pytest.raises(RoomNotFoundError):
-            room_manager.get_room(host.socket.sent[0]["room_id"])
+            (await call_store.get_room(host.socket.sent[0]["room_id"]))
 
-    async def test_host_resuming_inside_the_window_was_never_away(self, link, scheduler, room_manager):
+    async def test_host_resuming_inside_the_window_was_never_away(self, link, scheduler, call_store):
         host, guest = await host_and_guest(link)
         room_id = host.socket.sent[0]["room_id"]
         await host.drop()
@@ -271,7 +270,7 @@ class TestParkedHost:
         await scheduler.advance(2 * HOST_GRACE_SECONDS)
 
         assert len(guest.socket.sent) == heard_before
-        assert room_manager.get_room(room_id).room_id == room_id
+        assert (await call_store.get_room(room_id)).room_id == room_id
 
     async def test_host_account_joining_fresh_after_the_window_is_host_again_and_the_guest_hears_host_back(
         self, link, scheduler
@@ -713,7 +712,7 @@ class TestTokenStaysSecret:
 
     async def test_a_seat_record_keeps_only_the_hash_of_the_token(self):
         token = "plaintext-token"  # noqa: S105 - a value the record must never hold
-        record = SeatRecord(account=ADMITTED_ACCOUNT, token_hash=hash_token(token))
+        record = SeatRecord(account=ADMITTED_ACCOUNT, token_hash=hash_token(token), generation="g")
 
         assert token not in repr(record)
         assert token.encode() not in {value for value in vars(record).values() if isinstance(value, bytes)}

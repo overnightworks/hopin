@@ -208,14 +208,14 @@ def clear_sent(*browsers):
             socket.sent.clear()
 
 
-async def seat_in_room(link, room_manager, host, *guests):
+async def seat_in_room(link, call_store, host, *guests):
     """The host and guests joined into one room by real joins, with the join chatter forgotten."""
     browsers = {host: await link.join(host)}
     room_id = browsers[host].sockets[0].sent[0]["room_id"]
     for guest in guests:
         browsers[guest] = await link.join(guest, room_id)
     clear_sent(*browsers.values())
-    return room_manager.get_room(room_id), browsers
+    return (await call_store.get_room(room_id)), browsers
 
 
 async def deliver(browser, message):

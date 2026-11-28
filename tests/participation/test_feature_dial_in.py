@@ -11,9 +11,9 @@ from hopin.participation.vocabulary import (
     FigureGesture,
     ParticipationSignal,
 )
-from hopin.rooms.manager import RoomManager
 from tests.participation.support.people import person_named, room_of
 from tests.signaling.support.browsers import SETTLE_TIMEOUT_SECONDS, HeldClose, Hold, host_and_guest
+from tests.support.call_state import call_store_over
 
 pytestmark = pytest.mark.integration
 
@@ -414,8 +414,8 @@ CALL_PLACES = 6
 @pytest.mark.asyncio
 class TestAgentsTakePlaces:
     @pytest.fixture
-    def room_manager(self):
-        return RoomManager(max_participants_per_room=CALL_PLACES)
+    def call_store(self, redis_server):
+        return call_store_over(redis_server, place_limit=CALL_PLACES)
 
     async def test_call_47_a_third_agent_joins_while_the_call_has_free_places(self, link, participation):
         """CALL-47: A call holds as many agents as it has places left; there is no limit of its own for agents."""

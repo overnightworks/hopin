@@ -24,7 +24,7 @@ async def connect(link, name):
 
 
 class TestSeatCap:
-    async def test_concurrent_joins_seat_exactly_the_room_limit_and_refuse_the_rest_as_full(self, link, room_manager):
+    async def test_concurrent_joins_seat_exactly_the_room_limit_and_refuse_the_rest_as_full(self, link, call_store):
         host = await link.join("host1")
         room_id = host.socket.sent[0]["room_id"]
         guests = [await connect(link, f"guest{index}") for index in range(ROOM_LIMIT + EXTRA_GUESTS)]
@@ -34,6 +34,6 @@ class TestSeatCap:
         for guest in guests:
             await link.settle(guest.socket)
 
-        assert len(room_manager.get_room(room_id).participants) == ROOM_LIMIT
+        assert len((await call_store.get_room(room_id)).participants) == ROOM_LIMIT
         refusals = [frame for guest in guests for frame in guest.frames(SignalType.ERROR)]
         assert [frame["reason"] for frame in refusals] == [ErrorReason.FULL.value] * (EXTRA_GUESTS + 1)

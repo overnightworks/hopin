@@ -56,18 +56,18 @@ def refusal_of_unknown(signal_type):
     }
 
 
-def handler_with(room_manager, scheduler, *features):
-    return SignalingHandler(room_manager, SocketAccountResolver(), scheduler, InMemoryDeadlines(scheduler), features)
+def handler_with(call_store, scheduler, *features):
+    return SignalingHandler(call_store, SocketAccountResolver(), scheduler, InMemoryDeadlines(scheduler), features)
 
 
 @pytest_asyncio.fixture
-async def link_with(room_manager, scheduler):
+async def link_with(call_store, scheduler):
     """Links to handlers that carry a recording feature built with the given options, or none."""
     links = []
 
     def make(*feature_options):
         factories = [RecordingFeature(**options) for options in feature_options]
-        links.append(Link(handler_with(room_manager, scheduler, *factories)))
+        links.append(Link(handler_with(call_store, scheduler, *factories)))
         return links[-1]
 
     yield make
@@ -334,11 +334,11 @@ class TestClashAtStart:
             pytest.param({"QUIZ_START": SignalType.MEDIA_STATE.value}, id="a core value"),
         ],
     )
-    def test_a_feature_signal_type_that_reuses_a_core_one_is_refused(self, room_manager, scheduler, signal_types):
+    def test_a_feature_signal_type_that_reuses_a_core_one_is_refused(self, call_store, scheduler, signal_types):
         clashing = RecordingFeature(signal_types=signal_types)
 
         with pytest.raises(FeatureClashError):
-            handler_with(room_manager, scheduler, clashing)
+            handler_with(call_store, scheduler, clashing)
 
     @pytest.mark.parametrize(
         ("first", "second"),
@@ -348,11 +348,11 @@ class TestClashAtStart:
             pytest.param({"signal_types": {"ONE": "same"}}, {"signal_types": {"TWO": "same"}}, id="a wire value"),
         ],
     )
-    def test_two_features_that_share_a_name_are_refused(self, room_manager, scheduler, first, second):
+    def test_two_features_that_share_a_name_are_refused(self, call_store, scheduler, first, second):
         features = [RecordingFeature(**first), RecordingFeature(**second)]
 
         with pytest.raises(FeatureClashError):
-            handler_with(room_manager, scheduler, *features)
+            handler_with(call_store, scheduler, *features)
 
 
 FIRST = {"name": "first", "signal_types": {"FIRST": "first_frame"}, "handles": frozenset({"first_frame"})}
@@ -389,8 +389,8 @@ def staged_lines(browser):
 
 @pytest.mark.asyncio
 class TestTransitions:
-    async def test_a_refused_hook_commits_neither_its_state_nor_its_frames(self, room_manager, scheduler):
-        link = Link(handler_with(room_manager, scheduler, StagingFeature()))
+    async def test_a_refused_hook_commits_neither_its_state_nor_its_frames(self, call_store, scheduler):
+        link = Link(handler_with(call_store, scheduler, StagingFeature()))
         host, guest = await host_and_guest(link)
         await host.say({"type": "stage", "line": "kept"})
 
@@ -402,9 +402,9 @@ class TestTransitions:
         await link.close_all()
 
     async def test_a_hook_a_leave_follows_with_reads_the_leaves_state_and_its_frames_reach_the_room(
-        self, room_manager, scheduler
+        self, call_store, scheduler
     ):
-        link = Link(handler_with(room_manager, scheduler, StagingFeature()))
+        link = Link(handler_with(call_store, scheduler, StagingFeature()))
         host, guest = await host_and_guest(link)
 
         await guest.drop(1000)
@@ -412,11 +412,9 @@ class TestTransitions:
         assert staged_lines(host) == ["guest left"]
         await link.close_all()
 
-    async def test_a_work_that_raised_is_logged_by_its_type_and_has_ended_for_a_later_stop(
-        self, room_manager, scheduler
-    ):
+    async def test_a_work_that_raised_is_logged_by_its_type_and_has_ended_for_a_later_stop(self, call_store, scheduler):
         feature = WorkingFeature()
-        link = Link(handler_with(room_manager, scheduler, feature))
+        link = Link(handler_with(call_store, scheduler, feature))
         host, _guest = await host_and_guest(link)
 
         with structlog.testing.capture_logs() as logs:
@@ -430,9 +428,9 @@ class TestTransitions:
         await link.close_all()
         await link.handler.shut_down()
 
-    async def test_a_rooms_end_stops_only_the_work_dispatched_in_that_room(self, room_manager, scheduler):
+    async def test_a_rooms_end_stops_only_the_work_dispatched_in_that_room(self, call_store, scheduler):
         feature = WorkingFeature()
-        link = Link(handler_with(room_manager, scheduler, feature))
+        link = Link(handler_with(call_store, scheduler, feature))
         ending, _ = await host_and_guest(link)
         staying, _ = await host_and_guest(link)
         await ending.say({"type": "work", "key": "ending"})
@@ -445,9 +443,9 @@ class TestTransitions:
 
         assert stopped_by_the_end == ["ending"]
 
-    async def test_a_shutdown_cancels_a_step_that_still_runs_in_its_own_turn(self, room_manager, scheduler):
+    async def test_a_shutdown_cancels_a_step_that_still_runs_in_its_own_turn(self, call_store, scheduler):
         feature = WorkingFeature()
-        link = Link(handler_with(room_manager, scheduler, feature))
+        link = Link(handler_with(call_store, scheduler, feature))
         host, _guest = await host_and_guest(link)
         await host.say({"type": "step", "key": "waiting"})
 

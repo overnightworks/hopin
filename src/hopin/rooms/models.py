@@ -2,7 +2,7 @@
 
 import hashlib
 import secrets
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from hopin.errors import NotHostError, RoomFullError, RoomLockedError
 
@@ -65,7 +65,7 @@ class SeatRecord:
     The seat's frames are in its log, never in the record. `version` is the record's compare-and-set counter."""
 
     account: Account
-    token_hash: bytes
+    token_hash: bytes = field(repr=False)
     generation: str
     room_id: str | None = None
     park: Park | None = None
