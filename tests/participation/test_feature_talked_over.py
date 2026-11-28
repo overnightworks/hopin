@@ -130,11 +130,13 @@ class TestAPersonTalksOverASentence:
         assert record_of(participation, GUEST, room_id) is None
 
     async def test_call_54_a_turn_that_begins_while_the_agent_is_silent_is_still_told_to_its_floor(
-        self, participation, call
+        self, participation, call, scheduler
     ):
         """CALL-54."""
         host, guest, *_ = call
         room_id = room_of(host)
+        await speak(participation, room_id=room_id)
+        await scheduler.advance(SENTENCE_MS / 1000)
         told = []
 
         def hear(agent, seat, turn, text):
