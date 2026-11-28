@@ -608,41 +608,15 @@ textarea {
 .tile.agent .sponsor::before {
     content: "\00b7\00a0";
 }
-.agent-remove {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 7;
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: var(--glass-dark);
-    color: var(--on-stage);
-    cursor: pointer;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-}
-.agent-remove:hover,
-.agent-remove:focus-visible {
-    background: var(--glass);
-}
-/* A strip tile under 80px wide has no room for the 32px button beside its picture, so the button shrinks to the
-   smallest tap target and sits in the tile's corner. */
-@container (max-width: 79.99px) {
-    .stage[data-surface] .agent-remove {
-        top: 2px;
-        right: 2px;
-        width: 24px;
-        height: 24px;
-    }
-    .stage[data-surface] .agent-remove .icon {
-        width: 14px;
-        height: 14px;
-    }
+/* A stated turn state (the kit's part, drawn after the sponsor) may take a second line, so its word is never cut; the
+   kit's muted ink is the stage's in the pill alone, as the chips take the stage accent. */
+.tile.agent .name.stated {
+    --text-muted: color-mix(in srgb, var(--on-stage) 80%, transparent);
+    height: auto;
+    min-height: 28px;
+    padding-block: 5px;
+    flex-wrap: wrap;
+    border-radius: 16px;
 }
 /* The kit's chip takes the stage accent: the app's own accent is dark in the light theme and would sink into the glass
    over a dark video. Its narrowest look is the icon and the switch with the label shortened away, 81px: 15px of padding,
@@ -655,7 +629,7 @@ textarea {
     left: 8px;
     z-index: 7;
     min-width: var(--hear-narrowest);
-    max-width: calc(100% - 64px);
+    max-width: calc(100% - 16px);
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -685,9 +659,9 @@ textarea {
     width: 24px;
     height: 24px;
 }
-/* On a narrow tile (Tiles.svelte decides) the narrowest chip no longer fits beside the remove button (8px, the chip,
-   the button's 32px and its 10px), so the hearing chip moves into the tile's lower right corner, clear of the button;
-   its icon may be cut, its switch stays whole and pressable. The see chip is the kit's compact one there: its track
+/* On a narrow tile (Tiles.svelte decides) the narrowest chip no longer fits between the tile's 8px insets, so the
+   hearing chip moves into the tile's lower right corner, clear of the chips in the left corners; its icon may be cut,
+   its switch stays whole and pressable. The see chip is the kit's compact one there: its track
    alone in the upper left corner; so is the listen chip of a tile with no sponsor's chips. A sponsor's narrow tile holds
    all three switches, each compact: the see chip in the upper left corner, the listen chip in the lower left corner and
    the hearing chip, shrunk to its track, in the lower right corner. */
@@ -738,7 +712,7 @@ textarea {
    from the top on a wide tile, 2px on the narrow one); the narrow tile is too small for two whole targets, so they
    overlap a little and are clipped by the tile, each centre in its own part. On a sponsor's tile the see chip is above
    the hearing chip, which is above the listen chip, and the hearing chip's target is cut at its track's left edge, so
-   the three each keep a part of at least 24 by 24 px. The remove button stays above them. */
+   the three each keep a part of at least 24 by 24 px. */
 @media (any-pointer: coarse) {
     .hear-set:not(.narrow) {
         top: 0;
@@ -761,9 +735,6 @@ textarea {
         right: -7px;
         bottom: -6px;
         clip-path: inset(-8px -9px -8px 0);
-    }
-    .stage[data-surface] .agent-remove {
-        z-index: 8;
     }
 }
 .tile.agent .av {

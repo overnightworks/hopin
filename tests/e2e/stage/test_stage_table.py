@@ -31,7 +31,7 @@ from tests.e2e.support.calls import (
     record_page_errors,
     start_call,
 )
-from tests.e2e.support.dialed_agent import AGENT_TILE, REMOVE
+from tests.e2e.support.dialed_agent import AGENT_TILE, send_away_button
 from tests.e2e.support.media import (
     MEDIA_FLOWING_TIMEOUT_MILLISECONDS,
     RECORD_MEDIA_TRACKS,
@@ -62,7 +62,6 @@ VIDEOS_ARE_THE_TAGGED_ONES = """() => {
     const now = [...document.querySelectorAll('#videoGrid video')];
     return now.length === window.taggedVideos.length && now.every((video) => window.taggedVideos.includes(video));
 }"""
-REMOVE_BUTTON_PHONE_PIXELS = 24
 FIRST_REMOTE_TIME = "() => document.querySelector('#videoGrid .tile:not(.self) video').currentTime"
 PLACEHOLDER_FITS = """async (field) => {
     await document.fonts.ready;
@@ -431,48 +430,23 @@ def test_a_tile_held_in_the_corner_is_released_when_a_table_comes_and_the_pip_is
     assert in_strip["width"] < box["width"]
 
 
-def test_an_agent_tile_in_a_phone_strip_keeps_a_small_remove_button_that_removes_the_agent(
+def test_the_sponsor_sends_an_agent_away_from_more_on_a_phone_while_a_table_shows(
     open_person: Callable[..., Page],
     e2e_server: RunningServer,
     stub_skat: StubSkat,
     page_errors: list[str],
     agent_of: Callable[[Page], Agent],
 ) -> None:
-    """CALL-49: The agent's sponsor removes it from its strip tile on a phone while a table shows."""
+    """CALL-49: The agent's sponsor sends it away from its here row in More on a phone while a table shows."""
     host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, PHONE)
     agent_of(host).dial_in("Claude")
     show_table(host, table_link(stub_skat))
     expect_table_on_stage(host, stub_skat)
 
-    remove_agent = host.locator(AGENT_TILE + " " + REMOVE)
-    expect(remove_agent).to_be_visible()
-    box = remove_agent.bounding_box()
-    assert box is not None
-    assert box["width"] <= REMOVE_BUTTON_PHONE_PIXELS
-    assert box["height"] <= REMOVE_BUTTON_PHONE_PIXELS
-    remove_agent.tap()
+    open_more(host)
+    send_away_button(host, "Claude").click()
 
     expect(host.locator(AGENT_TILE)).to_have_count(0)
-
-
-def test_an_agent_tile_in_a_desktop_strip_keeps_its_full_remove_button(
-    open_person: Callable[..., Page],
-    e2e_server: RunningServer,
-    stub_skat: StubSkat,
-    page_errors: list[str],
-    agent_of: Callable[[Page], Agent],
-) -> None:
-    host, _guest, _ = open_call(open_person, e2e_server.base_url, page_errors, DESKTOP)
-    agent_of(host).dial_in("Claude")
-
-    show_table(host, table_link(stub_skat))
-    expect_table_on_stage(host, stub_skat)
-
-    remove_agent = host.locator(AGENT_TILE + " " + REMOVE)
-    expect(remove_agent).to_be_visible()
-    box = remove_agent.bounding_box()
-    assert box is not None
-    assert box["width"] > REMOVE_BUTTON_PHONE_PIXELS
 
 
 @pytest.mark.parametrize("form_factor", [DESKTOP, PHONE], ids=["desktop", "phone"])

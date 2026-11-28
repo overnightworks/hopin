@@ -479,10 +479,6 @@ msgctxt "signIn.logOutButton"
 msgid "Abmelden"
 msgstr "Sign out"
 
-msgctxt "tile.removeButton"
-msgid "Entfernen"
-msgstr "Remove"
-
 msgctxt "tile.aiBadge"
 msgid "KI"
 msgstr "AI"
@@ -682,10 +678,6 @@ msgstr "{title}"
 msgctxt "stage.removeButton"
 msgid "Tisch entfernen"
 msgstr "Remove table"
-
-msgctxt "agent.notRemovedToast"
-msgid "Du darfst diese KI nicht entfernen."
-msgstr "You may not remove this AI."
 
 msgctxt "agent.badge"
 msgid "AI"

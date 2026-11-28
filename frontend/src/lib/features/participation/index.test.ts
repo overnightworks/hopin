@@ -7,7 +7,7 @@ import type { CaptureOptions } from "overnightworks-speech-browser";
 import { fakeCaptures } from "./capture.fixture.ts";
 import { install } from "./index.ts";
 import { ME, installedParticipation, joined, tileActivities } from "./page.fixture.ts";
-import { FIGURE_END, HEARING_PATH, PARTICIPATION_SIGNAL } from "./wire.ts";
+import { FIGURE_END, HEARING_PATH, PARTICIPATION_SIGNAL, TURN_OUTCOME } from "./wire.ts";
 
 // The real chat module loads the call sounds, which build an audio context when first imported.
 vi.hoisted(() => {
@@ -178,7 +178,7 @@ describe("dialed-in agents", () => {
         },
     );
 
-    it("CALL-84: shows a re-announced agent again, with the remove button the new seat's offers frame gives", async () => {
+    it("CALL-84: shows a re-announced agent again, listed as here only once the new seat's offers frame names it", async () => {
         const page = await installedParticipation();
         page.seat(false);
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
@@ -187,13 +187,14 @@ describe("dialed-in agents", () => {
 
         page.emit(SIGNAL_TYPE.EXISTING_PARTICIPANTS, { participant_id: "new-seat", is_host: false });
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, joined("a1"));
-        const beforeItsFrame = page.tiles.get("agent-a1")?.onRemove;
+        const beforeItsFrame = page.offers().length;
         page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: ["a1"] });
-        page.tiles.get("agent-a1")?.onRemove?.();
+        page.buttons()[0]?.click();
 
-        expect([[...page.tiles.keys()], beforeItsFrame, page.sent]).toEqual([
+        expect([[...page.tiles.keys()], beforeItsFrame, page.offers().length, page.sent]).toEqual([
             ["agent-a1"],
-            undefined,
+            0,
+            1,
             [{ type: PARTICIPATION_SIGNAL.AGENT_REMOVE, agent_id: "a1" }],
         ]);
     });
@@ -207,16 +208,16 @@ describe("the sponsor's hearing switch on an agent's tile", () => {
         const page = await installedParticipation();
         page.seat(false);
         page.emit(PARTICIPATION_SIGNAL.AGENT_JOINED, { ...joined(), figure: "/api/participation/figures/abc" });
-        page.emit(PARTICIPATION_SIGNAL.AGENT_OFFERS, { shown: false, offers: [], send_away: ["a1"] });
+        page.emit(PARTICIPATION_SIGNAL.AGENT_TURN_STATE, { agent_id: "a1", outcome: TURN_OUTCOME.BUSY });
 
         page.emit(PARTICIPATION_SIGNAL.AGENT_HEARING, { agent_id: "a1", on: true });
 
         const tile = page.tiles.get("agent-a1");
-        expect([tile?.name, tile?.sponsor, tile?.figure, typeof tile?.onRemove]).toEqual([
+        expect([tile?.name, tile?.sponsor, tile?.figure, tile?.turnState]).toEqual([
             "Claude",
             "Ada",
             "/api/participation/figures/abc",
-            "function",
+            "busy",
         ]);
     });
 

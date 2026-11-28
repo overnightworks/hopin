@@ -28,7 +28,7 @@ from design.words import text as kit_text
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared.subscriptions import ResourceUpdated
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
 from pydantic import SecretStr
 
 from hopin.agent.tools import CALL_KIND, JOIN_CALL, LOOK, SAY
@@ -64,7 +64,9 @@ LISTEN_SWITCH_ON_A_TILE = f'role=switch[name="{kit_text("de", "hearing.iWantToHe
 AGENT_HEARING_SWITCH = f"{AGENT_TILE} >> {HEARING_SWITCH_ON_A_TILE}"
 AGENT_LISTEN_SWITCH = f"{AGENT_TILE} >> {LISTEN_SWITCH_ON_A_TILE}"
 AGENT_SEE_SWITCH = f"{AGENT_TILE} >> {SEE_SWITCH_ON_A_TILE}"
-REMOVE = ".agent-remove"
+TURN_STATE_ON_A_TILE = f"{AGENT_TILE} .turn-state"
+# A row of the agent control in More: the agents a seat may send away as here, then those it may call.
+OFFER = "#agentOffers li"
 COUNT = "#participantCount .num"
 REQUEST_SECONDS = 30
 TOLERANCE_PIXELS = 1
@@ -89,6 +91,15 @@ LABELS_ABOVE_THE_CONTROLS = """
 }
 """
 FULL_BLEED_TILES = 2
+
+
+def send_away_button(person: Page, agent_name: str) -> Locator:
+    """The button that sends the agent away on its here row in More, which is open on `person`'s page."""
+    return (
+        person.locator(OFFER)
+        .filter(has_text=agent_name)
+        .get_by_role("button", name=kit_text("de", "agent.askToLeaveLabel", name=agent_name))
+    )
 
 
 def room_of_link(link: str) -> str:

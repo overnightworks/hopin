@@ -10,7 +10,7 @@ from tests.e2e.support.calls import (
     record_page_errors,
     wait_until_in_the_call,
 )
-from tests.e2e.support.dialed_agent import OWNER_USERNAME
+from tests.e2e.support.dialed_agent import OFFER, OWNER_USERNAME
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from tests.e2e.support.dialed_agent import OwnAccountAgent
     from tests.e2e.support.server import RunningServer
 
-OFFER = "#agentOffers li"
 INVITATION_WAKE_SECONDS = 20
 
 

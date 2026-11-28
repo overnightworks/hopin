@@ -130,7 +130,6 @@ const translated = {
     "account.unnamedMenuName": "Account",
     "account.unnamedRowName": "You",
     "signIn.logOutButton": "Sign out",
-    "tile.removeButton": "Remove",
     "tile.aiBadge": "AI",
     "tile.lookMarkLabel": (gaps: { readonly name: string }) => gaps.name + " is looking",
     "tile.agentThinkingLabel": (gaps: { readonly name: string }) => gaps.name + ", AI, is thinking",
@@ -187,7 +186,6 @@ const translated = {
     "stage.notRemovedToast": "Only the person who brought the table or the host can remove it.",
     "stage.frameTitle": (gaps: { readonly title: string }) => gaps.title,
     "stage.removeButton": "Remove table",
-    "agent.notRemovedToast": "You may not remove this AI.",
     "agent.badge": "AI",
     "chat.closeGlyph": "x",
 } satisfies Words;

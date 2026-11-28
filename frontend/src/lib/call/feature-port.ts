@@ -7,6 +7,7 @@
 // figure, the person's microphone, a hook for the call's end and the start link the page was opened at. The three chat slots take a feature view, a component bound to its props that a feature
 // builds with core chat's `featureView`; the core renders it and never names what it shows or any agent kind.
 
+import type { TurnOutcome } from "overnightworks-design";
 import type { AgentLink } from "#lib/call/lines.ts";
 import type { FeatureView } from "#lib/ui/chat.svelte.ts";
 import type { StartLink } from "#lib/ui/navigation.ts";
@@ -84,7 +85,7 @@ export interface AgentSeeing {
     onChange: (on: boolean) => void;
 }
 
-/** What the stage shows of an agent in the call: a tile with its name, an AI badge and what it is doing; a dialed-in agent also names its sponsor and offers a remove action to whoever may use it, and one with a figure names the same-origin path that serves it the paths of the clips it brings, the path of the room it is seen in and the framing its agent has taken; a tile with `hearing`, `listening` or `seeing` carries the person's switch for the agent, and a tile with `looking` shows the mark of a look. */
+/** What the stage shows of an agent in the call: a tile with its name, an AI badge and what it is doing; a dialed-in agent also names its sponsor, one with a stated `turnState` shows it beside the name, and one with a figure names the same-origin path that serves it the paths of the clips it brings, the path of the room it is seen in and the framing its agent has taken; a tile with `hearing`, `listening` or `seeing` carries the person's switch for the agent, and a tile with `looking` shows the mark of a look. */
 export interface AgentTile {
     name: string;
     activity: AgentActivity;
@@ -97,7 +98,7 @@ export interface AgentTile {
     listening?: AgentListening;
     seeing?: AgentSeeing;
     looking?: boolean;
-    onRemove?: () => void;
+    turnState?: TurnOutcome;
 }
 
 /** The key of the tile a feature shows without naming one: a feature with several agents gives each its own. */
