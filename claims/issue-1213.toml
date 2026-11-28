@@ -1,0 +1,8 @@
+claim_id = "3a8462c0321a42d9b6f6c912b0ae0a47"
+agent = "Claude f244380b-0623-4ddd-98da-09f7010c8fbe"
+role = "builder"
+base = "5ea8a40fc7a8a60e59efbd19e885ba49d4f38731"
+branch = "claude/issue-1213-closed-page-ends-its-session-cleanly"
+scope = ["frontend/src/lib/call/outcome.test.ts", "frontend/src/lib/call/outcome.ts", "frontend/src/routes/(call)/start-up.ts", "src/hopin/config/constants.py", "tests/e2e"]
+opened_commit = "528fc2e2286ba10ffb791a69692f8bec8c09ca14"
+whole_reason = "The page's leave at unload, the outcome report that outlives a leave, and the e2e page closes that wait for that leave are one lifecycle at a page's end."
