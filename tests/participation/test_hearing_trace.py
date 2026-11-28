@@ -21,12 +21,7 @@ from tests.support.fake_speech import a_sentence
 from tests.support.hearing_socket import SOUND, closed_with, hop
 from tests.support.speech_origin import AUDIENCE_SCOPE, header_of, speech_requests
 
-pytestmark = pytest.mark.integration
-
-
-@pytest.fixture
-def hearing_service(fake_speech_hearing):
-    return fake_speech_hearing
+pytestmark = [pytest.mark.integration, pytest.mark.hears_through_fake_speech]
 
 
 DROP_HANDLED_SECONDS = 10

@@ -8,15 +8,10 @@ from tests.participation.support.hearing_scene import heard
 from tests.participation.support.people import person_named, room_of
 from tests.participation.support.speaking import LONG, SENTENCE_MS, renders_failing, speak, waiting_to_speak
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio, pytest.mark.hears]
 
 HOST = person_named("host")
 GUEST = person_named("guest")
-
-
-@pytest.fixture
-def hears():
-    return True
 
 
 def window_of(participation, person, room_id):

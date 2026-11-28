@@ -13,28 +13,15 @@ from hopin.participation.vocabulary import ParticipationSignal
 from tests.participation.support.speaking_scene import refusal_of
 from tests.participation.support.tool_calls import call_in
 from tests.support.agent_speak import SENTENCE_SECONDS, TEXT, speak
-from tests.support.fake_speech import ITEM, WAIT_SECONDS, FakeSpeech, completed
+from tests.support.fake_speech import ITEM, WAIT_SECONDS, completed
 from tests.support.hearing_socket import SOUND, closed_with, hop
 from tests.support.loopback_origin import Origin
 from tests.support.speech_origin import AUDIENCE_SCOPE, chunked_wav, offering, silent_wav, speaking
 
-pytestmark = pytest.mark.integration
-
-
-@pytest.fixture
-def hearing_service(fake_speech_hearing):
-    return fake_speech_hearing
+pytestmark = [pytest.mark.integration, pytest.mark.hears_through_fake_speech]
 
 
 POLL_SECONDS = 0.005
-
-
-@pytest.fixture
-def fake_speech():
-    service = FakeSpeech()
-    service.start()
-    yield service
-    service.stop()
 
 
 @pytest.fixture

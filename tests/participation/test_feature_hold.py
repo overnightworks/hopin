@@ -40,14 +40,9 @@ from tests.participation.support.speaking import (
     window_texts,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio, pytest.mark.hears]
 
 GUEST = person_named("guest")
-
-
-@pytest.fixture
-def hears():
-    return True
 
 
 def stops(browser):
