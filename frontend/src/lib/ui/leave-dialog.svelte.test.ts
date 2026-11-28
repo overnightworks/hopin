@@ -68,3 +68,26 @@ describe("leave dialog", () => {
         expect(second).not.toHaveBeenCalled();
     });
 });
+
+describe("leaving on pagehide", () => {
+    async function pagehide(persisted: boolean, inCall: boolean) {
+        const dialog = await freshLeaveDialog();
+        const { state } = await import("#lib/call/state.ts");
+        state.inCall = inCall;
+        const leave = vi.fn();
+        dialog.leaveOnPagehide({ persisted }, leave);
+        return leave;
+    }
+
+    it("CALL-10: a pagehide that enters the back-forward cache keeps the call", async () => {
+        expect(await pagehide(true, true)).not.toHaveBeenCalled();
+    });
+
+    it("CALL-10: a pagehide that unloads a connected page leaves once", async () => {
+        expect(await pagehide(false, true)).toHaveBeenCalledOnce();
+    });
+
+    it("CALL-10: a pagehide of a page that is not in a call leaves nothing", async () => {
+        expect(await pagehide(false, false)).not.toHaveBeenCalled();
+    });
+});
